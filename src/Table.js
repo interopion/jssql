@@ -271,3 +271,21 @@ Table.prototype.insert = function(keys, values)
 
 	//console.dir(this.toJSON());
 };
+
+Table.prototype.drop = function(onComplete, onError) 
+{
+	var table = this, len = table._length, id;
+
+	function onRowDrop()
+	{
+		if ( --len === 0 )
+		{
+			Persistable.prototype.drop.call(table, onComplete, onError);
+		}
+	}
+
+	for ( id in table.rows ) 
+	{
+		table.rows[id].drop(onRowDrop, onError);
+	}
+};
