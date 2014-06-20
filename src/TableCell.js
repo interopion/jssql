@@ -7,17 +7,18 @@
  * @constructor
  * @return {TableCell}
  */
-function TableCell(column, value) 
+function TableCell(column, row, value) 
 {
 	this.setColumn(column);
+	this.row = row;
 	if (value !== undefined) {
 		this.setValue(value);
 	} else {
-		//this.setValue(
-		//	this.column.defaultValue === undefined ?
-		//		null : 
-		//		this.column.defaultValue
-		//);
+		this.setValue(
+			this.column.defaultValue === undefined ?
+				null : 
+				this.column.defaultValue
+		);
 	}
 }
 
@@ -50,6 +51,9 @@ TableCell.prototype = {
 	setValue : function(value)
 	{
 		this.value = this.column.set(value);
+		if (this.value === null && this.column.autoIncrement) {
+			this.value = this.row.table._ai;
+		}
 		return this;
 	},
 

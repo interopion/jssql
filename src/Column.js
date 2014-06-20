@@ -378,7 +378,7 @@ Column_INT.prototype.setLength = function(n)
 Column_INT.prototype.set = function(value) 
 {
 	if (value === null) {
-		if (this.nullable)
+		if (this.nullable || this.autoIncrement)
 			return value;
 
 		throw new SQLRuntimeError('Column "%s" cannot be NULL.', this.name);

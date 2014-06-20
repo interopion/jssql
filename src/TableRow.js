@@ -99,7 +99,7 @@ TableRow.prototype.setTable = function(table)
 
 	for (colName in table.cols) {
 		col  = table.cols[colName];
-		cell = new TableCell(col);
+		cell = new TableCell(col, this);
 		this.length = this._cells.push(cell);
 		this._cellsByName[colName] = cell;
 	}
