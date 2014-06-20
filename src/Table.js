@@ -287,9 +287,12 @@ Table.prototype.drop = function(onComplete, onError)
 		
 		table.storage.unsetMany(rowIds, function() {
 			Persistable.prototype.drop.call(table, function() {
-				JSDB.events.dispatch("after_delete:table", table);
-				if (onComplete) 
-					onComplete();
+				delete table._db.tables[table.name];
+				table._db.save(function() {
+					JSDB.events.dispatch("after_delete:table", table);
+					if (onComplete) 
+						onComplete();
+				}, onError);
 			}, onError);
 		}, onError);
 	}

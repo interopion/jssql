@@ -74,10 +74,10 @@ TableRow.prototype.load = function(onSuccess, onError)
 TableRow.prototype.save = function(onSuccess, onError)
 {
 	var row = this;
-	JSDB.events.dispatch("savestart:row", row);
+	JSDB.events.dispatch("before_save:row", row);
 	row.write( this.toArray(), function() {
-		JSDB.events.dispatch("save:row", row);
-		onSuccess(row);
+		JSDB.events.dispatch("after_save:row", row);
+		if (onSuccess) onSuccess(row);
 	}, onError );
 };
 

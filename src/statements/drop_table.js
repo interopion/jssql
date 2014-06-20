@@ -49,9 +49,10 @@ STATEMENTS.DROP_TABLE = function(walker) {
 			}
 			
 			table.drop(function() {
-				delete database.tables[tableName];
-				walker.onComplete('Table "' + database.name + '.' + table.name + '" deleted.');
-			});
+				walker.onComplete(
+					'Table "' + database.name + '.' + table.name + '" deleted.'
+				);
+			}, walker.onError);
 		});
 	};
 };
