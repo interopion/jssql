@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html class="ios ios-7">
+    <head>
+        <meta charset="utf-8" />
+        <title>DB Tests</title>
+        <style>
+        body {
+            margin : 0;
+        }
+        textarea {
+            display: block;
+            float: left; 
+            height: 400px;
+            width: 50%;
+            margin: 0;
+            box-sizing: border-box;
+            font-family: monospace;
+            white-space: pre;
+            font-size: 14px;
+        }
+        </style>
+    </head>
+    <body>
+        <textarea id="out"></textarea>
+        <textarea id="in"></textarea>
+        <script type="text/javascript" src="jquery.min.js"></script>
+        <script type="text/javascript" src="jsdb.js"></script>
+        <script type="text/javascript">
+        jQuery(function($) {
+
+            $("#in").on("keydown", function(e) {
+                //console.log(e);
+                if (e.keyCode == 13 && (e.ctrlKey || e.metaKey)) {
+                    try {
+                        var out = Function("", "return " + $.trim($(this).val()))();
+                        if (out && typeof out == "object") {
+                            out = JSON.stringify(out, null, 4);
+                        }
+                        $("#out").val(out);
+                    } catch(ex) {
+                        $("#out").val(ex.toString());
+                    }
+                }
+            })
+
+            var connection = JSDB.connect();
+            //console.log("connection: ", connection);
+
+            //if (!connection.hasDatabase("TestDB")) {
+            //    connection.createDatabase("TestDB");
+            //}
+
+            //var DB = JSDB.connect().selectDatabase("TestDB");
+            //console.log("DB: ", DB);
+
+            //if (!DB.hasTable("users")) {
+            //   DB.createTable("users", { a : {} });
+            //}
+
+            //var usersTable = DB.getTable("users");
+            //console.log("usersTable: ", usersTable);
+
+            //usersTable.insert([
+            //    { a : 1 },
+            //    { a : 3 }
+            //]);
+
+            //console.log("DATABASES: ", JSDB.DATABASES);
+
+            connection.loadSchema("schema.json").done(function() {
+                this.loadDataInFile("data.json").done(function() {
+
+                    console.log("INNER JOIN");
+                    console.dir(
+                        JSDB
+                        .select("U.name AS author", "N.txt AS note")
+                        .from("TestDB.users AS U")
+                        .innerJoin("TestDB.notes as N", "U.id", "N.user_id")
+                        .execute()
+                    );
+
+                    console.log("LEFT JOIN");
+                    console.dir(
+                        JSDB
+                        .select("users.name AS author", "notes.txt AS note")
+                        .from("TestDB.users")
+                        .leftJoin("TestDB.notes", "users.id", "notes.user_id")
+                        .execute()
+                    );
+
+                    console.log("RIGHT JOIN");
+                    console.dir(
+                        JSDB
+                        .select("U.name AS author", "N.txt AS note")
+                        .from("TestDB.users AS U")
+                        .rightJoin("TestDB.notes as N", "U.id", "N.user_id")
+                        .execute()
+                    );
+
+                    console.log("OUTER JOIN");
+                    console.dir(
+                        JSDB
+                        .select("U.name AS author", "N.txt AS note")
+                        .from("TestDB.users AS U")
+                        .outerJoin("TestDB.notes as N", "U.id", "N.user_id")
+                        .execute()
+                    );
+
+                    console.log("OUTER EXCLUDING JOIN");
+                    console.dir(
+                        JSDB
+                        .select("U.name AS author", "N.txt AS note")
+                        .from("TestDB.users AS U")
+                        .outerJoin("TestDB.notes as N", "U.id", "N.user_id")
+                        .where(function(row) {
+                            return row["U.id"] === null || row["N.user_id"] === null;
+                        })
+                        .execute()
+                    );
+
+                    console.log("CROSS JOIN");
+                    console.dir(
+                        JSDB
+                        .select("U.name AS author", "N.txt AS note")
+                        .from("TestDB.users AS U", "TestDB.notes as N")
+                        .execute()
+                    );
+
+                    console.log("SELF JOIN");
+                    console.dir(
+                        JSDB
+                        .select(
+                            "u1.name AS name1", 
+                            "u2.name AS name2", 
+                            "u1.type AS type"
+                        )
+                        .from("TestDB.users AS u1")
+                        .innerJoin("TestDB.users AS u2", "u1.type", "u2.type")
+                        .where(function(row) {
+                            return row.name1 != row.name2;
+                        })
+                        .execute()
+                    );
+
+                    console.dir(
+                        JSDB
+                        .select(
+                            "c2.name AS name", 
+                            "c1.name AS parent"
+                        )
+                        .from("TestDB.categories AS c1")
+                        .outerJoin("TestDB.categories AS c2", "c1.id", "c2.pid")
+                        .where(function(row) {
+                            return row["c2.name"] !== null; 
+                        })
+                        //.order(function(a,b) { 
+                        //    return (a["parent"] || 0) - (b["parent"] || 0); 
+                        //})
+                        .groupBy("parent")
+                        .execute(
+                            //function(row) {
+                            //    if (!row.parent) row.parent = "ROOT";
+                            //    return row;
+                            //}
+                        )
+
+                    );
+
+
+                    /*console.dir(
+                        //this.getDatabase("TestDB")
+                        JSDB
+                            //.select("*")
+                            //.select("N.txt", "U.*")
+                            .select(
+                                "U.name as author", 
+                                "U.type as user type", 
+                                "N.id   as note id", 
+                                "N.txt  as note"
+                            )
+                            .from("TestDB.users AS U", "TestDB.notes as N")
+                            //.from("TestDB.users")
+                            //.groupBy("type")
+                            //.order(function(a, b) {
+                            //    return b.id - a.id;
+                            //})
+
+                            // Only full names here (like {table}.{field})
+                            //.where({ "name" : "Vladimir" })
+                            //.where({ "users.id" : 2 })
+
+                            //.filter(function(row) {
+                            //    return row["users.name"][0] == "V";
+                            //})
+                            //.limit(1)
+                            .filter(function(row) {
+                                //console.log(row)
+                                return row["users.id"] === row["notes.user_id"];
+                            })
+                            .execute()
+                    );*/
+                });
+            });
+            
+        });
+        </script>
+    </body>
+</html>

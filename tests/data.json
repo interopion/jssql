@@ -1,0 +1,35 @@
+{
+	"TestDB" : {
+		"users" : [
+			{ "id" : 1, "name" : "Vladimir", "type" : "author"    },
+			{ "id" : 2, "name" : "Nikolai" , "type" : "boss"      },
+			{ "id" : 3, "name" : "Vasil"   , "type" : "co-worker" },
+			{ "id" : 4, "name" : "Iva"     , "type" : "co-worker" },
+			{ "id" : 5, "name" : "Iliya"   , "type" : "co-worker" }
+		],
+
+		// The data for the "notes" table
+		"notes" : [
+			{ "id" : 1, "user_id" : 1, "date" : "123", "txt" : "This is a test note from Vladimir 1" },
+			{ "id" : 2, "user_id" : 1, "date" : "123", "txt" : "This is a test note from Vladimir 2" },
+			{ "id" : 3, "user_id" : 2, "date" : "123", "txt" : "This is a test note from Nikolai 1"  },
+			{ "id" : 4, "user_id" : 2, "date" : "123", "txt" : "This is a test note from Nikolai 2"  },
+			{ "id" : 5, "user_id" : 3, "date" : "123", "txt" : "This is a test note from Vasil 1"    },
+			{ "id" : 6, "user_id" : 3, "date" : "123", "txt" : "This is a test note from Vasil 2"    },
+			{ "id" : 7, "user_id" : 3, "date" : "123", "txt" : "This is a test note from Vasil 3"    },
+
+			// a note from user that does not exist in the users table
+			{ "id" : 8, "user_id" : 9, "date" : "123", "txt" : "This is a test note from Jonh Doe"   }
+		]
+	},
+
+	"TestDB-2" : {
+		"users" : [
+			{ "id" : 1, "name" : "Vladimir from DB2", "type" : "author"    },
+			{ "id" : 2, "name" : "Nikolai from DB2" , "type" : "boss"      },
+			{ "id" : 3, "name" : "Vasil from DB2"   , "type" : "co-worker" },
+			{ "id" : 4, "name" : "Iva from DB2"     , "type" : "co-worker" },
+			{ "id" : 5, "name" : "Iliya from DB2"   , "type" : "co-worker" }
+		]
+	}
+}

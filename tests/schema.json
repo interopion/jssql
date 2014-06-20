@@ -1,0 +1,125 @@
+{
+	"TestDB" : {
+		
+		// Table users ---------------------------------------------------------
+		"users" : {
+			"fields" : {
+				"id" : {
+					"type"    : "int",
+					"ai"      : true,
+					"null"    : true,
+					"default" : null
+				},
+				"name" : {
+					"type" : "string",
+					"null" : false
+				},
+				"type" : {
+					"type" : "string",
+					"null" : false
+				}
+			},
+			"indexes" : {
+				"PRIMARY" : "id"
+			}
+		},
+		
+		// Table notes ---------------------------------------------------------
+		"notes" : {
+			"fields" : {
+				"id" : {
+					"type"    : "int",
+					"ai"      : true,
+					"null"    : true,
+					"default" : null
+				},
+				"user_id" : {
+					"type"    : "int",
+					"null"    : false
+				},
+				"date" : {
+					"type" : "string",
+					"null" : false
+				},
+				"txt" : {
+					"type" : "string",
+					"null" : true
+				}
+			},
+			"indexes" : {
+				"PRIMARY" : "id"
+			}
+		},
+
+		"user_notes" : {
+			"fields" : {
+				"user_id" : {
+					"type" : "int"
+				},
+				"note_id" : {
+					"type" : "int"
+				}
+			},
+			"indexes" : {
+				"UNIQUE" : ["user_id", "note_id"]
+			}
+		}
+	},
+
+	"TestDB-2" : {
+		
+		"users" : {
+			"fields" : {
+				"id" : {
+					"type"    : "int",
+					"ai"      : true,
+					"null"    : true,
+					"default" : null
+				},
+				"name" : {
+					"type" : "string",
+					"null" : false
+				},
+				"type" : {
+					"type" : "string",
+					"null" : false
+				}
+			},
+			"indexes" : {
+				"PRIMARY" : "id"
+			}
+		},
+		
+		"notes" : {
+			"fields" : {
+				"id" : {
+					"type"    : "int",
+					"ai"      : true,
+					"null"    : true,
+					"default" : null
+				},
+				"date" : {
+					"type" : "string",
+					"null" : false
+				}
+			},
+			"indexes" : {
+				"PRIMARY" : "id"
+			}
+		},
+
+		"user_notes" : {
+			"fields" : {
+				"user_id" : {
+					"type" : "int"
+				},
+				"note_id" : {
+					"type" : "int"
+				}
+			},
+			"indexes" : {
+				"UNIQUE" : ["user_id", "note_id"]
+			}
+		}
+	}
+}

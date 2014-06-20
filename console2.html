@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html class="ios ios-7">
+    <head>
+        <meta charset="utf-8" />
+        <title>DB Tests</title>
+        <style type="text/css">
+        
+            html {
+                height: 100%;
+            }
+
+            body {
+                margin     : 0;
+                padding    : 0;
+                background : #000;
+                color      : #CCC;
+                font-family: monospace;
+                font-size  : 16px;
+                height     : 100%;
+                position   : relative;
+            }
+
+            ::-moz-selection {
+                background-color: #555;
+                color: #FFF;
+                text-shadow: 0 1px 0 #000;
+            }
+            ::selection {
+                background-color: #555;
+                color: #FFF;
+                text-shadow: 0 1px 0 #000;
+            }
+
+            pre {
+                margin     : 0;
+                padding    : 4px 4px 4px 16px;
+                white-space: pre-wrap;
+                position   : absolute;
+                line-height: 1.4em;
+                top: 0;
+                left:0;
+                right: 0;
+                bottom: 0;  
+            }
+
+            .blink {
+              animation: blink 1s steps(5, start) infinite;
+              -webkit-animation: blink 1s steps(5, start) infinite;
+            }
+            @keyframes blink {
+              to { visibility: hidden; }
+            }
+            @-webkit-keyframes blink {
+              to { visibility: hidden; }
+            }
+
+            #caret {
+                /*display: inline-block;
+                width: 0px;
+                line-height: 1.4em;*/
+                background: #353535;
+                /*height:1.4em;
+                vertical-align: top;
+                position: absolute;
+                z-index: 1;*/
+                box-shadow: 0 0 0 1px #CCC;
+                /*margin-left: 1em;*/
+                animation: blink 1s steps(2, start) infinite;
+                -webkit-animation: blink 1s steps(2, start) infinite;
+            }
+
+            #caret:before {
+                content: "";
+            }
+
+            pre code {
+                position: relative;
+                z-index: 2;
+            }
+            
+
+            pre:active #caret {
+                animation : none;
+                -webkit-animation: none;
+                visibility: hidden;
+            }
+
+            pre.key-down #caret,
+            pre.has-selection #caret {
+                animation : none;
+                -webkit-animation: none;
+                visibility: visible;
+            }
+            pre.has-selection #caret {
+                box-shadow: 0px 0px 1px rgba(255, 255, 255, 0.4) inset, 0px 10px 10px rgba(255, 255, 255, 0.2) inset;
+                border-radius: 3px; 
+                text-shadow: 0 1px 1px #000;
+            }
+        </style>
+    	<script
+		 src="https://google-code-prettify.googlecode.com/svn/loader/run_prettify.js?lang=sql&amp;autoload=true&amp;skin=sunburst"
+		 type="text/javascript" defer="defer"></script>
+    </head>
+    <body>
+        <pre id="in" tabindex="1" class="prettyprint lang-sql"><code><span id="caret"></span></code></pre>
+        <script type="text/javascript" src="jquery.min.js"></script>
+        <script type="text/javascript">
+        
+        jQuery(function($) {
+
+            var $in    = $("#in"),
+                code   = $in.find('code')[0],
+                $caret = $in.find('#caret'),
+                pos    = 0,
+                back   = 0;
+
+            var selection = (function() {
+                var anchor = 0,
+                    focus  = 0;
+
+                function render() 
+                {
+                    var left  = Math.min(anchor, focus),
+                        right = Math.max(anchor, focus),
+                        txt   = code.textContent,
+                        sel   = txt.substring(left, right);
+
+                    code.innerHTML = txt.substring(0, left) + 
+                    '<span id="caret">' + sel + '</span>' +
+                    txt.substring(right);
+
+                    $in.toggleClass("has-selection", anchor !== focus && sel != "\b");
+
+                    $in.removeClass("prettyprinted");
+                    PR.prettyPrint("in");
+
+                    $in.find('#caret')[0].scrollIntoView();
+                }
+
+                function setAnchor(n) {
+                    anchor = n;
+                    render();
+                }
+
+                function setFocus(n) {
+                    focus = n;
+                    render();
+                }
+
+                function getAnchor() {
+                    return anchor;
+                }
+
+                function getFocus() {
+                    return focus;
+                }
+
+                function collapse(n) {
+                    anchor = focus = n;
+                    render();
+                }
+
+                return {
+                    setAnchor : setAnchor,
+                    getAnchor : getAnchor,
+                    setFocus  : setFocus,
+                    getFocus  : getFocus,
+                    collapse  : collapse
+                };
+            })();
+
+            $in
+            .on("input", function() {
+                $in.removeClass("prettyprinted");
+                PR.prettyPrint("in");
+                $in.find('#caret')[0].scrollIntoView();
+            })
+            .on("keypress", function(e) {
+                if (e.metaKey || e.ctrlKey) {
+                    return true;
+                }
+                code.textContent += String.fromCharCode(e.which);
+                pos++;
+                selection.collapse(pos);
+                $in.trigger("input");
+                return false;
+            })
+            .on("keyup", function(e) {
+                $in.removeClass("key-down");
+            })
+            .on("keydown", function(e) {
+                $in.addClass("key-down");
+
+                if (e.keyCode == 224) {
+                    return true;
+                }
+                console.log(e.keyCode);
+
+                switch (e.keyCode) {
+                    case 8: // Backspace
+                        if (pos > 0) {
+                            code.textContent = code.textContent.substring(0, --pos);
+                            selection.collapse(pos);
+                            $in.trigger("input");
+                            return false;
+                        }
+                    break;
+                    case 37: // Arrow left
+                        //console.log(pos);
+                        if (pos > 0) {
+                            if (e.shiftKey) {
+                                pos = selection.getAnchor() - 1;
+                                selection.setAnchor(pos);    
+                            } else {
+                                var start = selection.getAnchor(),
+                                    end   = selection.getFocus();
+                                if (start === end) {
+                                    pos--;
+                                } else {
+                                    pos = Math.min(start, end);
+                                }
+                                selection.collapse(pos);
+                            }
+                        }
+                        return false;
+                    break;
+                    case 39: // Arrow right
+                    console.log(pos);
+                        if (pos < code.textContent.length) {
+                            if (e.shiftKey) {
+                                pos = selection.getAnchor() + 1;
+                                selection.setAnchor(pos);    
+                            } else {
+                                var start = selection.getAnchor(),
+                                    end   = selection.getFocus(),
+                                    right = Math.max(start, end);
+                                if (e.ctrlKey || e.metaKey) {
+                                    pos = right + code.textContent.substr(right).search(/(\s|[\b.]|[\B.]|$)/)+1;
+                                } else {
+                                    if (start === end) {
+                                        pos++;
+                                    } else {
+                                        pos = right;
+                                    }
+                                }
+                                selection.collapse(pos);
+                            }
+                            
+                        }
+                        return false;
+                    break;
+                    case 13: // Enter
+                    	
+                    	//if (!(e.ctrlKey || e.metaKey)) {
+                    	//	return true;
+                    	//}
+                    	
+                        code.textContent += "\n\b";
+                        pos += 2;
+                        selection.setAnchor(pos - 1);
+                        selection.setFocus(pos);
+                        $in.trigger("input");
+                        return false;
+                    break;
+                    default:
+                        //setTimeout(function() {
+                        //    $in.attr("rows", $in.val().split("\n").length);
+                        //});
+                    break;
+                }
+            });
+
+            $in.trigger("focus");
+
+        });
+        </script>
+    </body>
+</html>
