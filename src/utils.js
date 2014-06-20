@@ -499,3 +499,8 @@ function assert(condition, msg) {
 	}
 }
 
+function defaultErrorHandler(e) 
+{
+	if (window.console && console.error) 
+		console.error(e);
+}
