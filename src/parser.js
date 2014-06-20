@@ -36,37 +36,56 @@ function Parser(onComplete, onError)
 		tokens;
 
 	function parse2(tokens, input) {
-		var walker = new Walker(tokens, input);
+		var walker = new Walker(tokens, input),
+			queryNum = 1;
 
-		walker.onComplete = onComplete || noop;
+		walker.onComplete = function(result) {
+			if (walker.current()) {
+				queryNum++;
+				start();
+			} else {
+				if (onComplete) 
+					onComplete(
+						queryNum > 1 ? 
+							queryNum + ' queries executed successfully.' :
+							result
+					);
+			}
+		};
+
 		walker.onError = onError || defaultErrorHandler;
 
-		walker.pick({
-			"USE" : STATEMENTS.USE(walker),
-			"SHOW" : function() {
-				walker.pick({
-					"DATABASES|SCHEMAS" : STATEMENTS.SHOW_DATABASES(walker),
-					"TABLES"            : STATEMENTS.SHOW_TABLES(walker),
-					"COLUMNS"           : STATEMENTS.SHOW_COLUMNS(walker)
-				});
-			},
-			"CREATE" : function() {
-				walker.pick({
-					"DATABASE|SCHEMA" : STATEMENTS.CREATE_DATABASE(walker),
-					"TABLE"           : STATEMENTS.CREATE_TABLE(walker),
-					"TEMPORARY TABLE" : STATEMENTS.CREATE_TABLE(walker),
-				});
-			},
-			"DROP" : function() {
-				walker.pick({
-					"DATABASE|SCHEMA" : STATEMENTS.DROP_DATABASE(walker),
-					"TABLE"           : STATEMENTS.DROP_TABLE(walker),
-					"TEMPORARY TABLE" : STATEMENTS.DROP_TABLE(walker)
-				});
-			},
-			"INSERT" : STATEMENTS.INSERT(walker),
-			"SELECT" : STATEMENTS.SELECT(walker)
-		});
+		function start() 
+		{
+			walker.pick({
+				"USE" : STATEMENTS.USE(walker),
+				"SHOW" : function() {
+					walker.pick({
+						"DATABASES|SCHEMAS" : STATEMENTS.SHOW_DATABASES(walker),
+						"TABLES"            : STATEMENTS.SHOW_TABLES(walker),
+						"COLUMNS"           : STATEMENTS.SHOW_COLUMNS(walker)
+					});
+				},
+				"CREATE" : function() {
+					walker.pick({
+						"DATABASE|SCHEMA" : STATEMENTS.CREATE_DATABASE(walker),
+						"TABLE"           : STATEMENTS.CREATE_TABLE(walker),
+						"TEMPORARY TABLE" : STATEMENTS.CREATE_TABLE(walker),
+					});
+				},
+				"DROP" : function() {
+					walker.pick({
+						"DATABASE|SCHEMA" : STATEMENTS.DROP_DATABASE(walker),
+						"TABLE"           : STATEMENTS.DROP_TABLE(walker),
+						"TEMPORARY TABLE" : STATEMENTS.DROP_TABLE(walker)
+					});
+				},
+				"INSERT" : STATEMENTS.INSERT(walker),
+				"SELECT" : STATEMENTS.SELECT(walker)
+			});
+		}
+
+		start();
 	}
 
 	this.parse = function(input) {

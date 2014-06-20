@@ -2188,17 +2188,24 @@ STATEMENTS.DROP_TABLE = function(walker) {
 			
 			table = database.tables[tableName];
 			if (!table) {
+				if (ifExists) {
+					return walker.onComplete(
+						'Table "' + database.name + '.' + tableName + '" does not exist.'
+					);
+				}
+				
 				throw new SQLRuntimeError(
 					'No such table "%s" in databse "%s"',
 					tableName,
-					dbName
+					database.name
 				);
 			}
 			
 			table.drop(function() {
-				delete database.tables[tableName];
-				walker.onComplete('Table "' + database.name + '.' + table.name + '" deleted.');
-			});
+				walker.onComplete(
+					'Table "' + database.name + '.' + table.name + '" deleted.'
+				);
+			}, walker.onError);
 		});
 	};
 };
@@ -2421,37 +2428,56 @@ function Parser(onComplete, onError)
 		tokens;
 
 	function parse2(tokens, input) {
-		var walker = new Walker(tokens, input);
+		var walker = new Walker(tokens, input),
+			queryNum = 1;
 
-		walker.onComplete = onComplete || noop;
+		walker.onComplete = function(result) {
+			if (walker.current()) {
+				queryNum++;
+				start();
+			} else {
+				if (onComplete) 
+					onComplete(
+						queryNum > 1 ? 
+							queryNum + ' queries executed successfully.' :
+							result
+					);
+			}
+		};
+
 		walker.onError = onError || defaultErrorHandler;
 
-		walker.pick({
-			"USE" : STATEMENTS.USE(walker),
-			"SHOW" : function() {
-				walker.pick({
-					"DATABASES|SCHEMAS" : STATEMENTS.SHOW_DATABASES(walker),
-					"TABLES"            : STATEMENTS.SHOW_TABLES(walker),
-					"COLUMNS"           : STATEMENTS.SHOW_COLUMNS(walker)
-				});
-			},
-			"CREATE" : function() {
-				walker.pick({
-					"DATABASE|SCHEMA" : STATEMENTS.CREATE_DATABASE(walker),
-					"TABLE"           : STATEMENTS.CREATE_TABLE(walker),
-					"TEMPORARY TABLE" : STATEMENTS.CREATE_TABLE(walker),
-				});
-			},
-			"DROP" : function() {
-				walker.pick({
-					"DATABASE|SCHEMA" : STATEMENTS.DROP_DATABASE(walker),
-					"TABLE"           : STATEMENTS.DROP_TABLE(walker),
-					"TEMPORARY TABLE" : STATEMENTS.DROP_TABLE(walker)
-				});
-			},
-			"INSERT" : STATEMENTS.INSERT(walker),
-			"SELECT" : STATEMENTS.SELECT(walker)
-		});
+		function start() 
+		{
+			walker.pick({
+				"USE" : STATEMENTS.USE(walker),
+				"SHOW" : function() {
+					walker.pick({
+						"DATABASES|SCHEMAS" : STATEMENTS.SHOW_DATABASES(walker),
+						"TABLES"            : STATEMENTS.SHOW_TABLES(walker),
+						"COLUMNS"           : STATEMENTS.SHOW_COLUMNS(walker)
+					});
+				},
+				"CREATE" : function() {
+					walker.pick({
+						"DATABASE|SCHEMA" : STATEMENTS.CREATE_DATABASE(walker),
+						"TABLE"           : STATEMENTS.CREATE_TABLE(walker),
+						"TEMPORARY TABLE" : STATEMENTS.CREATE_TABLE(walker),
+					});
+				},
+				"DROP" : function() {
+					walker.pick({
+						"DATABASE|SCHEMA" : STATEMENTS.DROP_DATABASE(walker),
+						"TABLE"           : STATEMENTS.DROP_TABLE(walker),
+						"TEMPORARY TABLE" : STATEMENTS.DROP_TABLE(walker)
+					});
+				},
+				"INSERT" : STATEMENTS.INSERT(walker),
+				"SELECT" : STATEMENTS.SELECT(walker)
+			});
+		}
+
+		start();
 	}
 
 	this.parse = function(input) {
@@ -3311,9 +3337,12 @@ Table.prototype.drop = function(onComplete, onError)
 		
 		table.storage.unsetMany(rowIds, function() {
 			Persistable.prototype.drop.call(table, function() {
-				JSDB.events.dispatch("after_delete:table", table);
-				if (onComplete) 
-					onComplete();
+				delete table._db.tables[table.name];
+				table._db.save(function() {
+					JSDB.events.dispatch("after_delete:table", table);
+					if (onComplete) 
+						onComplete();
+				}, onError);
 			}, onError);
 		}, onError);
 	}
@@ -3703,7 +3732,7 @@ Column_INT.prototype.setLength = function(n)
 Column_INT.prototype.set = function(value) 
 {
 	if (value === null) {
-		if (this.nullable)
+		if (this.nullable || this.autoIncrement)
 			return value;
 
 		throw new SQLRuntimeError('Column "%s" cannot be NULL.', this.name);
@@ -4129,10 +4158,10 @@ TableRow.prototype.load = function(onSuccess, onError)
 TableRow.prototype.save = function(onSuccess, onError)
 {
 	var row = this;
-	JSDB.events.dispatch("savestart:row", row);
+	JSDB.events.dispatch("before_save:row", row);
 	row.write( this.toArray(), function() {
-		JSDB.events.dispatch("save:row", row);
-		onSuccess(row);
+		JSDB.events.dispatch("after_save:row", row);
+		if (onSuccess) onSuccess(row);
 	}, onError );
 };
 
@@ -4154,7 +4183,7 @@ TableRow.prototype.setTable = function(table)
 
 	for (colName in table.cols) {
 		col  = table.cols[colName];
-		cell = new TableCell(col);
+		cell = new TableCell(col, this);
 		this.length = this._cells.push(cell);
 		this._cellsByName[colName] = cell;
 	}
@@ -4253,17 +4282,18 @@ TableRow.prototype.toJSON = function()
  * @constructor
  * @return {TableCell}
  */
-function TableCell(column, value) 
+function TableCell(column, row, value) 
 {
 	this.setColumn(column);
+	this.row = row;
 	if (value !== undefined) {
 		this.setValue(value);
 	} else {
-		//this.setValue(
-		//	this.column.defaultValue === undefined ?
-		//		null : 
-		//		this.column.defaultValue
-		//);
+		this.setValue(
+			this.column.defaultValue === undefined ?
+				null : 
+				this.column.defaultValue
+		);
 	}
 }
 
@@ -4296,6 +4326,9 @@ TableCell.prototype = {
 	setValue : function(value)
 	{
 		this.value = this.column.set(value);
+		if (this.value === null && this.column.autoIncrement) {
+			this.value = this.row.table._ai;
+		}
 		return this;
 	},
 
