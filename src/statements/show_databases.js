@@ -1,11 +1,10 @@
-STATEMENTS.SHOW_DATABASES = function(walker, output) {
+STATEMENTS.SHOW_DATABASES = function(walker) {
 	return function() {
 		walker.errorUntil(";").commit(function() {
-			output.state = STATE_COMPLETE;
-			output.result = {
+			walker.onComplete({
 				head : ["Databases"],
 				rows : keys(SERVER.databases)
-			};
+			});
 		});
 	};
 };

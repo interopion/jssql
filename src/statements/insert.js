@@ -1,4 +1,4 @@
-STATEMENTS.INSERT = function(walker, output) {
+STATEMENTS.INSERT = function(walker) {
 	var dbName, 
 		tableName, 
 		table,
@@ -117,16 +117,16 @@ STATEMENTS.INSERT = function(walker, output) {
 		// Finalize ------------------------------------------------------------
 		.errorUntil(";")
 		.commit(function() {
-			console.dir({
+			/*console.dir({
 				dbName    : dbName, 
 				tableName : tableName, 
 				table     : table,
 				or        : or, 
 				valueSets : valueSets,
 				columns   : columns
-			});
+			});*/
 			table.insert(columns, valueSets);
-			output.state = STATE_COMPLETE;
+			walker.onComplete(valueSets.length + ' rows inserted.');
 		});
 	};
 };

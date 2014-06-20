@@ -1,4 +1,4 @@
-STATEMENTS.DROP_DATABASE = function(walker, output) {
+STATEMENTS.DROP_DATABASE = function(walker) {
 	return function() {
 		var q = {};
 		walker.optional("IF EXISTS", function() {
@@ -6,11 +6,11 @@ STATEMENTS.DROP_DATABASE = function(walker, output) {
 		})
 		.someType(WORD_OR_STRING, function(token) {
 			q.name = token[0];
-		})
+		}, "for the database name")
 		.errorUntil(";")
 		.commit(function() {
 			SERVER.dropDatabase(q.name, q.ifExists);
-			output.state = STATE_COMPLETE;
+			walker.onComplete('Database "' + q.name + '" deleted.');
 		});
 	};
 };

@@ -1,4 +1,4 @@
-STATEMENTS.CREATE_TABLE = function(walker, output) {
+STATEMENTS.CREATE_TABLE = function(walker) {
 	
 	function walk_createTable()
 	{
@@ -19,7 +19,7 @@ STATEMENTS.CREATE_TABLE = function(walker, output) {
 		.nextUntil(";")
 		.commit(function() {//console.dir(q);
 			q.execute();
-			output.state = STATE_COMPLETE;
+			walker.onComplete('Table "' + q.name() + '" created.');
 		});
 	}
 	

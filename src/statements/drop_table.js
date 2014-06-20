@@ -1,4 +1,4 @@
-STATEMENTS.DROP_TABLE = function(walker, output) {
+STATEMENTS.DROP_TABLE = function(walker) {
 	var ifExists = false,
 		tableName,
 		dbName;
@@ -48,9 +48,10 @@ STATEMENTS.DROP_TABLE = function(walker, output) {
 				);
 			}
 			
-			table.drop();
-			delete database.tables[tableName];
-			output.state = STATE_COMPLETE;
+			table.drop(function() {
+				delete database.tables[tableName];
+				walker.onComplete('Table "' + database.name + '.' + table.name + '" deleted.');
+			});
 		});
 	};
 };

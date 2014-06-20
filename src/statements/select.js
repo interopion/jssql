@@ -1,4 +1,4 @@
-STATEMENTS.SELECT = function(walker, output) {
+STATEMENTS.SELECT = function(walker) {
 	return function() {
 		
 		var tableName, dbName, table;
@@ -25,12 +25,11 @@ STATEMENTS.SELECT = function(walker, output) {
 				
 				walker.errorUntil(";")
 				.commit(function() {
-					console.log(table);
-					output.result = {
+					//console.log(table);
+					walker.onComplete({
 						head : table._col_seq,
 						rows : table.rows
-					};
-					output.state = STATE_COMPLETE;
+					});
 				});
 			}
 		});

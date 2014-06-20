@@ -1,4 +1,4 @@
-STATEMENTS.SHOW_COLUMNS = function(walker, output) {
+STATEMENTS.SHOW_COLUMNS = function(walker) {
 	
 	function getExtrasList(meta) {
 		var out = [];
@@ -49,15 +49,14 @@ STATEMENTS.SHOW_COLUMNS = function(walker, output) {
 				);
 			}
 			
-			output.state = STATE_COMPLETE;
-			output.result = {
+			var result = {
 				head : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
 				rows : []
 			};
 			
 			each(table.cols, function(col) {
 				var meta = col.toJSON(); console.log("meta: ", meta);
-				output.result.rows.push([
+				result.rows.push([
 					meta.name,
 					col.typeToSQL(),
 					meta.nullable ? "YES" : "NO",
@@ -69,7 +68,9 @@ STATEMENTS.SHOW_COLUMNS = function(walker, output) {
 							meta.defaultValue,
 					getExtrasList(meta)
 				]);
-			});		
+			});	
+
+			walker.onComplete(result);
 		});
 	};
 };

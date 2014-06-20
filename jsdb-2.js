@@ -657,7 +657,11 @@ function assert(condition, msg) {
 	}
 }
 
-
+function defaultErrorHandler(e) 
+{
+	if (window.console && console.error) 
+		console.error(e);
+}
 
 // -----------------------------------------------------------------------------
 // Starts file "src/events.js"
@@ -1747,7 +1751,7 @@ Walker.prototype.walkIndexedColumn = function(callback)
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/use.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.USE = function(walker, output) {
+STATEMENTS.USE = function(walker) {
 	return function() {
 		var dbName;
 		walker.someType(WORD_OR_STRING, function(token) {
@@ -1756,7 +1760,7 @@ STATEMENTS.USE = function(walker, output) {
 		.errorUntil(";")
 		.commit(function() {
 			setCurrentDatabase(dbName);
-			output.state = STATE_COMPLETE;
+			walker.onComplete('Database "' + dbName + '" selected.');
 		});
 	};
 };
@@ -1764,14 +1768,13 @@ STATEMENTS.USE = function(walker, output) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/show_databases.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.SHOW_DATABASES = function(walker, output) {
+STATEMENTS.SHOW_DATABASES = function(walker) {
 	return function() {
 		walker.errorUntil(";").commit(function() {
-			output.state = STATE_COMPLETE;
-			output.result = {
+			walker.onComplete({
 				head : ["Databases"],
 				rows : keys(SERVER.databases)
-			};
+			});
 		});
 	};
 };
@@ -1779,7 +1782,7 @@ STATEMENTS.SHOW_DATABASES = function(walker, output) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/show_tables.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.SHOW_TABLES = function(walker, output) {
+STATEMENTS.SHOW_TABLES = function(walker) {
 	return function() {
 		walker.pick({
 			"FROM|IN" : function() {
@@ -1796,11 +1799,10 @@ STATEMENTS.SHOW_TABLES = function(walker, output) {
 							db
 						);
 					}
-					output.state = STATE_COMPLETE;
-					output.result = {
+					walker.onComplete({
 						head : ['Tables in database "' + db + '"'],
 						rows : keys(database.tables)
-					};
+					});
 				});
 			}
 		});
@@ -1810,7 +1812,7 @@ STATEMENTS.SHOW_TABLES = function(walker, output) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/show_columns.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.SHOW_COLUMNS = function(walker, output) {
+STATEMENTS.SHOW_COLUMNS = function(walker) {
 	
 	function getExtrasList(meta) {
 		var out = [];
@@ -1861,15 +1863,14 @@ STATEMENTS.SHOW_COLUMNS = function(walker, output) {
 				);
 			}
 			
-			output.state = STATE_COMPLETE;
-			output.result = {
+			var result = {
 				head : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
 				rows : []
 			};
 			
 			each(table.cols, function(col) {
 				var meta = col.toJSON(); console.log("meta: ", meta);
-				output.result.rows.push([
+				result.rows.push([
 					meta.name,
 					col.typeToSQL(),
 					meta.nullable ? "YES" : "NO",
@@ -1881,7 +1882,9 @@ STATEMENTS.SHOW_COLUMNS = function(walker, output) {
 							meta.defaultValue,
 					getExtrasList(meta)
 				]);
-			});		
+			});	
+
+			walker.onComplete(result);
 		});
 	};
 };
@@ -1889,7 +1892,7 @@ STATEMENTS.SHOW_COLUMNS = function(walker, output) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/create_database.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.CREATE_DATABASE = function(walker, output) {
+STATEMENTS.CREATE_DATABASE = function(walker) {
 	return function() {
 		var q = new CreateDatabaseQuery();
 		walker
@@ -1902,7 +1905,7 @@ STATEMENTS.CREATE_DATABASE = function(walker, output) {
 		.nextUntil(";")
 		.commit(function() {
 			q.execute();
-			output.state = STATE_COMPLETE;
+			walker.onComplete('Database "' + q.name() + '" created.');
 		});
 	};
 };
@@ -1910,7 +1913,7 @@ STATEMENTS.CREATE_DATABASE = function(walker, output) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/create_table.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.CREATE_TABLE = function(walker, output) {
+STATEMENTS.CREATE_TABLE = function(walker) {
 	
 	function walk_createTable()
 	{
@@ -1931,7 +1934,7 @@ STATEMENTS.CREATE_TABLE = function(walker, output) {
 		.nextUntil(";")
 		.commit(function() {//console.dir(q);
 			q.execute();
-			output.state = STATE_COMPLETE;
+			walker.onComplete('Table "' + q.name() + '" created.');
 		});
 	}
 	
@@ -2122,7 +2125,7 @@ STATEMENTS.CREATE_TABLE = function(walker, output) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/drop_database.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.DROP_DATABASE = function(walker, output) {
+STATEMENTS.DROP_DATABASE = function(walker) {
 	return function() {
 		var q = {};
 		walker.optional("IF EXISTS", function() {
@@ -2130,11 +2133,11 @@ STATEMENTS.DROP_DATABASE = function(walker, output) {
 		})
 		.someType(WORD_OR_STRING, function(token) {
 			q.name = token[0];
-		})
+		}, "for the database name")
 		.errorUntil(";")
 		.commit(function() {
 			SERVER.dropDatabase(q.name, q.ifExists);
-			output.state = STATE_COMPLETE;
+			walker.onComplete('Database "' + q.name + '" deleted.');
 		});
 	};
 };
@@ -2142,7 +2145,7 @@ STATEMENTS.DROP_DATABASE = function(walker, output) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/drop_table.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.DROP_TABLE = function(walker, output) {
+STATEMENTS.DROP_TABLE = function(walker) {
 	var ifExists = false,
 		tableName,
 		dbName;
@@ -2192,9 +2195,10 @@ STATEMENTS.DROP_TABLE = function(walker, output) {
 				);
 			}
 			
-			table.drop();
-			delete database.tables[tableName];
-			output.state = STATE_COMPLETE;
+			table.drop(function() {
+				delete database.tables[tableName];
+				walker.onComplete('Table "' + database.name + '.' + table.name + '" deleted.');
+			});
 		});
 	};
 };
@@ -2202,7 +2206,7 @@ STATEMENTS.DROP_TABLE = function(walker, output) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/insert.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.INSERT = function(walker, output) {
+STATEMENTS.INSERT = function(walker) {
 	var dbName, 
 		tableName, 
 		table,
@@ -2321,16 +2325,16 @@ STATEMENTS.INSERT = function(walker, output) {
 		// Finalize ------------------------------------------------------------
 		.errorUntil(";")
 		.commit(function() {
-			console.dir({
+			/*console.dir({
 				dbName    : dbName, 
 				tableName : tableName, 
 				table     : table,
 				or        : or, 
 				valueSets : valueSets,
 				columns   : columns
-			});
+			});*/
 			table.insert(columns, valueSets);
-			output.state = STATE_COMPLETE;
+			walker.onComplete(valueSets.length + ' rows inserted.');
 		});
 	};
 };
@@ -2338,7 +2342,7 @@ STATEMENTS.INSERT = function(walker, output) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/select.js"
 // -----------------------------------------------------------------------------
-STATEMENTS.SELECT = function(walker, output) {
+STATEMENTS.SELECT = function(walker) {
 	return function() {
 		
 		var tableName, dbName, table;
@@ -2365,12 +2369,11 @@ STATEMENTS.SELECT = function(walker, output) {
 				
 				walker.errorUntil(";")
 				.commit(function() {
-					console.log(table);
-					output.result = {
+					//console.log(table);
+					walker.onComplete({
 						head : table._col_seq,
 						rows : table.rows
-					};
-					output.state = STATE_COMPLETE;
+					});
 				});
 			}
 		});
@@ -2411,164 +2414,44 @@ SQLParseError.prototype.constructor = SQLParseError;
 
 
 
-function Parser()
+function Parser(onComplete, onError)
 {
 	var parser = this,
 		env    = {},
 		tokens;
 
 	function parse2(tokens, input) {
-		var walker  = new Walker(tokens, input),
-			output  = {
-				state  : STATE_WAITING,
-				result : null
-			};
+		var walker = new Walker(tokens, input);
 
-		function walk_createTable(temporary)
-		{
-		    var q = new CreateTableQuery();
-		    q.temporary(!!temporary);
-    		
-    		walker
-    		.optional("IF NOT EXISTS", function() {
-    			q.ifNotExists(true);
-    		})
-    		.someType(WORD_OR_STRING, function(token) {
-				q.name(token[0]);
-			})
-			.optional("(", function() {
-				walk_createTableColumns(q);
-			})
-			.nextUntil(";")
-			.commit(function() {
-				q.execute();
-				state = STATE_COMPLETE;
-			});
-		}
-		
-		function walk_columnTypeParams(type)
-		{
-			walker.someType(NUMBER_OR_STRING, function(token) {
-				type.params.push(token[0]);
-			});
-			
-			walker.pick({
-				"," : function() { walk_columnTypeParams(type); },
-				")" : noop
-			});
-		}
-		
-		function walk_createTableColumns(q)
-		{
-			var col = {};
-			walker.someType(WORD_OR_STRING, function(token) {
-				col.name = token[0];
-			})
-			.any(DATA_TYPES, function(token) {
-				var type = {
-					name : token[0],
-					params : []
-				};
-				
-				walker.optional("(", function() { 
-					walk_columnTypeParams(type);
-				});
-				
-				col.type = type;
-				
-				walker.optional([
-					{
-						"NOT NULL" : function() {
-							col.nullable = false;
-						}, 
-						"NULL" : function() {
-							col.nullable = true;
-						}
-					},
-					{
-						"AUTO_INCREMENT" : function() {
-							col.autoIncrement = true;
-						}
-					},
-					{
-						"PRIMARY KEY" : function() {
-							col.key = "PRIMARY";
-						},
-						"UNIQUE KEY" : function() {
-							col.key = "UNIQUE";
-						},
-						"UNIQUE" : function() {
-							col.key = "UNIQUE";
-						},
-						"KEY" : function() {
-							col.key = "INDEX";
-						}
-					},
-					{
-						"ZEROFILL" : function() {
-							col.zerofill = true;
-						}
-					},
-					{
-						"UNSIGNED" : function() {
-							col.unsigned = true;
-						}
-					},
-					{
-						"DEFAULT" : function() {
-							walker.someType(WORD_OR_STRING, function(token) {
-								col.defaultValue = token[0];
-							});
-						}
-					}
-				]);
-				
-			}, function(t) {
-				throw new SQLParseError( 
-					'Expecting data type for column "%s" (%s).', 
-					col.name,
-					prettyList(DATA_TYPES) 
-				);
-			})
-			.pick({
-				"," : function() {
-					q.columns.push(col);
-					walk_createTableColumns(q);
-				},
-				")" : function() {
-					q.columns.push(col);//console.dir(columns);
-				}
-			});
-		}
+		walker.onComplete = onComplete || noop;
+		walker.onError = onError || defaultErrorHandler;
 
 		walker.pick({
-			"USE" : STATEMENTS.USE(walker, output),
+			"USE" : STATEMENTS.USE(walker),
 			"SHOW" : function() {
 				walker.pick({
-					"DATABASES|SCHEMAS" : STATEMENTS.SHOW_DATABASES(walker, output),
-					"TABLES"            : STATEMENTS.SHOW_TABLES(walker, output),
-					"COLUMNS"           : STATEMENTS.SHOW_COLUMNS(walker, output)
+					"DATABASES|SCHEMAS" : STATEMENTS.SHOW_DATABASES(walker),
+					"TABLES"            : STATEMENTS.SHOW_TABLES(walker),
+					"COLUMNS"           : STATEMENTS.SHOW_COLUMNS(walker)
 				});
 			},
 			"CREATE" : function() {
 				walker.pick({
-					"DATABASE|SCHEMA" : STATEMENTS.CREATE_DATABASE(walker, output),
-					"TABLE"           : STATEMENTS.CREATE_TABLE(walker, output),
-					"TEMPORARY TABLE" : STATEMENTS.CREATE_TABLE(walker, output),
+					"DATABASE|SCHEMA" : STATEMENTS.CREATE_DATABASE(walker),
+					"TABLE"           : STATEMENTS.CREATE_TABLE(walker),
+					"TEMPORARY TABLE" : STATEMENTS.CREATE_TABLE(walker),
 				});
 			},
 			"DROP" : function() {
 				walker.pick({
-					"DATABASE|SCHEMA" : STATEMENTS.DROP_DATABASE(walker, output),
-					"TABLE"           : STATEMENTS.DROP_TABLE(walker, output),
-					"TEMPORARY TABLE" : STATEMENTS.DROP_TABLE(walker, output)
+					"DATABASE|SCHEMA" : STATEMENTS.DROP_DATABASE(walker),
+					"TABLE"           : STATEMENTS.DROP_TABLE(walker),
+					"TEMPORARY TABLE" : STATEMENTS.DROP_TABLE(walker)
 				});
 			},
-			"INSERT" : STATEMENTS.INSERT(walker, output),
-			"SELECT" : STATEMENTS.SELECT(walker, output)
+			"INSERT" : STATEMENTS.INSERT(walker),
+			"SELECT" : STATEMENTS.SELECT(walker)
 		});
-
-		return output;
 	}
 
 	this.parse = function(input) {
@@ -2593,38 +2476,7 @@ function parse( sql )
 // -----------------------------------------------------------------------------
 // Starts file "src/storage/StorageBase.js"
 // -----------------------------------------------------------------------------
-/*
 
-{ 
-	databses : {
-		db1 : {
-			tables : {
-				table1 {
-					length : 5,
-					ai : 6,
-					cols : {
-						id   : {},
-						name : {}
-					},
-					keys : {
-						_jsdb_col_sequence : ["col", "name"],
-						_jsdb_row_sequence : [1, 2, 3, 4, 5],
-						name_index         : [5, 2, 1, 4, 3]
-					},
-					rows : {
-						1 : [1, "Vladimir"], // JSDB.db1.table1.1
-						2 : [2, "Nikolai" ], // JSDB.db1.table1.2
-						3 : [3, "Arjun"   ], // JSDB.db1.table1.3
-						4 : [4, "Vasil"   ], // JSDB.db1.table1.4
-						5 : [5, "Iva"     ], // JSDB.db1.table1.5
-					}
-				}
-			}
-		}
-	}
-}
- 
-*/
 var Storage = (function() {
 	var engines = {},
 		engineInstances = {};
@@ -2647,13 +2499,25 @@ var Storage = (function() {
 			return {
 				set : function(key, value, onSuccess, onError) 
 				{
-					onError("Failed to save - not implemented.");	
+					onError("Failed to save - not implemented.");
 				},
 				get : function(key, onSuccess, onError) 
 				{
 					onError("Failed to read - not implemented.");
 				},
 				unset : function(key, onSuccess, onError) 
+				{
+					onError("Failed to delete - not implemented.");
+				},
+				setMany : function(map, onSuccess, onError)
+				{
+					onError("Failed to save - not implemented.");
+				},
+				getMany : function(keys, onSuccess, onError)
+				{
+					onError("Failed to read - not implemented.");
+				},
+				unsetMany : function(keys, onSuccess, onError)
 				{
 					onError("Failed to delete - not implemented.");
 				}
@@ -2671,14 +2535,58 @@ var Storage = (function() {
  */
 function LocalStorage() 
 {
+	this.setMany = function(map, onSuccess, onError)
+	{
+		setTimeout(function() {
+			try {
+				for ( var key in map )
+					localStorage.setItem( key, map[key] );
+				if (onSuccess) 
+						onSuccess();
+			} catch (ex) {
+				(onError || defaultErrorHandler)(ex);
+			}
+		}, 0);
+	};
+
+	this.getMany = function(keys, onSuccess, onError)
+	{
+		setTimeout(function() {
+			try {
+				var out = [];
+				for (var i = 0, l = keys.length; i < l; i++)
+					out.push( localStorage.getItem( key ) );
+				if (onSuccess) 
+					onSuccess( out );
+			} catch (ex) {
+				(onError || defaultErrorHandler)(ex);
+			}
+		}, 0);
+	};
+
+	this.unsetMany = function(keys, onSuccess, onError)
+	{
+		setTimeout(function() {
+			try {
+				for (var i = 0, l = keys.length; i < l; i++)
+					localStorage.removeItem( key );
+				if (onSuccess) 
+					onSuccess();
+			} catch (ex) {
+				(onError || defaultErrorHandler)(ex);
+			}
+		}, 0);
+	};
+
 	this.set = function(key, value, onSuccess, onError) 
 	{
 		setTimeout(function() {
 			try {
 				localStorage.setItem( key, value );
-				(onSuccess || noop)();
+				if (onSuccess)
+					onSuccess();
 			} catch (ex) {
-				if (onError) onError(ex);
+				(onError || defaultErrorHandler)(ex);
 			}
 		}, 0);
 	};
@@ -2687,9 +2595,10 @@ function LocalStorage()
 	{
 		setTimeout(function() {
 			try {
-				(onSuccess||noop)(localStorage.getItem( key ));
+				if (onSuccess)
+					onSuccess(localStorage.getItem( key ));
 			} catch (ex) {
-				if (onError) onError(ex);
+				(onError || defaultErrorHandler)(ex);
 			}
 		}, 0);
 	};
@@ -2699,9 +2608,10 @@ function LocalStorage()
 		setTimeout(function() {
 			try {
 				localStorage.removeItem( key );
-				(onSuccess||noop)();
+				if (onSuccess)
+					onSuccess();
 			} catch (ex) {
-				if (onError) onError(ex);
+				(onError || defaultErrorHandler)(ex);
 			}
 		}, 0);
 	};
@@ -2719,15 +2629,60 @@ Storage.registerEngine("LocalStorage", LocalStorage);
  */
 function MemoryStorage() {
 	var _store = {};
+
+	this.setMany = function(map, onSuccess, onError)
+	{
+		setTimeout(function() {
+			try {
+				for ( var key in map )
+					_store[key] = map[key];
+				if (onSuccess) 
+						onSuccess();
+			} catch (ex) {
+				(onError || defaultErrorHandler)(ex);
+			}
+		}, 0);
+	};
+
+	this.getMany = function(keys, onSuccess, onError)
+	{
+		setTimeout(function() {
+			try {
+				var out = [];
+				for (var i = 0, l = keys.length; i < l; i++)
+					out.push( _store[key] );
+				if (onSuccess) 
+					onSuccess( out );
+			} catch (ex) {
+				(onError || defaultErrorHandler)(ex);
+			}
+		}, 0);
+	};
+
+	this.unsetMany = function(keys, onSuccess, onError)
+	{
+		setTimeout(function() {
+			try {
+				for (var i = 0, l = keys.length; i < l; i++)
+					if (_store.hasOwnProperty(keys[i])) 
+						delete _store[keys[i]];
+				if (onSuccess) 
+					onSuccess();
+			} catch (ex) {
+				(onError || defaultErrorHandler)(ex);
+			}
+		}, 0);
+	};
 	
 	this.set = function(key, value, onSuccess, onError) 
 	{
 		setTimeout(function() {
 			try {
 				_store[key] = val;
-				(onSuccess || noop)();
+				if (onSuccess) 
+					onSuccess();
 			} catch (ex) {
-				(onError||noop)(ex);
+				(onError || defaultErrorHandler)(ex);
 			}
 		}, 0);
 	};
@@ -2736,9 +2691,10 @@ function MemoryStorage() {
 	{
 		setTimeout(function() {
 			try {
-				(onSuccess||noop)(_store[key]);
+				if (onSuccess) 
+					onSuccess( _store[key] );
 			} catch (ex) {
-				(onError||noop)(ex);
+				(onError || defaultErrorHandler)(ex);
 			}
 		}, 0);
 	};
@@ -2747,10 +2703,12 @@ function MemoryStorage() {
 	{
 		setTimeout(function() {
 			try {
-				if (_store.hasOwnProperty(key)) delete _store[key];
-				(onSuccess||noop)();
+				if (_store.hasOwnProperty(key)) 
+					delete _store[key];
+				if (onSuccess) 
+					onSuccess();
 			} catch (ex) {
-				(onError||noop)(ex);
+				(onError || defaultErrorHandler)(ex);
 			}
 		}, 0);
 	};
@@ -3337,6 +3295,25 @@ Table.prototype.insert = function(keys, values)
 
 	//console.dir(this.toJSON());
 };
+
+Table.prototype.drop = function(onComplete, onError) 
+{
+	var table = this, len = table._length, id;
+
+	function onRowDrop()
+	{
+		if ( --len === 0 )
+		{
+			Persistable.prototype.drop.call(table, onComplete, onError);
+		}
+	}
+
+	for ( id in table.rows ) 
+	{
+		table.rows[id].drop(onRowDrop, onError);
+	}
+};
+
 
 // -----------------------------------------------------------------------------
 // Starts file "src/Column.js"
@@ -4615,14 +4592,14 @@ CreateQuery.prototype.toString = function() {
 
 function query(sql, onSuccess, onError) {
 	try {
-		var out = parse(sql);
-		setTimeout(function() {
-			onSuccess(out.result);
-		}, 500);
+		var parser = new Parser(onSuccess, onError);
+		var out    = parser.parse(sql);
+
+		//setTimeout(function() {
+		//	onSuccess(out.result);
+		//}, 500);
 	} catch (ex) {
-		setTimeout(function() {
-			onError(ex);
-		}, 500);
+		(onError || defaultErrorHandler)(ex);
 	}
 }
 

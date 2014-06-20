@@ -1,4 +1,4 @@
-STATEMENTS.SHOW_TABLES = function(walker, output) {
+STATEMENTS.SHOW_TABLES = function(walker) {
 	return function() {
 		walker.pick({
 			"FROM|IN" : function() {
@@ -15,11 +15,10 @@ STATEMENTS.SHOW_TABLES = function(walker, output) {
 							db
 						);
 					}
-					output.state = STATE_COMPLETE;
-					output.result = {
+					walker.onComplete({
 						head : ['Tables in database "' + db + '"'],
 						rows : keys(database.tables)
-					};
+					});
 				});
 			}
 		});

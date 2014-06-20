@@ -1,4 +1,4 @@
-STATEMENTS.CREATE_DATABASE = function(walker, output) {
+STATEMENTS.CREATE_DATABASE = function(walker) {
 	return function() {
 		var q = new CreateDatabaseQuery();
 		walker
@@ -11,7 +11,7 @@ STATEMENTS.CREATE_DATABASE = function(walker, output) {
 		.nextUntil(";")
 		.commit(function() {
 			q.execute();
-			output.state = STATE_COMPLETE;
+			walker.onComplete('Database "' + q.name() + '" created.');
 		});
 	};
 };
