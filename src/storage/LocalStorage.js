@@ -23,7 +23,7 @@ function LocalStorage()
 			try {
 				var out = [];
 				for (var i = 0, l = keys.length; i < l; i++)
-					out.push( localStorage.getItem( key ) );
+					out.push( localStorage.getItem( keys[i] ) );
 				if (onSuccess) 
 					onSuccess( out );
 			} catch (ex) {
@@ -37,7 +37,7 @@ function LocalStorage()
 		setTimeout(function() {
 			try {
 				for (var i = 0, l = keys.length; i < l; i++)
-					localStorage.removeItem( key );
+					localStorage.removeItem( keys[i] );
 				if (onSuccess) 
 					onSuccess();
 			} catch (ex) {

@@ -274,18 +274,23 @@ Table.prototype.insert = function(keys, values)
 
 Table.prototype.drop = function(onComplete, onError) 
 {
-	var table = this, len = table._length, id;
+	var table     = this, 
+		keyPrefix = table.getStorageKey(),
+		rowIds    = [],
+		id;
 
-	function onRowDrop()
-	{
-		if ( --len === 0 )
-		{
-			Persistable.prototype.drop.call(table, onComplete, onError);
+	if (JSDB.events.dispatch("before_delete:table", table)) {
+		for ( id in table.rows ) {
+			rowIds.push(keyPrefix + "." + id);
 		}
-	}
 
-	for ( id in table.rows ) 
-	{
-		table.rows[id].drop(onRowDrop, onError);
+		
+		table.storage.unsetMany(rowIds, function() {
+			Persistable.prototype.drop.call(table, function() {
+				JSDB.events.dispatch("after_delete:table", table);
+				if (onComplete) 
+					onComplete();
+			}, onError);
+		}, onError);
 	}
 };

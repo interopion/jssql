@@ -24,7 +24,7 @@ function MemoryStorage() {
 			try {
 				var out = [];
 				for (var i = 0, l = keys.length; i < l; i++)
-					out.push( _store[key] );
+					out.push( _store[keys[i]] );
 				if (onSuccess) 
 					onSuccess( out );
 			} catch (ex) {

@@ -2555,7 +2555,7 @@ function LocalStorage()
 			try {
 				var out = [];
 				for (var i = 0, l = keys.length; i < l; i++)
-					out.push( localStorage.getItem( key ) );
+					out.push( localStorage.getItem( keys[i] ) );
 				if (onSuccess) 
 					onSuccess( out );
 			} catch (ex) {
@@ -2569,7 +2569,7 @@ function LocalStorage()
 		setTimeout(function() {
 			try {
 				for (var i = 0, l = keys.length; i < l; i++)
-					localStorage.removeItem( key );
+					localStorage.removeItem( keys[i] );
 				if (onSuccess) 
 					onSuccess();
 			} catch (ex) {
@@ -2650,7 +2650,7 @@ function MemoryStorage() {
 			try {
 				var out = [];
 				for (var i = 0, l = keys.length; i < l; i++)
-					out.push( _store[key] );
+					out.push( _store[keys[i]] );
 				if (onSuccess) 
 					onSuccess( out );
 			} catch (ex) {
@@ -3298,19 +3298,24 @@ Table.prototype.insert = function(keys, values)
 
 Table.prototype.drop = function(onComplete, onError) 
 {
-	var table = this, len = table._length, id;
+	var table     = this, 
+		keyPrefix = table.getStorageKey(),
+		rowIds    = [],
+		id;
 
-	function onRowDrop()
-	{
-		if ( --len === 0 )
-		{
-			Persistable.prototype.drop.call(table, onComplete, onError);
+	if (JSDB.events.dispatch("before_delete:table", table)) {
+		for ( id in table.rows ) {
+			rowIds.push(keyPrefix + "." + id);
 		}
-	}
 
-	for ( id in table.rows ) 
-	{
-		table.rows[id].drop(onRowDrop, onError);
+		
+		table.storage.unsetMany(rowIds, function() {
+			Persistable.prototype.drop.call(table, function() {
+				JSDB.events.dispatch("after_delete:table", table);
+				if (onComplete) 
+					onComplete();
+			}, onError);
+		}, onError);
 	}
 };
 
