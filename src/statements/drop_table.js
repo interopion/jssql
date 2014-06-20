@@ -41,10 +41,16 @@ STATEMENTS.DROP_TABLE = function(walker) {
 			
 			table = database.tables[tableName];
 			if (!table) {
+				if (ifExists) {
+					return walker.onComplete(
+						'Table "' + database.name + '.' + tableName + '" does not exist.'
+					);
+				}
+				
 				throw new SQLRuntimeError(
 					'No such table "%s" in databse "%s"',
 					tableName,
-					dbName
+					database.name
 				);
 			}
 			
