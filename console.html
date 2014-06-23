@@ -61,7 +61,7 @@
                 -moz-tab-size:4; 
                 -o-tab-size:4; 
                 tab-size:4;
-                min-height: 30%;
+                min-height: 2em;
                 outline: none;
             }
             
@@ -152,9 +152,9 @@
             	padding: 4px;
             }
             td {
-            	border-bottom-color: #444;
-            	border-right : 1px dotted #444;
-            	border-bottom-style: dotted;
+            	border-bottom-color: #333;
+            	border-right : 1px solid #444;
+            	/*border-bottom-style: dotted;*/
             }
             td:last-child, th:last-child {
             	border-right : none;
@@ -180,7 +180,7 @@
     </head>
     <body>
         <pre id="out"></pre>
-        <textarea id="in" spellcheck="false" placeholder="Type SQL commads here. Hit Ctrl/Command+Enter to execute."></textarea>
+        <textarea rows="1" id="in" spellcheck="false" placeholder="Type SQL commads here. Hit Ctrl/Command+Enter to execute."></textarea>
         <script type="text/javascript" src="jquery.min.js"></script>
         <script type="text/javascript" src="jsdb-2.js"></script>
         <script type="text/javascript">
@@ -291,10 +291,15 @@
                     len = txt.length;
                     $in.val(txt);//.attr("rows", txt.split("\n").length);
                     setTimeout(function() {
-                        $in.val(txt).trigger("focus").prop({
+                        //$in.val(txt);
+                        resizeUI();
+                        $in.prop({
                             selectionEnd   : len,
                             selectionStart : len
                         });
+
+                        
+
                     }, 0);
                 }
             }
@@ -305,6 +310,7 @@
                 } else {
                     $("#in").val("").trigger("focus");
                 }
+                setTimeout(resizeUI, 0);
             }
 
             function showError(e) {
@@ -362,10 +368,31 @@
             }
 
             function resizeUI() {
+                $in.css({ height : 0 });
+                var wh = $(window).height(),
+                    oh = $out.outerHeight();
+                    h  = Math.max(wh - oh, $in[0].scrollHeight, 30);
+                //if (h < 30) {
+                //    h = wh/2;//$in[0].scrollHeight;
+                //}
                 $in.css({
-                    top    : $out.outerHeight(),
-                    height : $in[0].scrollHeight 
-                })[0].scrollIntoView();
+                    top    : oh,
+                    height : h,
+                    //minHeight : h
+                });//[0].scrollIntoViewIfNeeded();
+                //.css("minHeight", $in[0].scrollHeight)
+                //[0]
+                //[$in[0].scrollIntoViewIfNeeded ? 
+                //    "scrollIntoViewIfNeeded" :
+                //    "scrollIntoView"]
+                //()
+                ;
+                $("body")[0].scrollTop = $("body")[0].scrollHeight;
+                //setTimeout(function() {
+                 //   $in.css({
+                 //       minHeight : $in[0].scrollHeight 
+                 //   });
+                //}, 0);
             }
             
             $(window).on("resize", resizeUI);
@@ -385,7 +412,7 @@
 
             $in.on("keydown", function(e) {
                 //console.log(e.keyCode);
-                setTimeout(resizeUI, 0);
+                //setTimeout(resizeUI, 0);
 
                 switch (e.keyCode) {
                     case 9: // Tab
