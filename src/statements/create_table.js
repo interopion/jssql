@@ -17,7 +17,9 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			walk_createTableColumns(q);
 		})
 		.nextUntil(";")
-		.commit(function() {//console.dir(q);
+		.commit(function() {
+			//console.log("CreateTableQuery:");
+			//console.dir(q);
 			q.execute();
 			walker.onComplete('Table "' + q.name() + '" created.');
 		});
@@ -37,6 +39,14 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 
 	function walkIndexClause(index)
 	{
+		if (!index.name) {
+			try {
+				walker.someType(WORD_OR_STRING, function(token) {
+					index.name = token[0];
+				});
+			} catch (ex) {}
+		}
+
 		walker.commaSeparatedBlock(function(token) {
 			index.columns.push(token[0]);
 		});
@@ -45,31 +55,31 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 		});
 	}
 
-	function walk_table_constraints() 
+	function walk_table_constraints(query) 
 	{
 		//console.log("walk_table_constraints");
 		/*
 		
 	 »» ══╦══════════════════════════════════════════════════ »»
-		  │  ┌─────────────────┐      
-		  ├──┤       KEY       ├──┬──■ Indexed column list, ON CONFLICT
-		  │  └─────────────────┘  │
-		  │  ┌─────────────────┐  │
-		  ├──┤      INDEX      ├──┤
-		  │  └─────────────────┘  │
-		  │  ┌─────────┐ ┌─────┐  │
-		  ├──┤ PRIMARY ├─┤ KEY ├──┤
-		  │  └─────────┘ └─────┘  │
-		  │  ┌─────────────────┐  │
-		  ├──┤      UNIQUE     ├──┘
-		  │  └─────────────────┘
+		  │  ┌───────────────────┐      
+		  ├──┤        KEY        ├──┬──■ Indexed column list, ON CONFLICT
+		  │  └───────────────────┘  │
+		  │  ┌───────────────────┐  │
+		  ├──┤       INDEX       ├──┤
+		  │  └───────────────────┘  │
+		  │  ┌─────────┐ ┌───────┐  │
+		  ├──┤ PRIMARY ├─┤  KEY  ├──┤
+		  │  └─────────┘ └───────┘  │
+		  │  ┌───────────────────┐  │
+		  ├──┤       UNIQUE      ├──┘
+		  │  └───────────────────┘
 		  │
-		  │  ┌─────────┐ ┌─────┐
-		  ├──┤ FOREIGN ├─┤ KEY ├──■ Indexed column list
-		  │  └─────────┘ └─────┘
-		  │  ┌───────┐
-		  └──┤ CHECK ├──■ Expression
-		     └───────┘
+		  │  ┌─────────┐ ┌───────┐
+		  ├──┤ FOREIGN ├─┤  KEY  ├─────■ Indexed column list
+		  │  └─────────┘ └───────┘
+		  │  ┌─────────┐
+		  └──┤  CHECK  ├───────────────■ Expression
+		     └─────────┘
 
 		*/
 		var constraint = {};
@@ -78,22 +88,21 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			walker.someType(WORD_OR_STRING, function(token) {
 				constraint.name = token[0];
 			}, "for the name of the constraint");
-
 		});
 		
 		walker.pick({
 			"KEY|INDEX" : function() {
-				constraint.type = "INDEX";
+				constraint.type = TableIndex.TYPE_INDEX;
 				constraint.columns = [];
 				walkIndexClause(constraint);
 			},
 			"PRIMARY KEY" : function() {
-				constraint.type = "PRIMARY";
+				constraint.type = TableIndex.TYPE_PRIMARY;
 				constraint.columns = [];
 				walkIndexClause(constraint);
 			},
 			"UNIQUE" : function() {
-				constraint.type = "UNIQUE";
+				constraint.type = TableIndex.TYPE_UNIQUE;
 				constraint.columns = [];
 				walkIndexClause(constraint);
 			},
@@ -102,9 +111,20 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			},
 			"FOREIGN KEY" : function() {
 				constraint.type = "FOREIGN KEY";
+				constraint.columns = [];
+				walker.commaSeparatedBlock(function(token) {
+					constraint.columns.push(token[0]);
+				});
 			}
 		});
+		query.addConstraint(constraint);
 		console.log("constraint: ", constraint);
+
+		walker.optional({
+			"," : function() {
+				walk_table_constraints(query);
+			}
+		});
 	}
 	
 	function walk_createTableColumns(q)
@@ -121,7 +141,7 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 					);
 				}
 				walker.back();
-				walk_table_constraints();
+				walk_table_constraints(q);
 			} else {
 				col.name = token[0];
 				walker.any(DATA_TYPES, function(token) {

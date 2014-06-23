@@ -142,6 +142,7 @@ CreateDatabaseQuery.prototype.name = function(dbName)
 function CreateTableQuery() 
 {
 	this.columns = [];
+	this.constraints = [];
 }
 
 /** Inherit from CreateQuery */
@@ -231,16 +232,25 @@ CreateTableQuery.prototype.name = function(tableName)
 	return this._name;
 };
 
+CreateTableQuery.prototype.addConstraint = function(constraint)
+{
+	this.constraints.push(constraint);
+};
+
 /**
  * Executes the query.
  * @return {void}
  */
 CreateTableQuery.prototype.execute = function() 
 {
-	createTable(
+	var table = createTable(
 		this.name(), 
 		this.columns, //fields
 		this.ifNotExists(), 
 		null //database
 	);
+
+	for (var i = 0, l = this.constraints.length; i < l; i++) {
+		table.addConstraint(this.constraints[i]);
+	}
 };

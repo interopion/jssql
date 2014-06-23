@@ -113,6 +113,17 @@ Table.prototype.getStorageKey = function()
 	return [NS, this._db.name, this.name].join(".");
 };
 
+Table.prototype.addConstraint = function(props)
+{
+	if (props.type == TableIndex.TYPE_INDEX ||
+		props.type == TableIndex.TYPE_UNIQUE ||
+		props.type == TableIndex.TYPE_PRIMARY) 
+	{
+		var key = TableIndex.fromJSON(props, this);
+		this.keys[key.name] = key;
+	}
+};
+
 Table.prototype.addColumn = function(props)
 {//console.log("Table.prototype.addColumn: ", props);
 	var col = Column.create(props);

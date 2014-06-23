@@ -28,5 +28,7 @@ GLOBAL.JSDB = {
 	Column    : Column,
 	TableRow  : TableRow,
 	TableCell : TableCell,
-	binarySearch : binarySearch
+	binarySearch   : binarySearch,
+	BinaryTree     : BinaryTree,
+	BinaryTreeNode : BinaryTreeNode
 };

@@ -1673,6 +1673,94 @@ Walker.prototype = {
 };
 
 // -----------------------------------------------------------------------------
+// Starts file "src/BinaryTree.js"
+// -----------------------------------------------------------------------------
+function BinaryTree()
+{
+	this.root = null;
+}
+
+BinaryTree.prototype = {
+
+	closestBefore : function(needle) 
+	{
+		var current = this.root;
+
+		while ( current ) 
+		{
+			if (current.value > needle) {
+				if (!current.left) 
+					return null;
+				current = current.left;
+			}
+			else if (current.value < needle) {
+				if (!current.right || current.right.value >= needle) 
+					return current;
+				current = current.right;
+			}
+			else {
+				return current;
+			}
+		}
+
+		return current;
+	},
+
+	insert : function(node)
+	{
+		var closest = this.closestBefore(node.value);
+		if (!closest) {
+			node.right = this.root;
+			node.left  = null;
+			this.root  = node;
+
+		} else {
+			if (closest.right) {
+				node.right = closest.right;
+				closest.right.left = node;
+			}
+			closest.right = node;
+			node.left = closest;
+		}
+	}
+};
+
+function BinaryTreeNode(value)
+{
+	this.value = value;
+}
+
+BinaryTreeNode.prototype = {
+	left   : null,
+	right  : null,
+	parent : null,
+	value  : null,
+
+	setLeft : function(node) 
+	{
+		this.left = node;
+	},
+	setRight : function(node) 
+	{
+		if (this.right) {
+			node.right = this.right;
+			this.right.left = node;
+		}
+		node.left = this;
+		this.right = node;
+
+	},
+	setParent : function(node) 
+	{
+		this.parent = node;
+	},
+	remove : function(node) 
+	{
+		this.parent = null;
+	}
+};
+
+// -----------------------------------------------------------------------------
 // Starts file "src/statements/conflict-clause.js"
 // -----------------------------------------------------------------------------
 /**
@@ -1932,7 +2020,9 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			walk_createTableColumns(q);
 		})
 		.nextUntil(";")
-		.commit(function() {//console.dir(q);
+		.commit(function() {
+			//console.log("CreateTableQuery:");
+			//console.dir(q);
 			q.execute();
 			walker.onComplete('Table "' + q.name() + '" created.');
 		});
@@ -1952,6 +2042,14 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 
 	function walkIndexClause(index)
 	{
+		if (!index.name) {
+			try {
+				walker.someType(WORD_OR_STRING, function(token) {
+					index.name = token[0];
+				});
+			} catch (ex) {}
+		}
+
 		walker.commaSeparatedBlock(function(token) {
 			index.columns.push(token[0]);
 		});
@@ -1960,31 +2058,31 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 		});
 	}
 
-	function walk_table_constraints() 
+	function walk_table_constraints(query) 
 	{
 		//console.log("walk_table_constraints");
 		/*
 		
 	 »» ══╦══════════════════════════════════════════════════ »»
-		  │  ┌─────────────────┐      
-		  ├──┤       KEY       ├──┬──■ Indexed column list, ON CONFLICT
-		  │  └─────────────────┘  │
-		  │  ┌─────────────────┐  │
-		  ├──┤      INDEX      ├──┤
-		  │  └─────────────────┘  │
-		  │  ┌─────────┐ ┌─────┐  │
-		  ├──┤ PRIMARY ├─┤ KEY ├──┤
-		  │  └─────────┘ └─────┘  │
-		  │  ┌─────────────────┐  │
-		  ├──┤      UNIQUE     ├──┘
-		  │  └─────────────────┘
+		  │  ┌───────────────────┐      
+		  ├──┤        KEY        ├──┬──■ Indexed column list, ON CONFLICT
+		  │  └───────────────────┘  │
+		  │  ┌───────────────────┐  │
+		  ├──┤       INDEX       ├──┤
+		  │  └───────────────────┘  │
+		  │  ┌─────────┐ ┌───────┐  │
+		  ├──┤ PRIMARY ├─┤  KEY  ├──┤
+		  │  └─────────┘ └───────┘  │
+		  │  ┌───────────────────┐  │
+		  ├──┤       UNIQUE      ├──┘
+		  │  └───────────────────┘
 		  │
-		  │  ┌─────────┐ ┌─────┐
-		  ├──┤ FOREIGN ├─┤ KEY ├──■ Indexed column list
-		  │  └─────────┘ └─────┘
-		  │  ┌───────┐
-		  └──┤ CHECK ├──■ Expression
-		     └───────┘
+		  │  ┌─────────┐ ┌───────┐
+		  ├──┤ FOREIGN ├─┤  KEY  ├─────■ Indexed column list
+		  │  └─────────┘ └───────┘
+		  │  ┌─────────┐
+		  └──┤  CHECK  ├───────────────■ Expression
+		     └─────────┘
 
 		*/
 		var constraint = {};
@@ -1993,22 +2091,21 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			walker.someType(WORD_OR_STRING, function(token) {
 				constraint.name = token[0];
 			}, "for the name of the constraint");
-
 		});
 		
 		walker.pick({
 			"KEY|INDEX" : function() {
-				constraint.type = "INDEX";
+				constraint.type = TableIndex.TYPE_INDEX;
 				constraint.columns = [];
 				walkIndexClause(constraint);
 			},
 			"PRIMARY KEY" : function() {
-				constraint.type = "PRIMARY";
+				constraint.type = TableIndex.TYPE_PRIMARY;
 				constraint.columns = [];
 				walkIndexClause(constraint);
 			},
 			"UNIQUE" : function() {
-				constraint.type = "UNIQUE";
+				constraint.type = TableIndex.TYPE_UNIQUE;
 				constraint.columns = [];
 				walkIndexClause(constraint);
 			},
@@ -2017,9 +2114,20 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			},
 			"FOREIGN KEY" : function() {
 				constraint.type = "FOREIGN KEY";
+				constraint.columns = [];
+				walker.commaSeparatedBlock(function(token) {
+					constraint.columns.push(token[0]);
+				});
 			}
 		});
+		query.addConstraint(constraint);
 		console.log("constraint: ", constraint);
+
+		walker.optional({
+			"," : function() {
+				walk_table_constraints(query);
+			}
+		});
 	}
 	
 	function walk_createTableColumns(q)
@@ -2036,7 +2144,7 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 					);
 				}
 				walker.back();
-				walk_table_constraints();
+				walk_table_constraints(q);
 			} else {
 				col.name = token[0];
 				walker.any(DATA_TYPES, function(token) {
@@ -2350,6 +2458,73 @@ STATEMENTS.INSERT = function(walker) {
 // Starts file "src/statements/select.js"
 // -----------------------------------------------------------------------------
 STATEMENTS.SELECT = function(walker) {
+
+	/**
+	 * Parses a table reference witch might be defined as "tableName" or 
+	 * as "databaseName.tableName". This function does NOT try to evaluate the
+	 * result to real Table object. Instead it just returns an object with 
+	 * "table" and "database" properties (the "database" will be null if not 
+	 * defined). 
+	 * @return {Object}
+	 * @throws {SQLParseError} if the input cannot be parsed correctly
+	 */
+	function tableRef() 
+	{
+		var out = {
+			database : null, 
+			table    : null
+		};
+
+		walker.someType(WORD_OR_STRING, function(token) {
+			out.table = token[0];
+		})
+		.optional(".", function() {
+			walker.someType(WORD_OR_STRING, function(token) {
+				out.database = out.table;
+				out.table    = token[0];
+			});
+		});
+
+		return out;
+	}
+
+	/**
+	 * Parses a table field reference witch might be defined as "fieldName" or 
+	 * as "tableName.fieldName", or as "databaseName.tableName.fieldName". This 
+	 * function does NOT try to evaluate the result to real field object. 
+	 * Instead it just returns an object with "field", "table" and "database" 
+	 * properties (the "database" and "table" will be null if not defined). 
+	 * @return {Object}
+	 * @throws {SQLParseError} if the input cannot be parsed correctly
+	 */
+	function fieldRef() 
+	{
+		var out = {
+			database : null, 
+			table    : null,
+			field    : null
+		};
+
+		walker.someType(WORD_OR_STRING, function(token) {
+			out.field = token[0];
+		})
+		.optional(".", function() {
+			walker.someType(WORD_OR_STRING, function(token) {
+				out.table = out.field;
+				out.field = token[0];
+			})
+			.optional(".", function() {
+				walker.someType(WORD_OR_STRING, function(token) {
+					out.database = out.table;
+					out.table    = out.field;
+					out.field    = token[0];
+				});
+			});
+		});
+
+		return out;
+	}
+
 	return function() {
 		
 		var tableName, dbName, table;
@@ -2359,20 +2534,11 @@ STATEMENTS.SELECT = function(walker) {
 				
 				walker.pick({
 					"FROM" : noop
-				})
-				
-				// table -------------------------------------------------------
-				.someType(WORD_OR_STRING, function(token) {
-					tableName = token[0];
-				})
-				.optional(".", function() {
-					walker.someType(WORD_OR_STRING, function(token) {
-						dbName = tableName;
-						tableName = token[0];
-					});
 				});
 				
-				table = getTable(tableName, dbName);
+				// table -------------------------------------------------------
+				var tbl   = tableRef(),
+					table = getTable(tbl.table, tbl.database);
 				
 				walker.errorUntil(";")
 				.commit(function() {
@@ -3161,6 +3327,17 @@ Table.prototype.toJSON = function()
 Table.prototype.getStorageKey = function() 
 {
 	return [NS, this._db.name, this.name].join(".");
+};
+
+Table.prototype.addConstraint = function(props)
+{
+	if (props.type == TableIndex.TYPE_INDEX ||
+		props.type == TableIndex.TYPE_UNIQUE ||
+		props.type == TableIndex.TYPE_PRIMARY) 
+	{
+		var key = TableIndex.fromJSON(props, this);
+		this.keys[key.name] = key;
+	}
 };
 
 Table.prototype.addColumn = function(props)
@@ -4511,7 +4688,7 @@ TableIndex.prototype = {
 			case TableIndex.TYPE_PRIMARY:
 				if ( this.table.primaryKey ) {
 					throw new SQLRuntimeError(
-						'A table can only have one PRIMARY KEY'
+						'A table can only have one PRIMARY KEY defined'
 					);
 				}
 				this.type = type;
@@ -4736,6 +4913,7 @@ CreateDatabaseQuery.prototype.name = function(dbName)
 function CreateTableQuery() 
 {
 	this.columns = [];
+	this.constraints = [];
 }
 
 /** Inherit from CreateQuery */
@@ -4825,18 +5003,27 @@ CreateTableQuery.prototype.name = function(tableName)
 	return this._name;
 };
 
+CreateTableQuery.prototype.addConstraint = function(constraint)
+{
+	this.constraints.push(constraint);
+};
+
 /**
  * Executes the query.
  * @return {void}
  */
 CreateTableQuery.prototype.execute = function() 
 {
-	createTable(
+	var table = createTable(
 		this.name(), 
 		this.columns, //fields
 		this.ifNotExists(), 
 		null //database
 	);
+
+	for (var i = 0, l = this.constraints.length; i < l; i++) {
+		table.addConstraint(this.constraints[i]);
+	}
 };
 
 
@@ -4873,7 +5060,9 @@ GLOBAL.JSDB = {
 	Column    : Column,
 	TableRow  : TableRow,
 	TableCell : TableCell,
-	binarySearch : binarySearch
+	binarySearch   : binarySearch,
+	BinaryTree     : BinaryTree,
+	BinaryTreeNode : BinaryTreeNode
 };
 
 // -----------------------------------------------------------------------------

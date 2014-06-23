@@ -162,7 +162,7 @@ TableIndex.prototype = {
 			case TableIndex.TYPE_PRIMARY:
 				if ( this.table.primaryKey ) {
 					throw new SQLRuntimeError(
-						'A table can only have one PRIMARY KEY'
+						'A table can only have one PRIMARY KEY defined'
 					);
 				}
 				this.type = type;
