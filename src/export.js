@@ -20,6 +20,7 @@ GLOBAL.JSDB = {
 
 	tokenize  : tokenize,
 	getTokens : getTokens,
+	Walker    : Walker,
 	parse     : parse,
 	query     : query,
 	

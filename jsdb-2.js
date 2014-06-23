@@ -1271,6 +1271,46 @@ Walker.prototype = {
 		return this._tokens[this._pos];
 	},
 
+	is : function(arg, caseSensitive)
+	{
+		var token = this.current(),
+			str   = token[0],
+			is    = false,
+			subkeys, y;
+
+		if (arg.indexOf("|") > 0) {
+			subkeys = arg.split(/\s*\|\s*/);
+			for ( y = 0; y < subkeys.length; y++ ) {
+				if (this.is(subkeys[y], caseSensitive)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/*if (arg.indexOf(" ") > 0) {
+			match = false;
+			
+			this.optional(key, onMatch);
+
+			if (match) {
+				options[key].call(this);
+				return this;
+			}
+		}*/
+
+		if (arg[0] == "@") {
+			var type = intVal(arg.substr(1));
+			return token[1] === type;
+		}
+		
+		if (caseSensitive) {
+			return arg === str;
+		}
+
+		return arg.toUpperCase() === str.toUpperCase();
+	},
+
 	some : function(options, caseSensitive) 
 	{
 		var token = this._tokens[this._pos], 
@@ -2472,7 +2512,8 @@ STATEMENTS.SELECT = function(walker) {
 	{
 		var out = {
 			database : null, 
-			table    : null
+			table    : null,
+			alias    : null
 		};
 
 		walker.someType(WORD_OR_STRING, function(token) {
@@ -2484,6 +2525,15 @@ STATEMENTS.SELECT = function(walker) {
 				out.table    = token[0];
 			});
 		});
+
+		var token = walker.current();
+		if (token[0].toUpperCase() == "AS") {
+			walker.someType(WORD_OR_STRING, function(tok) {
+				out.alias = tok[0];
+			});
+		} else {
+			
+		}
 
 		return out;
 	}
@@ -5052,6 +5102,7 @@ GLOBAL.JSDB = {
 
 	tokenize  : tokenize,
 	getTokens : getTokens,
+	Walker    : Walker,
 	parse     : parse,
 	query     : query,
 	

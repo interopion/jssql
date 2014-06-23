@@ -13,7 +13,8 @@ STATEMENTS.SELECT = function(walker) {
 	{
 		var out = {
 			database : null, 
-			table    : null
+			table    : null,
+			alias    : null
 		};
 
 		walker.someType(WORD_OR_STRING, function(token) {
@@ -25,6 +26,15 @@ STATEMENTS.SELECT = function(walker) {
 				out.table    = token[0];
 			});
 		});
+
+		var token = walker.current();
+		if (token[0].toUpperCase() == "AS") {
+			walker.someType(WORD_OR_STRING, function(tok) {
+				out.alias = tok[0];
+			});
+		} else {
+			
+		}
 
 		return out;
 	}

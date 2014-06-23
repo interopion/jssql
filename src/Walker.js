@@ -29,6 +29,46 @@ Walker.prototype = {
 		return this._tokens[this._pos];
 	},
 
+	is : function(arg, caseSensitive)
+	{
+		var token = this.current(),
+			str   = token[0],
+			is    = false,
+			subkeys, y;
+
+		if (arg.indexOf("|") > 0) {
+			subkeys = arg.split(/\s*\|\s*/);
+			for ( y = 0; y < subkeys.length; y++ ) {
+				if (this.is(subkeys[y], caseSensitive)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/*if (arg.indexOf(" ") > 0) {
+			match = false;
+			
+			this.optional(key, onMatch);
+
+			if (match) {
+				options[key].call(this);
+				return this;
+			}
+		}*/
+
+		if (arg[0] == "@") {
+			var type = intVal(arg.substr(1));
+			return token[1] === type;
+		}
+		
+		if (caseSensitive) {
+			return arg === str;
+		}
+
+		return arg.toUpperCase() === str.toUpperCase();
+	},
+
 	some : function(options, caseSensitive) 
 	{
 		var token = this._tokens[this._pos], 
