@@ -528,7 +528,7 @@ Column_DOUBLE.prototype             = new NumericColumn();
 Column_DOUBLE.prototype.constructor = Column_DOUBLE;
 Column_DOUBLE.prototype.type        = "DOUBLE";
 Column_DOUBLE.prototype.length      = 10;
-Column_DOUBLE.prototype.decimals    = 1;
+Column_DOUBLE.prototype.decimals    = 2;
 Column_DOUBLE.prototype.minUnsigned = Column_INT.prototype.minUnsigned;
 Column_DOUBLE.prototype.minSigned   = Column_INT.prototype.minSigned;
 Column_DOUBLE.prototype.maxUnsigned = Column_INT.prototype.maxUnsigned;
@@ -590,16 +590,25 @@ Column_FLOAT.prototype.init = function(options)
 	NumericColumn.prototype.init.call(this, options);
 
 	if ( isArray(options.type.params) ) {
-		if (options.type.params.length !== 1) {
+		if (options.type.params.length > 2) {
 			throw new SQLRuntimeError(
 				'Invalid data type declaration for column "%s". The syntax ' + 
-				'is "%s[(length)]".',
+				'is "%s[(length[, decimals])]".',
 				options.name,
 				this.type.toUpperCase()
 			);
 		}
-		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];	
+
+		this.typeParams = [];
+		if (options.type.params.length > 0) {
+			this.setLength(options.type.params[0]);
+			this.typeParams[0] = this.length;
+		}
+
+		if (options.type.params.length > 1) {
+			this.decimals = intVal(options.type.params[1]);
+			this.typeParams[1] = this.decimals;
+		}
 	}
 };
 
