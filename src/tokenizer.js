@@ -447,8 +447,30 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 				}
 			break;
 			
-			// punctoators -------------------------------------------------
-			case ".": 
+			// punctoators -----------------------------------------------------
+			case ".":
+				if (inStream) {
+					buf += cur;
+				} else {
+					if (buf && (/^-?\d+$/).test(buf)) {
+						state = TOKEN_TYPE_NUMBER;
+						buf += cur;
+					} else {
+						if (buf) commit();
+						next = sql[pos + 1];
+						if (next && (/[0-9]/).test(next)) {
+							state = TOKEN_TYPE_NUMBER;
+							buf += cur;
+						} else {
+							state = TOKEN_TYPE_PUNCTOATOR;
+							buf += cur;
+							commit();
+						}
+					}
+				}
+				pos++;
+			break;
+
 			case ",": 
 				if (inStream) {
 					buf += cur;
