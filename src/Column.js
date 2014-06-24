@@ -39,7 +39,10 @@ var columnDataTypes = {
 };
 
 
-function Column() {}
+function Column() 
+{
+	this.typeParams = [];
+}
 
 Column.constructors = columnDataTypes;
 
@@ -48,7 +51,6 @@ Column.prototype = {
 	name   : null,
 	type   : null,
 	nullable : false,
-	typeParams : [],
 	setName : function(name)
 	{
 		if (name) {
@@ -90,7 +92,7 @@ Column.prototype = {
 			nullable : !!this.nullable,
 			type : {
 				name : this.type,
-				params : [this.length]
+				params : this.typeParams.slice()//[this.length]
 			}
 		};
 		
@@ -123,7 +125,7 @@ Column.create = function(options)
 	}
 	
 	inst = new Func();
-	inst.init.call(inst, options);
+	inst.init(options);
 	//inst.typeParams = options.type.params || [];
 	return inst;
 };
@@ -588,7 +590,7 @@ Column_FLOAT.prototype.maxSigned   = Column_INT.prototype.maxSigned;
 Column_FLOAT.prototype.init = function(options) 
 {
 	NumericColumn.prototype.init.call(this, options);
-
+	this.typeParams = [this.length];
 	if ( isArray(options.type.params) ) {
 		if (options.type.params.length > 2) {
 			throw new SQLRuntimeError(
@@ -738,8 +740,11 @@ Column_ENUM.prototype             = new StringColumn();
 Column_ENUM.prototype.constructor = Column_ENUM;
 Column_ENUM.prototype.type        = "ENUM";
 
+Column_ENUM.prototype.setLength = function(n) {};
+
 Column_ENUM.prototype.init = function(options) 
 {
+	//console.log("Column_ENUM.prototype.init: ", options);
 	if ( !isArray(options.type.params) || options.type.params.length < 1 ) {
 		throw new SQLRuntimeError(
 			'The "%s" column type requires at least one option.',
@@ -748,21 +753,37 @@ Column_ENUM.prototype.init = function(options)
 	}
 
 	this.typeParams = options.type.params.slice();
-	Column.prototype.init.call(this, options);
+	Column.prototype.init.call(this, options);	
 };
 
 Column_ENUM.prototype.set = function(value) 
 {
+	//console.log("Column_ENUM.prototype.set -> this.typeParams: ", this.typeParams, value, this.toSQL());
+
 	var s = String(value);
 	if (this.typeParams.indexOf(s) == -1) {
 		throw new SQLRuntimeError(
 			'The value for column "%s" must be %s.',
 			this.name,
-			prettyList(this.typeParams)
+			prettyList(this.optionSet)
 		);
 	}
 	
 	return s;
+};
+
+Column_ENUM.prototype.typeToSQL = function() {
+	var sql = [this.type];
+	if (this.typeParams.length) {
+		sql.push("(");
+		for (var i = 0, l = this.typeParams.length; i < l; i++) {
+			sql.push(quote(this.typeParams[i], "'"));
+			if (i < l - 1)
+				sql.push(", ");
+		}
+		sql.push(")");
+	}
+	return sql.join("");
 };
 
 
