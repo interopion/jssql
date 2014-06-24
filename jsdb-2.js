@@ -1173,8 +1173,30 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 				}
 			break;
 			
-			// punctoators -------------------------------------------------
-			case ".": 
+			// punctoators -----------------------------------------------------
+			case ".":
+				if (inStream) {
+					buf += cur;
+				} else {
+					if (buf && (/^-?\d+$/).test(buf)) {
+						state = TOKEN_TYPE_NUMBER;
+						buf += cur;
+					} else {
+						if (buf) commit();
+						next = sql[pos + 1];
+						if (next && (/[0-9]/).test(next)) {
+							state = TOKEN_TYPE_NUMBER;
+							buf += cur;
+						} else {
+							state = TOKEN_TYPE_PUNCTOATOR;
+							buf += cur;
+							commit();
+						}
+					}
+				}
+				pos++;
+			break;
+
 			case ",": 
 				if (inStream) {
 					buf += cur;
@@ -1326,6 +1348,11 @@ Walker.prototype = {
 		return this._tokens[this._pos];
 	},
 
+	get : function()
+	{
+		return this._tokens[this._pos] ? this._tokens[this._pos][0] : "";
+	},
+
 	is : function(arg, caseSensitive)
 	{
 		var token = this.current(),
@@ -1391,6 +1418,22 @@ Walker.prototype = {
 
 		// Case insensitive string match ---------------------------------------
 		return arg.toUpperCase() === str.toUpperCase();
+	},
+
+	require : function(arg, caseSensitive) 
+	{
+		if ( !this.is(arg, caseSensitive) ) {
+			var prev = "the start of the query";
+			if (this._pos > 0) {
+				prev = this._input.substring(0, this._tokens[this._pos][2]);
+				prev = prev.substring(prev.lastIndexOf(this.lookBack(5)[0]));
+				prev = prev.replace(/[\r\n]/, "").replace(/\t/, " ");
+				prev = prev.replace(/\s+$/, "");
+				prev = "..." + prev;
+			}
+			
+			throw new SQLParseError('You have an error after %s', prev);
+		}
 	},
 
 	some : function(options, caseSensitive) 
@@ -2599,11 +2642,106 @@ STATEMENTS.SELECT = function(walker) {
 	 */ 
 	var identifierOrAll = "*|" + identifier;
 
-	function walkOrderBy()
+	/**
+	 * Parses a table field reference witch might be defined as "fieldName" or 
+	 * as "tableName.fieldName", or as "databaseName.tableName.fieldName". This 
+	 * function does NOT try to evaluate the result to real field object. 
+	 * Instead it just returns an object with "field", "table" and "database" 
+	 * properties (the "database" and "table" will be null if not defined). 
+	 * @return {Object}
+	 * @throws {SQLParseError} if the input cannot be parsed correctly
+	 * @param {Object} options Optional configuration object with the following
+	 *     boolean properties (each of which defaults to false):
+	 * 	   @includeAlias  If true, the function will also look for an
+	 *     				  alias after the field declaration
+	 *     @allowAll      If true, the function will also match "*" as field name
+	 *     @allowIndexes  If true, the function will also match integers as 
+	 *                    field names. This might be used in ORDER BY clause for 
+	 *                    example
+	 *     @includeDB     If true, the fields can be defined as db.table.field
+	 *                    instead of just field or table.field
+	 */
+	function walkFieldRef(options) 
 	{
-		if (walker.is("ORDER BY")) {
-			walker.forward(2);
+		options = options || {};
+
+		var out = {
+			database : null, 
+			table    : null,
+			field    : null
+		};
+
+		var name = identifier;
+		if (options.allowAll) {
+			name += "|*";
 		}
+		if (options.allowIndexes) {
+			name += "|@" + TOKEN_TYPE_NUMBER;
+		}
+
+		if (options.includeAlias) {
+			out.alias = null;
+		}
+
+		walker.require(name);
+		out.field = walker.get();
+		walker.forward();
+		if (walker.is(".")) {
+			walker.forward().require(name);
+			out.table = out.field;
+			out.field = walker.get();
+			walker.forward();
+			if (options.includeDB && walker.is(".")) {
+				walker.forward().require(name);
+				out.database = out.table;
+				out.table    = out.field;
+				out.field    = walker.get();
+				walker.forward();
+			}
+		}
+
+		// now check what we have so far
+		if (isNumeric(out.field)) {
+			out.field = intVal(out.field);
+			if (out.field < 0) {
+				throw new SQLParseError('Negative column index is not allowed.');	
+			}
+		} else if (!out.field) {
+			throw new SQLParseError('Expecting a field name');
+		}
+
+		if (out.table == "*") {
+			throw new SQLParseError('You cannot use "*" as table name');
+		} else if (isNumeric(out.table)) {
+			throw new SQLParseError('You cannot use number as table name');
+		}
+
+		if (out.database == "*") {
+			throw new SQLParseError('You cannot use "*" as database name');
+		} else if (isNumeric(out.database)) {
+			throw new SQLParseError('You cannot use number as database name');
+		}
+
+		// now check for an alias or just continue
+		if (options.includeAlias) {
+			if (walker.is(identifier)) { 
+				if (walker.is("AS")) {
+					walker.forward();
+					walker.someType(WORD_OR_STRING, function(tok) {
+						out.alias = tok[0];
+					});
+				}
+				else if (walker.is("FROM|WHERE|GROUP|ORDER|LIMIT")) {
+					
+				}
+				else {
+					out.alias = walker.current()[0];
+					walker.forward();
+				}
+			}
+		}
+
+		return out;
 	}
 
 	/**
@@ -2615,7 +2753,7 @@ STATEMENTS.SELECT = function(walker) {
 	 * @return {Object}
 	 * @throws {SQLParseError} if the input cannot be parsed correctly
 	 */
-	function tableRef(tables) 
+	function tableRef() 
 	{
 		var out = {
 			database : null, 
@@ -2630,7 +2768,7 @@ STATEMENTS.SELECT = function(walker) {
 			walker.someType(WORD_OR_STRING, function(token) {
 				out.database = out.table;
 				out.table    = token[0];
-			}, "for database name");
+			}, "for table name");
 		});
 
 		if (walker.is(identifier)) {
@@ -2649,100 +2787,71 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		}
 
-		tables.push(out);
-
 		return out;
 	}
 
 	/**
-	 * Parses a table field reference witch might be defined as "fieldName" or 
-	 * as "tableName.fieldName", or as "databaseName.tableName.fieldName". This 
-	 * function does NOT try to evaluate the result to real field object. 
-	 * Instead it just returns an object with "field", "table" and "database" 
-	 * properties (the "database" and "table" will be null if not defined). 
-	 * @return {Object}
-	 * @throws {SQLParseError} if the input cannot be parsed correctly
+	 * Collects the field references from the statement using the walkFieldRef
+	 * function.
+	 * @return {void}
 	 */
-	function fieldRef(fields) 
+	function collectFieldRefs(fields) 
 	{
-		var out = {
-			database : null, 
-			table    : null,
-			field    : null,
-			alias    : null
-		};
-
-		if (walker.is(identifierOrAll)) {
-			out.field = walker.current()[0];
-			walker.forward();
-			if (walker.is(".")) {
-				walker.forward();
-				if (walker.is(identifierOrAll)) {
-					out.table = out.field;
-					out.field = walker.current()[0];
-					if (walker.forward().is(".")) {
-						if (walker.forward().is(identifierOrAll)) {
-							out.database = out.table;
-							out.table    = out.field;
-							out.field    = walker.current()[0];
-						} else {
-							walker.prev();
-						}
-					} else {
-						walker.prev();
-					}
-				} else {
-					walker.prev();
-				}
-			}
-		}
-
-		// now check what we have so far
-		if (!out.field) {
-			throw new SQLParseError('Expecting a field name');
-		}
-		if (out.table == "*") {
-			throw new SQLParseError('You cannot use "*" as table name');
-		}
-		if (out.database == "*") {
-			throw new SQLParseError('You cannot use "*" as database name');
-		}
+		var out = walkFieldRef({
+			includeAlias : true, 
+			allowAll     : true, 
+			allowIndexes : true,
+			includeDB    : true
+		});
 
 		fields.push(out);
 
-		// now check for an alias or just continue
-		if (walker.is(identifier)) { 
-			if (walker.is("AS")) {
-				walker.forward();
-				walker.someType(WORD_OR_STRING, function(tok) {
-					out.alias = tok[0];
-				});
-			}
-			else if (walker.is("FROM|WHERE|GROUP|ORDER|LIMIT")) {
-				
-			}
-			else {
-				out.alias = walker.current()[0];
-				walker.forward();
-			}
-		}
-
 		if (walker.is(",")) {
 			walker.forward();
-			fieldRef(fields);
+			collectFieldRefs(fields);
 		}
 	}
 
+	function collectTableRefs(tables)
+	{
+		var table = tableRef();
+		tables.push(table);
+		if (walker.is(",")) {
+			walker.forward();
+			collectTableRefs(tables);
+		}
+	}
+
+	function walkOrderBy()
+	{
+		if (walker.is("ORDER BY")) {
+			walker.forward(2);
+		}
+	}
+
+	/**
+	 * Executes the SELECT query and returns the result rows.
+	 */
 	function execute(query)
 	{
-		var rows   = [],
-			tables = {},
+		var rows         = [],
+			cols         = [],
+			tables       = {},
+			columns      = {},
 			tablesLength = query.tables.length,
+			fieldsLength = query.fields.length,
+			rowsLength   = 0,
+			rowIndex,
 			tableIndex,
+			tableRow,
 			table,
 			rowId,
-			i;
+			row,
+			col,
+			tmp,
+			i, y, l;
 
+		// Populate the tables object with Table references --------------------
 		for ( i = 0; i < tablesLength; i++ ) 
 		{
 			tables[i] = tables[query.tables[i].table] = getTable(
@@ -2755,17 +2864,93 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		}
 
-		for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
+		// Populate the columns object -----------------------------------------
+		for ( i = 0; i < fieldsLength; i++ ) 
 		{
-			table = tables[tableIndex];
-			for (rowId in table.rows)
-			{
-				rows.push(table.rows[rowId].toArray());
+			col = query.fields[i];
+			
+			if (col.table) {
+				if (!tables.hasOwnProperty(col.table)) {
+					throw new SQLParseError(
+						'The table "%s" fro column "%s" is not included at ' + 
+						'the FROM clause',
+						col.table,
+						col.field
+					);
+				}
 			}
+
+			// Expand "*"
+			if (col.field == "*") {
+				if (col.table) {
+					for ( var colName in tables[col.table].cols ) {
+						tmp = tables[col.table].cols[colName];
+						columns[i] = columns[colName] = tmp;
+						cols.push(colName);
+					}					
+				} else {
+					for ( y = 0; y < tablesLength; y++ ) {
+						for ( var colName in tables[y].cols ) {
+							tmp = tables[y].cols[colName];
+							columns[i] = columns[colName] = tmp;
+							cols.push(colName);
+						}
+					}
+				}
+				continue;
+			}
+
+
+			//if (col.table) {
+			//	if (col.alias in columns) {
+			//		throw new SQLParseError(
+			//			'Column "%s" is ambiguous',
+			//			col.alias
+			//		);
+			//	}
+			//}
+
+			if (!col.alias) {
+				col.alias = col.field;
+			}
+
+			columns[i] = columns[col.alias] = col;
+			cols.push(col.alias);
 		}
 
+		// Collect all rows from all the tables --------------------------------
+		rowIndex = 0;
+		var hasData;
+		do {
+			hasData = false;
+			row = [];
+			
+			for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
+			{
+				table    = tables[tableIndex];
+				rowId    = table._row_seq[rowIndex];
+				tableRow = rowId ? table.rows[rowId] : null;
+
+				if (tableRow)
+					hasData = true;
+				
+				for ( y = 0; y < table._col_seq.length; y++ )
+				{
+					row.push( tableRow ? tableRow.getCellAt(y).value : null );
+				}
+
+			}
+
+			if (hasData)
+				rows[rowIndex++] = row;
+
+		} while(hasData);
+
 		console.log("tables: ", tables, rows);
-		return rows;
+		return {
+			cols : cols,
+			rows : rows
+		};
 	}
 
 	return function() {
@@ -2775,13 +2960,13 @@ STATEMENTS.SELECT = function(walker) {
 			tables : []
 		};
 
-		fieldRef(query.fields);
+		collectFieldRefs(query.fields);
 
 		
 		//console.log("current: ", walker.current()[0]);
 		walker.pick({
 			"FROM" : function() {//console.log("current: ", walker.current()[0]);
-				tableRef(query.tables);
+				collectTableRefs(query.tables);
 			}
 		});
 
@@ -2794,14 +2979,17 @@ STATEMENTS.SELECT = function(walker) {
 		var //tbl   = tableRef(),
 			table = getTable(query.tables[0].table, query.tables[0].database);
 		
-		walker.errorUntil(";")
+		walker
+		.errorUntil(";")
 		.commit(function() {
 			//execute(query);
-			console.log("query: ", query);
+			
+			var result = execute(query);
+			console.log("query: ", query, "result: ", result);
 
 			walker.onComplete({
-				head : table._col_seq,
-				rows : execute(query)//table.rows
+				head : result.cols,
+				rows : result.rows
 			});
 		});
 	};
@@ -3818,13 +4006,16 @@ var columnDataTypes = {
 	//"TEXT" : {}, //  [BINARY] [CHARACTER SET charset_name] [COLLATE collation_name]
 	//"MEDIUMTEXT" : {}, //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
 	//"LONGTEXT" : {}, //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
-	//"ENUM" : {}, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
+	"ENUM" : Column_ENUM, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
 	//"SET" : {}//, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
 	//"spatial_type"
 };
 
 
-function Column() {}
+function Column() 
+{
+	this.typeParams = [];
+}
 
 Column.constructors = columnDataTypes;
 
@@ -3833,7 +4024,6 @@ Column.prototype = {
 	name   : null,
 	type   : null,
 	nullable : false,
-	typeParams : [],
 	setName : function(name)
 	{
 		if (name) {
@@ -3875,7 +4065,7 @@ Column.prototype = {
 			nullable : !!this.nullable,
 			type : {
 				name : this.type,
-				params : [this.length]
+				params : this.typeParams.slice()//[this.length]
 			}
 		};
 		
@@ -3908,7 +4098,7 @@ Column.create = function(options)
 	}
 	
 	inst = new Func();
-	inst.init.call(inst, options);
+	inst.init(options);
 	//inst.typeParams = options.type.params || [];
 	return inst;
 };
@@ -4313,7 +4503,7 @@ Column_DOUBLE.prototype             = new NumericColumn();
 Column_DOUBLE.prototype.constructor = Column_DOUBLE;
 Column_DOUBLE.prototype.type        = "DOUBLE";
 Column_DOUBLE.prototype.length      = 10;
-Column_DOUBLE.prototype.decimals    = 1;
+Column_DOUBLE.prototype.decimals    = 2;
 Column_DOUBLE.prototype.minUnsigned = Column_INT.prototype.minUnsigned;
 Column_DOUBLE.prototype.minSigned   = Column_INT.prototype.minSigned;
 Column_DOUBLE.prototype.maxUnsigned = Column_INT.prototype.maxUnsigned;
@@ -4373,18 +4563,27 @@ Column_FLOAT.prototype.maxSigned   = Column_INT.prototype.maxSigned;
 Column_FLOAT.prototype.init = function(options) 
 {
 	NumericColumn.prototype.init.call(this, options);
-
+	this.typeParams = [this.length];
 	if ( isArray(options.type.params) ) {
-		if (options.type.params.length !== 1) {
+		if (options.type.params.length > 2) {
 			throw new SQLRuntimeError(
 				'Invalid data type declaration for column "%s". The syntax ' + 
-				'is "%s[	(length)]".',
+				'is "%s[(length[, decimals])]".',
 				options.name,
 				this.type.toUpperCase()
 			);
 		}
-		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];	
+
+		this.typeParams = [];
+		if (options.type.params.length > 0) {
+			this.setLength(options.type.params[0]);
+			this.typeParams[0] = this.length;
+		}
+
+		if (options.type.params.length > 1) {
+			this.decimals = intVal(options.type.params[1]);
+			this.typeParams[1] = this.decimals;
+		}
 	}
 };
 
@@ -4506,6 +4705,59 @@ Column_CHAR.prototype.constructor = Column_CHAR;
 Column_CHAR.prototype.type        = "CHAR";
 Column_CHAR.prototype.length      = -1;
 Column_CHAR.prototype.maxLength   = 65535;
+
+// Column_ENUM extends StringColumn
+// =============================================================================
+function Column_ENUM() {}
+Column_ENUM.prototype             = new StringColumn();
+Column_ENUM.prototype.constructor = Column_ENUM;
+Column_ENUM.prototype.type        = "ENUM";
+
+Column_ENUM.prototype.setLength = function(n) {};
+
+Column_ENUM.prototype.init = function(options) 
+{
+	//console.log("Column_ENUM.prototype.init: ", options);
+	if ( !isArray(options.type.params) || options.type.params.length < 1 ) {
+		throw new SQLRuntimeError(
+			'The "%s" column type requires at least one option.',
+			this.type
+		);
+	}
+
+	this.typeParams = options.type.params.slice();
+	Column.prototype.init.call(this, options);	
+};
+
+Column_ENUM.prototype.set = function(value) 
+{
+	//console.log("Column_ENUM.prototype.set -> this.typeParams: ", this.typeParams, value, this.toSQL());
+
+	var s = String(value);
+	if (this.typeParams.indexOf(s) == -1) {
+		throw new SQLRuntimeError(
+			'The value for column "%s" must be %s.',
+			this.name,
+			prettyList(this.optionSet)
+		);
+	}
+	
+	return s;
+};
+
+Column_ENUM.prototype.typeToSQL = function() {
+	var sql = [this.type];
+	if (this.typeParams.length) {
+		sql.push("(");
+		for (var i = 0, l = this.typeParams.length; i < l; i++) {
+			sql.push(quote(this.typeParams[i], "'"));
+			if (i < l - 1)
+				sql.push(", ");
+		}
+		sql.push(")");
+	}
+	return sql.join("");
+};
 
 
 

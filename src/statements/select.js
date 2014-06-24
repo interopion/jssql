@@ -18,11 +18,106 @@ STATEMENTS.SELECT = function(walker) {
 	 */ 
 	var identifierOrAll = "*|" + identifier;
 
-	function walkOrderBy()
+	/**
+	 * Parses a table field reference witch might be defined as "fieldName" or 
+	 * as "tableName.fieldName", or as "databaseName.tableName.fieldName". This 
+	 * function does NOT try to evaluate the result to real field object. 
+	 * Instead it just returns an object with "field", "table" and "database" 
+	 * properties (the "database" and "table" will be null if not defined). 
+	 * @return {Object}
+	 * @throws {SQLParseError} if the input cannot be parsed correctly
+	 * @param {Object} options Optional configuration object with the following
+	 *     boolean properties (each of which defaults to false):
+	 * 	   @includeAlias  If true, the function will also look for an
+	 *     				  alias after the field declaration
+	 *     @allowAll      If true, the function will also match "*" as field name
+	 *     @allowIndexes  If true, the function will also match integers as 
+	 *                    field names. This might be used in ORDER BY clause for 
+	 *                    example
+	 *     @includeDB     If true, the fields can be defined as db.table.field
+	 *                    instead of just field or table.field
+	 */
+	function walkFieldRef(options) 
 	{
-		if (walker.is("ORDER BY")) {
-			walker.forward(2);
+		options = options || {};
+
+		var out = {
+			database : null, 
+			table    : null,
+			field    : null
+		};
+
+		var name = identifier;
+		if (options.allowAll) {
+			name += "|*";
 		}
+		if (options.allowIndexes) {
+			name += "|@" + TOKEN_TYPE_NUMBER;
+		}
+
+		if (options.includeAlias) {
+			out.alias = null;
+		}
+
+		walker.require(name);
+		out.field = walker.get();
+		walker.forward();
+		if (walker.is(".")) {
+			walker.forward().require(name);
+			out.table = out.field;
+			out.field = walker.get();
+			walker.forward();
+			if (options.includeDB && walker.is(".")) {
+				walker.forward().require(name);
+				out.database = out.table;
+				out.table    = out.field;
+				out.field    = walker.get();
+				walker.forward();
+			}
+		}
+
+		// now check what we have so far
+		if (isNumeric(out.field)) {
+			out.field = intVal(out.field);
+			if (out.field < 0) {
+				throw new SQLParseError('Negative column index is not allowed.');	
+			}
+		} else if (!out.field) {
+			throw new SQLParseError('Expecting a field name');
+		}
+
+		if (out.table == "*") {
+			throw new SQLParseError('You cannot use "*" as table name');
+		} else if (isNumeric(out.table)) {
+			throw new SQLParseError('You cannot use number as table name');
+		}
+
+		if (out.database == "*") {
+			throw new SQLParseError('You cannot use "*" as database name');
+		} else if (isNumeric(out.database)) {
+			throw new SQLParseError('You cannot use number as database name');
+		}
+
+		// now check for an alias or just continue
+		if (options.includeAlias) {
+			if (walker.is(identifier)) { 
+				if (walker.is("AS")) {
+					walker.forward();
+					walker.someType(WORD_OR_STRING, function(tok) {
+						out.alias = tok[0];
+					});
+				}
+				else if (walker.is("FROM|WHERE|GROUP|ORDER|LIMIT")) {
+					
+				}
+				else {
+					out.alias = walker.current()[0];
+					walker.forward();
+				}
+			}
+		}
+
+		return out;
 	}
 
 	/**
@@ -34,7 +129,7 @@ STATEMENTS.SELECT = function(walker) {
 	 * @return {Object}
 	 * @throws {SQLParseError} if the input cannot be parsed correctly
 	 */
-	function tableRef(tables) 
+	function tableRef() 
 	{
 		var out = {
 			database : null, 
@@ -49,7 +144,7 @@ STATEMENTS.SELECT = function(walker) {
 			walker.someType(WORD_OR_STRING, function(token) {
 				out.database = out.table;
 				out.table    = token[0];
-			}, "for database name");
+			}, "for table name");
 		});
 
 		if (walker.is(identifier)) {
@@ -68,100 +163,71 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		}
 
-		tables.push(out);
-
 		return out;
 	}
 
 	/**
-	 * Parses a table field reference witch might be defined as "fieldName" or 
-	 * as "tableName.fieldName", or as "databaseName.tableName.fieldName". This 
-	 * function does NOT try to evaluate the result to real field object. 
-	 * Instead it just returns an object with "field", "table" and "database" 
-	 * properties (the "database" and "table" will be null if not defined). 
-	 * @return {Object}
-	 * @throws {SQLParseError} if the input cannot be parsed correctly
+	 * Collects the field references from the statement using the walkFieldRef
+	 * function.
+	 * @return {void}
 	 */
-	function fieldRef(fields) 
+	function collectFieldRefs(fields) 
 	{
-		var out = {
-			database : null, 
-			table    : null,
-			field    : null,
-			alias    : null
-		};
-
-		if (walker.is(identifierOrAll)) {
-			out.field = walker.current()[0];
-			walker.forward();
-			if (walker.is(".")) {
-				walker.forward();
-				if (walker.is(identifierOrAll)) {
-					out.table = out.field;
-					out.field = walker.current()[0];
-					if (walker.forward().is(".")) {
-						if (walker.forward().is(identifierOrAll)) {
-							out.database = out.table;
-							out.table    = out.field;
-							out.field    = walker.current()[0];
-						} else {
-							walker.prev();
-						}
-					} else {
-						walker.prev();
-					}
-				} else {
-					walker.prev();
-				}
-			}
-		}
-
-		// now check what we have so far
-		if (!out.field) {
-			throw new SQLParseError('Expecting a field name');
-		}
-		if (out.table == "*") {
-			throw new SQLParseError('You cannot use "*" as table name');
-		}
-		if (out.database == "*") {
-			throw new SQLParseError('You cannot use "*" as database name');
-		}
+		var out = walkFieldRef({
+			includeAlias : true, 
+			allowAll     : true, 
+			allowIndexes : true,
+			includeDB    : true
+		});
 
 		fields.push(out);
 
-		// now check for an alias or just continue
-		if (walker.is(identifier)) { 
-			if (walker.is("AS")) {
-				walker.forward();
-				walker.someType(WORD_OR_STRING, function(tok) {
-					out.alias = tok[0];
-				});
-			}
-			else if (walker.is("FROM|WHERE|GROUP|ORDER|LIMIT")) {
-				
-			}
-			else {
-				out.alias = walker.current()[0];
-				walker.forward();
-			}
-		}
-
 		if (walker.is(",")) {
 			walker.forward();
-			fieldRef(fields);
+			collectFieldRefs(fields);
 		}
 	}
 
+	function collectTableRefs(tables)
+	{
+		var table = tableRef();
+		tables.push(table);
+		if (walker.is(",")) {
+			walker.forward();
+			collectTableRefs(tables);
+		}
+	}
+
+	function walkOrderBy()
+	{
+		if (walker.is("ORDER BY")) {
+			walker.forward(2);
+		}
+	}
+
+	/**
+	 * Executes the SELECT query and returns the result rows.
+	 */
 	function execute(query)
 	{
-		var rows   = [],
-			tables = {},
+		var rows         = [],
+			cols         = [],
+			tables       = {},
+			columns      = {},
 			tablesLength = query.tables.length,
+			fieldsLength = query.fields.length,
+			rowsLength   = 0,
+			rowIndex,
 			tableIndex,
+			tableRow,
 			table,
 			rowId,
-			i;
+			row,
+			col,
+			tmp,
+			i, y, l;
 
+		// Populate the tables object with Table references --------------------
 		for ( i = 0; i < tablesLength; i++ ) 
 		{
 			tables[i] = tables[query.tables[i].table] = getTable(
@@ -174,17 +240,93 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		}
 
-		for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
+		// Populate the columns object -----------------------------------------
+		for ( i = 0; i < fieldsLength; i++ ) 
 		{
-			table = tables[tableIndex];
-			for (rowId in table.rows)
-			{
-				rows.push(table.rows[rowId].toArray());
+			col = query.fields[i];
+			
+			if (col.table) {
+				if (!tables.hasOwnProperty(col.table)) {
+					throw new SQLParseError(
+						'The table "%s" fro column "%s" is not included at ' + 
+						'the FROM clause',
+						col.table,
+						col.field
+					);
+				}
 			}
+
+			// Expand "*"
+			if (col.field == "*") {
+				if (col.table) {
+					for ( var colName in tables[col.table].cols ) {
+						tmp = tables[col.table].cols[colName];
+						columns[i] = columns[colName] = tmp;
+						cols.push(colName);
+					}					
+				} else {
+					for ( y = 0; y < tablesLength; y++ ) {
+						for ( var colName in tables[y].cols ) {
+							tmp = tables[y].cols[colName];
+							columns[i] = columns[colName] = tmp;
+							cols.push(colName);
+						}
+					}
+				}
+				continue;
+			}
+
+
+			//if (col.table) {
+			//	if (col.alias in columns) {
+			//		throw new SQLParseError(
+			//			'Column "%s" is ambiguous',
+			//			col.alias
+			//		);
+			//	}
+			//}
+
+			if (!col.alias) {
+				col.alias = col.field;
+			}
+
+			columns[i] = columns[col.alias] = col;
+			cols.push(col.alias);
 		}
 
+		// Collect all rows from all the tables --------------------------------
+		rowIndex = 0;
+		var hasData;
+		do {
+			hasData = false;
+			row = [];
+			
+			for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
+			{
+				table    = tables[tableIndex];
+				rowId    = table._row_seq[rowIndex];
+				tableRow = rowId ? table.rows[rowId] : null;
+
+				if (tableRow)
+					hasData = true;
+				
+				for ( y = 0; y < table._col_seq.length; y++ )
+				{
+					row.push( tableRow ? tableRow.getCellAt(y).value : null );
+				}
+
+			}
+
+			if (hasData)
+				rows[rowIndex++] = row;
+
+		} while(hasData);
+
 		console.log("tables: ", tables, rows);
-		return rows;
+		return {
+			cols : cols,
+			rows : rows
+		};
 	}
 
 	return function() {
@@ -194,13 +336,13 @@ STATEMENTS.SELECT = function(walker) {
 			tables : []
 		};
 
-		fieldRef(query.fields);
+		collectFieldRefs(query.fields);
 
 		
 		//console.log("current: ", walker.current()[0]);
 		walker.pick({
 			"FROM" : function() {//console.log("current: ", walker.current()[0]);
-				tableRef(query.tables);
+				collectTableRefs(query.tables);
 			}
 		});
 
@@ -213,14 +355,17 @@ STATEMENTS.SELECT = function(walker) {
 		var //tbl   = tableRef(),
 			table = getTable(query.tables[0].table, query.tables[0].database);
 		
-		walker.errorUntil(";")
+		walker
+		.errorUntil(";")
 		.commit(function() {
 			//execute(query);
-			console.log("query: ", query);
+			
+			var result = execute(query);
+			console.log("query: ", query, "result: ", result);
 
 			walker.onComplete({
-				head : table._col_seq,
-				rows : execute(query)//table.rows
+				head : result.cols,
+				rows : result.rows
 			});
 		});
 	};
