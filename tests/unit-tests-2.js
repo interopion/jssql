@@ -292,7 +292,21 @@
 		assertTokenLength(tok[3], 1);
 	});
 	
-	module("Table");
+	test("Numbers", function() {
+		var tok = getTokens("55");//console.dir(tok);
+		assertTokensCount(tok, 1);
+		assertTokenLength(tok[0], 2);
+		assertTokenValue(tok[0], "55");
+		assertTokenType(tok[0], JSDB.TOKEN_TYPE_NUMBER);
+
+		tok = getTokens("5.3");//console.dir(tok);
+		assertTokensCount(tok, 1, "Floating point number must be matched as one token");
+		assertTokenLength(tok[0], 3);
+		assertTokenValue(tok[0], "5.3");
+		assertTokenType(tok[0], JSDB.TOKEN_TYPE_NUMBER);
+	});
+
+	//module("Table");
 	
 	/*test("Testing insert", function() {
 		var db = JSDB.SERVER.createDatabase("unit_tests_db", true);
