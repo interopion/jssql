@@ -304,6 +304,13 @@
 		assertTokenLength(tok[0], 3);
 		assertTokenValue(tok[0], "5.3");
 		assertTokenType(tok[0], JSDB.TOKEN_TYPE_NUMBER);
+
+		tok = getTokens(".3");//console.dir(tok);
+		assertTokensCount(tok, 1, "Floating point number starting with '.'");
+		assertTokenLength(tok[0], 2);
+		assertTokenValue(tok[0], ".3");
+		assertTokenType(tok[0], JSDB.TOKEN_TYPE_NUMBER);
+		equal(parseFloat(tok[0][0]), 0.3);
 	});
 
 	//module("Table");
