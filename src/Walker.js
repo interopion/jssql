@@ -84,6 +84,11 @@ Walker.prototype = {
 		return this._tokens[this._pos];
 	},
 
+	get : function()
+	{
+		return this._tokens[this._pos] ? this._tokens[this._pos][0] : "";
+	},
+
 	is : function(arg, caseSensitive)
 	{
 		var token = this.current(),
@@ -149,6 +154,22 @@ Walker.prototype = {
 
 		// Case insensitive string match ---------------------------------------
 		return arg.toUpperCase() === str.toUpperCase();
+	},
+
+	require : function(arg, caseSensitive) 
+	{
+		if ( !this.is(arg, caseSensitive) ) {
+			var prev = "the start of the query";
+			if (this._pos > 0) {
+				prev = this._input.substring(0, this._tokens[this._pos][2]);
+				prev = prev.substring(prev.lastIndexOf(this.lookBack(5)[0]));
+				prev = prev.replace(/[\r\n]/, "").replace(/\t/, " ");
+				prev = prev.replace(/\s+$/, "");
+				prev = "..." + prev;
+			}
+			
+			throw new SQLParseError('You have an error after %s', prev);
+		}
 	},
 
 	some : function(options, caseSensitive) 
