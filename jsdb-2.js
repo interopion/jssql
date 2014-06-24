@@ -1249,23 +1249,78 @@ function Walker(tokens, input)
 
 Walker.prototype = {
 	
-	back : function()
+	/**
+	 * Moves the position pointer n steps back.
+	 * @param {Number} n Optional, defaults to 1.
+	 * @throws {Error} on invalid argument
+	 * @return {Walker} Returns the instance
+	 */
+	back : function(n)
 	{
-		if (this._pos <= 0) {
+		n = intVal(n || 1, 1);
+		if (n < 1) {
+			throw new Error("Invalid argument (expecting positive integer)");
+		}
+		if (this._pos - n < 0) {
 			throw new Error("The parser is trying go before the first token");
 		}
-		this._pos--;
+		this._pos -= n;
 		return this;
 	},
 
-	prev : function()
+	/**
+	 * Moves the position pointer n steps forward.
+	 * @param {Number} n Optional, defaults to 1.
+	 * @throws {Error} on invalid argument
+	 * @return {Walker} Returns the instance
+	 */
+	forward : function(n)
 	{
-		if (this._pos <= 0) {
-			throw new Error("The parser is trying go before the first token");
+		n = intVal(n || 1, 1);
+		if (n < 1) {
+			throw new Error("Invalid argument (expecting positive integer)");
 		}
-		return this._tokens[this._pos - 1];
+		if (!this._tokens[this._pos + n]) {
+			throw new Error("The parser is trying go after the last token");
+		}
+		this._pos += n;
+		return this;
 	},
 
+	/**
+	 * Returns the next token. If the next token is found , the position pointer 
+	 * is incremented. 
+	 * @throws {Error} on invalid argument
+	 * @return {Array|false} Returns the token or false past the end of the stream
+	 */
+	next : function()
+	{
+		if (!this._tokens[this._pos + 1]) {
+			return false;
+		}
+		this._pos++;
+		return this.current();
+	},
+
+	/**
+	 * Returns the previous token. If the next token is found , the position 
+	 * pointer is incremented. 
+	 * @throws {Error} on invalid argument
+	 * @return {Array|false} Returns the token or false past the end of the stream
+	 */
+	prev : function()
+	{
+		if (!this._tokens[this._pos - 1]) {
+			return false;
+		}
+		this._pos--;
+		return this.current();
+	},
+
+	/**
+	 * Returns the previous token if any (undefined otherwise).
+	 * @return {Array|undefined}
+	 */
 	current : function()
 	{
 		return this._tokens[this._pos];
@@ -1274,10 +1329,12 @@ Walker.prototype = {
 	is : function(arg, caseSensitive)
 	{
 		var token = this.current(),
-			str   = token[0],
+			str   = token ? token[0] : "",
 			is    = false,
-			subkeys, y;
+			subkeys, match, start, y;
 
+
+		// OR ------------------------------------------------------------------
 		if (arg.indexOf("|") > 0) {
 			subkeys = arg.split(/\s*\|\s*/);
 			for ( y = 0; y < subkeys.length; y++ ) {
@@ -1288,26 +1345,51 @@ Walker.prototype = {
 			return false;
 		}
 
-		/*if (arg.indexOf(" ") > 0) {
+		// AND -----------------------------------------------------------------
+		if (arg.indexOf("&") > 0) {
 			match = false;
-			
-			this.optional(key, onMatch);
-
-			if (match) {
-				options[key].call(this);
-				return this;
+			subkeys = arg.split(/&+/);
+			for ( y = 0; y < subkeys.length; y++ ) {
+				if (!this.is(subkeys[y], caseSensitive)) {
+					return false;
+				}
 			}
-		}*/
+			return true;
+		}
 
+		// Sequence ------------------------------------------------------------
+		if (arg.indexOf(" ") > 0) {
+			match = false;
+			start = this._pos; 
+			subkeys = arg.split(/\s+/);
+			for ( y = 0; y < subkeys.length; y++ ) {
+				if (!this.is(subkeys[y], caseSensitive)) {
+					this._pos = start;
+					return false;
+				}
+				this._pos++;
+			}
+			this._pos = start;
+			return true;
+		}
+
+		// Negation ------------------------------------------------------------
+		if (arg[0] == "!") {
+			return !this.is(arg.substr(1));
+		}
+
+		// Token type matching -------------------------------------------------
 		if (arg[0] == "@") {
 			var type = intVal(arg.substr(1));
-			return token[1] === type;
+			return token ? token[1] === type : false;
 		}
 		
+		// Case sensitive string match -----------------------------------------
 		if (caseSensitive) {
 			return arg === str;
 		}
 
+		// Case insensitive string match ---------------------------------------
 		return arg.toUpperCase() === str.toUpperCase();
 	},
 
@@ -2500,6 +2582,31 @@ STATEMENTS.INSERT = function(walker) {
 STATEMENTS.SELECT = function(walker) {
 
 	/**
+	 * This will match any string (in any quotes) or just a word as unquoted 
+	 * name.
+	 * @var string
+	 */ 
+	var identifier = [
+		"@" + TOKEN_TYPE_WORD,
+		"@" + TOKEN_TYPE_SINGLE_QUOTE_STRING,
+		"@" + TOKEN_TYPE_DOUBLE_QUOTE_STRING,
+		"@" + TOKEN_TYPE_BACK_TICK_STRING
+	].join("|");
+
+	/**
+	 * This will match any identifier but also the "*" symbol.
+	 * @var string
+	 */ 
+	var identifierOrAll = "*|" + identifier;
+
+	function walkOrderBy()
+	{
+		if (walker.is("ORDER BY")) {
+			walker.forward(2);
+		}
+	}
+
+	/**
 	 * Parses a table reference witch might be defined as "tableName" or 
 	 * as "databaseName.tableName". This function does NOT try to evaluate the
 	 * result to real Table object. Instead it just returns an object with 
@@ -2508,7 +2615,7 @@ STATEMENTS.SELECT = function(walker) {
 	 * @return {Object}
 	 * @throws {SQLParseError} if the input cannot be parsed correctly
 	 */
-	function tableRef() 
+	function tableRef(tables) 
 	{
 		var out = {
 			database : null, 
@@ -2518,22 +2625,31 @@ STATEMENTS.SELECT = function(walker) {
 
 		walker.someType(WORD_OR_STRING, function(token) {
 			out.table = token[0];
-		})
+		}, "for table name")
 		.optional(".", function() {
 			walker.someType(WORD_OR_STRING, function(token) {
 				out.database = out.table;
 				out.table    = token[0];
-			});
+			}, "for database name");
 		});
 
-		var token = walker.current();
-		if (token[0].toUpperCase() == "AS") {
-			walker.someType(WORD_OR_STRING, function(tok) {
-				out.alias = tok[0];
-			});
-		} else {
-			
+		if (walker.is(identifier)) {
+			if (walker.is("AS")) {
+				walker.forward();
+				walker.someType(WORD_OR_STRING, function(tok) {
+					out.alias = tok[0];
+				}, "for table alias");
+			}
+			else if (walker.is("WHERE|GROUP|ORDER|LIMIT")) {
+				
+			}
+			else {
+				out.alias = walker.current()[0];
+				walker.forward();
+			}
 		}
+
+		tables.push(out);
 
 		return out;
 	}
@@ -2547,58 +2663,146 @@ STATEMENTS.SELECT = function(walker) {
 	 * @return {Object}
 	 * @throws {SQLParseError} if the input cannot be parsed correctly
 	 */
-	function fieldRef() 
+	function fieldRef(fields) 
 	{
 		var out = {
 			database : null, 
 			table    : null,
-			field    : null
+			field    : null,
+			alias    : null
 		};
 
-		walker.someType(WORD_OR_STRING, function(token) {
-			out.field = token[0];
-		})
-		.optional(".", function() {
-			walker.someType(WORD_OR_STRING, function(token) {
-				out.table = out.field;
-				out.field = token[0];
-			})
-			.optional(".", function() {
-				walker.someType(WORD_OR_STRING, function(token) {
-					out.database = out.table;
-					out.table    = out.field;
-					out.field    = token[0];
-				});
-			});
-		});
+		if (walker.is(identifierOrAll)) {
+			out.field = walker.current()[0];
+			walker.forward();
+			if (walker.is(".")) {
+				walker.forward();
+				if (walker.is(identifierOrAll)) {
+					out.table = out.field;
+					out.field = walker.current()[0];
+					if (walker.forward().is(".")) {
+						if (walker.forward().is(identifierOrAll)) {
+							out.database = out.table;
+							out.table    = out.field;
+							out.field    = walker.current()[0];
+						} else {
+							walker.prev();
+						}
+					} else {
+						walker.prev();
+					}
+				} else {
+					walker.prev();
+				}
+			}
+		}
 
-		return out;
+		// now check what we have so far
+		if (!out.field) {
+			throw new SQLParseError('Expecting a field name');
+		}
+		if (out.table == "*") {
+			throw new SQLParseError('You cannot use "*" as table name');
+		}
+		if (out.database == "*") {
+			throw new SQLParseError('You cannot use "*" as database name');
+		}
+
+		fields.push(out);
+
+		// now check for an alias or just continue
+		if (walker.is(identifier)) { 
+			if (walker.is("AS")) {
+				walker.forward();
+				walker.someType(WORD_OR_STRING, function(tok) {
+					out.alias = tok[0];
+				});
+			}
+			else if (walker.is("FROM|WHERE|GROUP|ORDER|LIMIT")) {
+				
+			}
+			else {
+				out.alias = walker.current()[0];
+				walker.forward();
+			}
+		}
+
+		if (walker.is(",")) {
+			walker.forward();
+			fieldRef(fields);
+		}
+	}
+
+	function execute(query)
+	{
+		var rows   = [],
+			tables = {},
+			tablesLength = query.tables.length,
+			tableIndex,
+			table,
+			rowId,
+			i;
+
+		for ( i = 0; i < tablesLength; i++ ) 
+		{
+			tables[i] = tables[query.tables[i].table] = getTable(
+				query.tables[i].table,
+				query.tables[i].database
+			);
+
+			if (query.tables[i].alias) {
+				tables[query.tables[i].alias] = tables[i];
+			}
+		}
+
+		for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
+		{
+			table = tables[tableIndex];
+			for (rowId in table.rows)
+			{
+				rows.push(table.rows[rowId].toArray());
+			}
+		}
+
+		console.log("tables: ", tables, rows);
+		return rows;
 	}
 
 	return function() {
 		
-		var tableName, dbName, table;
+		var query = {
+			fields : [],
+			tables : []
+		};
+
+		fieldRef(query.fields);
+
 		
+		//console.log("current: ", walker.current()[0]);
 		walker.pick({
-			"*|ALL" : function() {
-				
-				walker.pick({
-					"FROM" : noop
-				});
-				
-				// table -------------------------------------------------------
-				var tbl   = tableRef(),
-					table = getTable(tbl.table, tbl.database);
-				
-				walker.errorUntil(";")
-				.commit(function() {
-					//console.log(table);
-					walker.onComplete({
-						head : table._col_seq,
-						rows : table.rows
-					});
-				});
+			"FROM" : function() {//console.log("current: ", walker.current()[0]);
+				tableRef(query.tables);
 			}
+		});
+
+		if (walker.is("ORDER BY")) {
+
+		}
+		//console.log("query: ", query);
+		
+		// table -------------------------------------------------------
+		var //tbl   = tableRef(),
+			table = getTable(query.tables[0].table, query.tables[0].database);
+		
+		walker.errorUntil(";")
+		.commit(function() {
+			//execute(query);
+			console.log("query: ", query);
+
+			walker.onComplete({
+				head : table._col_seq,
+				rows : execute(query)//table.rows
+			});
 		});
 	};
 };

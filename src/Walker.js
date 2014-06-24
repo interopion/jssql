@@ -7,23 +7,78 @@ function Walker(tokens, input)
 
 Walker.prototype = {
 	
-	back : function()
+	/**
+	 * Moves the position pointer n steps back.
+	 * @param {Number} n Optional, defaults to 1.
+	 * @throws {Error} on invalid argument
+	 * @return {Walker} Returns the instance
+	 */
+	back : function(n)
 	{
-		if (this._pos <= 0) {
+		n = intVal(n || 1, 1);
+		if (n < 1) {
+			throw new Error("Invalid argument (expecting positive integer)");
+		}
+		if (this._pos - n < 0) {
 			throw new Error("The parser is trying go before the first token");
 		}
-		this._pos--;
+		this._pos -= n;
 		return this;
 	},
 
-	prev : function()
+	/**
+	 * Moves the position pointer n steps forward.
+	 * @param {Number} n Optional, defaults to 1.
+	 * @throws {Error} on invalid argument
+	 * @return {Walker} Returns the instance
+	 */
+	forward : function(n)
 	{
-		if (this._pos <= 0) {
-			throw new Error("The parser is trying go before the first token");
+		n = intVal(n || 1, 1);
+		if (n < 1) {
+			throw new Error("Invalid argument (expecting positive integer)");
 		}
-		return this._tokens[this._pos - 1];
+		if (!this._tokens[this._pos + n]) {
+			throw new Error("The parser is trying go after the last token");
+		}
+		this._pos += n;
+		return this;
 	},
 
+	/**
+	 * Returns the next token. If the next token is found , the position pointer 
+	 * is incremented. 
+	 * @throws {Error} on invalid argument
+	 * @return {Array|false} Returns the token or false past the end of the stream
+	 */
+	next : function()
+	{
+		if (!this._tokens[this._pos + 1]) {
+			return false;
+		}
+		this._pos++;
+		return this.current();
+	},
+
+	/**
+	 * Returns the previous token. If the next token is found , the position 
+	 * pointer is incremented. 
+	 * @throws {Error} on invalid argument
+	 * @return {Array|false} Returns the token or false past the end of the stream
+	 */
+	prev : function()
+	{
+		if (!this._tokens[this._pos - 1]) {
+			return false;
+		}
+		this._pos--;
+		return this.current();
+	},
+
+	/**
+	 * Returns the previous token if any (undefined otherwise).
+	 * @return {Array|undefined}
+	 */
 	current : function()
 	{
 		return this._tokens[this._pos];
@@ -32,10 +87,12 @@ Walker.prototype = {
 	is : function(arg, caseSensitive)
 	{
 		var token = this.current(),
-			str   = token[0],
+			str   = token ? token[0] : "",
 			is    = false,
-			subkeys, y;
+			subkeys, match, start, y;
 
+
+		// OR ------------------------------------------------------------------
 		if (arg.indexOf("|") > 0) {
 			subkeys = arg.split(/\s*\|\s*/);
 			for ( y = 0; y < subkeys.length; y++ ) {
@@ -46,26 +103,51 @@ Walker.prototype = {
 			return false;
 		}
 
-		/*if (arg.indexOf(" ") > 0) {
+		// AND -----------------------------------------------------------------
+		if (arg.indexOf("&") > 0) {
 			match = false;
-			
-			this.optional(key, onMatch);
-
-			if (match) {
-				options[key].call(this);
-				return this;
+			subkeys = arg.split(/&+/);
+			for ( y = 0; y < subkeys.length; y++ ) {
+				if (!this.is(subkeys[y], caseSensitive)) {
+					return false;
+				}
 			}
-		}*/
+			return true;
+		}
 
+		// Sequence ------------------------------------------------------------
+		if (arg.indexOf(" ") > 0) {
+			match = false;
+			start = this._pos; 
+			subkeys = arg.split(/\s+/);
+			for ( y = 0; y < subkeys.length; y++ ) {
+				if (!this.is(subkeys[y], caseSensitive)) {
+					this._pos = start;
+					return false;
+				}
+				this._pos++;
+			}
+			this._pos = start;
+			return true;
+		}
+
+		// Negation ------------------------------------------------------------
+		if (arg[0] == "!") {
+			return !this.is(arg.substr(1));
+		}
+
+		// Token type matching -------------------------------------------------
 		if (arg[0] == "@") {
 			var type = intVal(arg.substr(1));
-			return token[1] === type;
+			return token ? token[1] === type : false;
 		}
 		
+		// Case sensitive string match -----------------------------------------
 		if (caseSensitive) {
 			return arg === str;
 		}
 
+		// Case insensitive string match ---------------------------------------
 		return arg.toUpperCase() === str.toUpperCase();
 	},
 
