@@ -33,7 +33,7 @@ var columnDataTypes = {
 	//"TEXT" : {}, //  [BINARY] [CHARACTER SET charset_name] [COLLATE collation_name]
 	//"MEDIUMTEXT" : {}, //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
 	//"LONGTEXT" : {}, //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
-	//"ENUM" : {}, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
+	"ENUM" : Column_ENUM, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
 	//"SET" : {}//, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
 	//"spatial_type"
 };
@@ -593,7 +593,7 @@ Column_FLOAT.prototype.init = function(options)
 		if (options.type.params.length !== 1) {
 			throw new SQLRuntimeError(
 				'Invalid data type declaration for column "%s". The syntax ' + 
-				'is "%s[	(length)]".',
+				'is "%s[(length)]".',
 				options.name,
 				this.type.toUpperCase()
 			);
@@ -721,5 +721,39 @@ Column_CHAR.prototype.constructor = Column_CHAR;
 Column_CHAR.prototype.type        = "CHAR";
 Column_CHAR.prototype.length      = -1;
 Column_CHAR.prototype.maxLength   = 65535;
+
+// Column_ENUM extends StringColumn
+// =============================================================================
+function Column_ENUM() {}
+Column_ENUM.prototype             = new StringColumn();
+Column_ENUM.prototype.constructor = Column_ENUM;
+Column_ENUM.prototype.type        = "ENUM";
+
+Column_ENUM.prototype.init = function(options) 
+{
+	if ( !isArray(options.type.params) || options.type.params.length < 1 ) {
+		throw new SQLRuntimeError(
+			'The "%s" column type requires at least one option.',
+			this.type
+		);
+	}
+
+	this.typeParams = options.type.params.slice();
+	Column.prototype.init.call(this, options);
+};
+
+Column_ENUM.prototype.set = function(value) 
+{
+	var s = String(value);
+	if (this.typeParams.indexOf(s) == -1) {
+		throw new SQLRuntimeError(
+			'The value for column "%s" must be %s.',
+			this.name,
+			prettyList(this.typeParams)
+		);
+	}
+	
+	return s;
+};
 
 
