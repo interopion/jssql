@@ -87,7 +87,7 @@ TableIndex.prototype = {
 			row = [];
 			for ( y = 0; y < colLen; y++ ) 
 			{
-				row.push( allRows[id].getCell(this.columns[y]).value );
+				row.push( allRows[id].getCell(this.columns[y]) );
 			}
 			row = row.join("");
 
@@ -107,7 +107,7 @@ TableIndex.prototype = {
 
 		for ( y = 0; y < this.columns.length; y++ ) 
 		{
-			value.push( row.getCell(this.columns[y]).value );
+			value.push( row.getCell(this.columns[y]) );
 		}
 
 		value = value.join("");

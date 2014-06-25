@@ -663,6 +663,283 @@ function defaultErrorHandler(e)
 		console.error(e);
 }
 
+// JOIN functions --------------------------------------------------------------
+function crossJoin(tables)
+{
+	console.time("crossJoin");
+	var rows = [], 
+		tablesLength = tables.length,
+		table1 = tables[0], table2,
+		rowId1, rowId2, row, i;
+
+	for ( rowId1 in table1.rows ) 
+	{
+		row = table1.rows[rowId1]._data;
+		if (tablesLength > 1) {
+			for ( i = 1; i < tablesLength; i++ )
+			{
+				table2 = tables[i];
+				for ( rowId2 in table2.rows ) 
+				{
+					rows.push( row.concat( table2.rows[rowId2]._data ) );
+				}
+			}
+		} else {
+			rows.push(row.slice());
+		}
+	}
+	console.timeEnd("crossJoin");
+	return rows;
+}
+
+/**
+ * Joins two or more arrays together by merging their value objects
+ * @param {Array} arrs An array of arrays of objects to me merged
+ * @return {array} The joined array
+ */
+/*function joinArrays(arrs, join, sort) 
+{
+	var rows = [], rowIndex, row;
+	
+	if (!arrs) {
+		return rows;
+	}
+
+	switch (join ? join.type : "") {
+		case "INNER JOIN": // 280ms / 1000
+			$.each(arrs, function(tableIndex, tableRows) {
+				var hasMatch,
+					tableRowsLength,
+					rowsLength,
+					rowIndex2,
+					tmpRow,
+					match,
+					row2;
+
+				if (tableIndex === 0) {
+					rows = tableRows.slice();
+				} else {
+					rowsLength = rows.length;
+					for (rowIndex = 0; rowIndex < rowsLength; rowIndex++) {
+						hasMatch = false;
+						row      = rows[rowIndex];
+						trLength = tableRows.length;
+						
+						for (rowIndex2 = 0; rowIndex2 < trLength; rowIndex2++) {
+							row2   = tableRows[rowIndex2];
+							tmpRow = $.extend({}, row, row2);
+							match  = tmpRow[join.key1] === tmpRow[join.key2];
+
+							if (match) {
+								if (!hasMatch) {
+									hasMatch = 1;
+									rows.splice(rowIndex, 1, tmpRow);
+								} else {
+									if (rowIndex2 === 0) {
+										rows.splice(rowIndex, 1, tmpRow);
+									} else {
+										rows.splice(++rowIndex, 0, tmpRow);
+										rowsLength++;
+									}
+								}
+							}
+						}
+
+						if (!hasMatch) {
+							rows.splice(rowIndex--, 1);
+							rowsLength--;
+						}
+					}
+				}
+			});
+		break;
+
+		case "LEFT JOIN": // 300ms / 1000
+			var tablesLen = arrs.length,
+				rowsLen,
+				tableRowsLen,
+				tableIndex,
+				tableRows,
+				hasMatch,
+				rowIndex2,
+				row2,
+				tmpRow,
+				match,
+				key;
+
+			for (tableIndex = 0; tableIndex < tablesLen; tableIndex++) {
+				tableRows = arrs[tableIndex];
+				if (tableIndex === 0) {
+					rows = tableRows.slice();
+				} else {
+					rowsLen = rows.length;
+					for (rowIndex = 0; rowIndex < rowsLen; rowIndex++) {
+						hasMatch     = false;
+						row          = rows[rowIndex];
+						tableRowsLen = tableRows.length;
+						for (rowIndex2 = 0; rowIndex2 < tableRows.length; rowIndex2++) {
+							row2   = tableRows[rowIndex2];
+							tmpRow = $.extend({}, row, row2);
+							match  = tmpRow[join.key1] === tmpRow[join.key2];
+
+							if (match) {
+								if (!hasMatch) {
+									hasMatch = 1;
+									rows.splice(rowIndex, 1, tmpRow);
+								} else {
+									if (rowIndex2 === 0) {
+										rows.splice(rowIndex, 1, tmpRow);
+									} else {
+										rows.splice(++rowIndex, 0, tmpRow);
+										rowsLen++;
+									}
+								}
+							} else {
+								if (rowIndex2 === 0) {
+									for (key in row2) {
+										row[key] = null;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		break;
+		
+		case "RIGHT JOIN": // 300ms / 1000
+			var tablesLen = arrs.length,
+				tableIndex,
+				tableRows,
+				tableRowsLen,
+				rowIndex2,
+				row2,
+				rowsLen,
+				hasMatch,
+				tmpRow,
+				match,
+				key;
+
+			for (tableIndex = tablesLen - 1; tableIndex >= 0; tableIndex--) {
+				tableRows = arrs[tableIndex];
+				if (tableIndex === tablesLen - 1) {
+					rows = tableRows.slice();
+				} else {
+					rowsLen = rows.length;
+					for (rowIndex = 0; rowIndex < rowsLen; rowIndex++) {
+						hasMatch     = false;
+						row          = rows[rowIndex];
+						tableRowsLen = tableRows.length;
+						for (rowIndex2 = 0; rowIndex2 < tableRowsLen; rowIndex2++) {
+							row2   = tableRows[rowIndex2];
+							tmpRow = $.extend({}, row, row2);
+							match  = tmpRow[join.key1] === tmpRow[join.key2];
+
+							if (match) {
+								if (!hasMatch) {
+									hasMatch = 1;
+									rows.splice(rowIndex, 1, tmpRow);
+								} else {
+									if (rowIndex2 === 0) {
+										rows.splice(rowIndex, 1, tmpRow);
+									} else {
+										rows.splice(++rowIndex, 0, tmpRow);
+										rowsLen++;
+									}
+								}
+							} else {
+								if (rowIndex2 === 0) {
+									for (key in row2) {
+										row[key] = null;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		break;
+
+		case "OUTER JOIN": // 200ms / 1000
+		case "FULL JOIN":
+		case "FULL OUTER JOIN":
+			var proto      = {},
+				leftTable  = arrs[0],
+				rightTable = arrs[1];
+
+			$.each(arrs, function(tableIndex, tableRows) {
+				$.each(tableRows[0] || {}, function(k) {
+					proto[k] = null;
+				});
+			});
+			
+			$.each(leftTable, function(rowIndex, row) {
+				rows.push($.extend({}, proto, row));
+			});
+
+			$.each(rightTable, function(rowIndexR, rowR) {
+				var found;
+				$.each(rows, function(rowIndexL, rowL) {
+					if (rowL[join.key1] === rowR[join.key2]) {
+						if (rowR[join.key1] === null || rowL[join.key2] !== null) {
+							rows.push($.extend({}, rowL, rowR));		
+						} else {
+							$.extend(rowL, rowR);
+						}
+						found = 1;
+						return false;
+					}
+				});
+				if (!found) {
+					rows.splice(rowIndexR, 0, $.extend({}, proto, rowR));
+				}
+			});
+
+			if (!sort) {
+				rows.sort(function(a, b) {
+					return (a[join.key1] || Infinity) - (b[join.key1] || Infinity);
+				});
+			}
+		break;
+
+		case "CROSS JOIN":// 300ms / 1000
+		default:
+			var rowIndex2,
+				tableLen,
+				rowsLen,
+				row2;
+
+			$.each(arrs, function(tableIndex, tableRows) {
+				if (tableIndex === 0) {
+					rows = tableRows.slice();
+				} else {
+					rowsLen = rows.length;
+					for (rowIndex = 0; rowIndex < rowsLen; rowIndex++) {
+						row      = rows[rowIndex];
+						tableLen = tableRows.length;
+						for (rowIndex2 = 0; rowIndex2 < tableLen; rowIndex2++) {
+							row2 = tableRows[rowIndex2];
+							if (rowIndex2 === 0) {
+								$.extend(row, row2);
+							} else {
+								rows.splice(
+									++rowIndex, 
+									0, 
+									$.extend({}, row, row2)
+								);
+								rowsLen++;
+							}
+						}
+					}
+				}
+			});
+		break;
+	}
+
+	return rows;
+}*/
+
+
 // -----------------------------------------------------------------------------
 // Starts file "src/events.js"
 // -----------------------------------------------------------------------------
@@ -2841,6 +3118,7 @@ STATEMENTS.SELECT = function(walker) {
 			tablesLength = query.tables.length,
 			fieldsLength = query.fields.length,
 			rowsLength   = 0,
+			colName,
 			rowIndex,
 			tableIndex,
 			tableRow,
@@ -2883,14 +3161,14 @@ STATEMENTS.SELECT = function(walker) {
 			// Expand "*"
 			if (col.field == "*") {
 				if (col.table) {
-					for ( var colName in tables[col.table].cols ) {
+					for ( colName in tables[col.table].cols ) {
 						tmp = tables[col.table].cols[colName];
 						columns[i] = columns[colName] = tmp;
 						cols.push(colName);
 					}					
 				} else {
 					for ( y = 0; y < tablesLength; y++ ) {
-						for ( var colName in tables[y].cols ) {
+						for ( colName in tables[y].cols ) {
 							tmp = tables[y].cols[colName];
 							columns[i] = columns[colName] = tmp;
 							cols.push(colName);
@@ -2919,34 +3197,15 @@ STATEMENTS.SELECT = function(walker) {
 		}
 
 		// Collect all rows from all the tables --------------------------------
-		rowIndex = 0;
-		var hasData;
-		do {
-			hasData = false;
-			row = [];
-			
-			for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
-			{
-				table    = tables[tableIndex];
-				rowId    = table._row_seq[rowIndex];
-				tableRow = rowId ? table.rows[rowId] : null;
+		var _tables = [];
+		for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
+		{
+			_tables.push(tables[tableIndex]);
+		}
+		//debugger;
+		rows = crossJoin(_tables);
 
-				if (tableRow)
-					hasData = true;
-				
-				for ( y = 0; y < table._col_seq.length; y++ )
-				{
-					row.push( tableRow ? tableRow.getCellAt(y).value : null );
-				}
-
-			}
-
-			if (hasData)
-				rows[rowIndex++] = row;
-
-		} while(hasData);
-
-		console.log("tables: ", tables, rows);
+		//console.log("tables: ", tables, rows);
 		return {
 			cols : cols,
 			rows : rows
@@ -3925,6 +4184,7 @@ Table.prototype.insert = function(keys, values)
 		for (ki = 0; ki < kl; ki++) {
 			row.setCellValue(keys[ki], values[ri][ki]);
 		}
+		console.dir(row);
 
 		for (ki in this.keys) {
 			this.keys[ki].beforeInsert(row);
@@ -4794,11 +5054,11 @@ function TableRow(table, id)
 	this.length = 0;
 
 	/**
-	 * The collection of TableCell objects
+	 * The actual data collection
 	 * @var Array
 	 * @private
 	 */
-	this._cells = [];
+	this._data = [];
 	
 	/**
 	 * The collection of TableCell objects by name
@@ -4830,8 +5090,10 @@ TableRow.prototype.load = function(onSuccess, onError)
 	var row = this;
 	JSDB.events.dispatch("loadstart:row", row);
 	this.read(function(json) {
-		for (var i = 0; i < row.length; i++) {
-			row._cells[i].setValue(json[i]);
+		if (json) {
+			for (var i = 0; i < row.length; i++) {
+				row._data[i] = row.table.cols[row.table._col_seq[i]].set(json[i]);
+			}
 		}
 		JSDB.events.dispatch("load:row", row);
 		onSuccess(row);
@@ -4856,19 +5118,23 @@ TableRow.prototype.save = function(onSuccess, onError)
  */
 TableRow.prototype.setTable = function(table)
 {
-	var colName, col, cell;
+	var colName, col;
 
 	assertInstance(table, Table);
 	
 	this.length = 0;
 	this._cellsByName = {};
 	this.table = table;
+	this._data = [];
 
-	for (colName in table.cols) {
-		col  = table.cols[colName];
-		cell = new TableCell(col, this);
-		this.length = this._cells.push(cell);
-		this._cellsByName[colName] = cell;
+	for (colName in table.cols) 
+	{
+		col = table.cols[colName];
+		this._cellsByName[colName] = this.length;
+		this.setCellValue(
+			this.length++, 
+			col.defaultValue === undefined ? null : col.defaultValue
+		);
 	}
 
 	return this;
@@ -4882,7 +5148,7 @@ TableRow.prototype.setTable = function(table)
 TableRow.prototype.getCell = function(name)
 {
 	assertInObject(name, this._cellsByName, 'No such field "' + name + '".');
-	return this._cellsByName[name];
+	return this._data[this._cellsByName[name]];
 };
 
 /**
@@ -4892,8 +5158,8 @@ TableRow.prototype.getCell = function(name)
  */
 TableRow.prototype.getCellAt = function(index)
 {
-	assertInBounds(index, this._cells, 'No field at index "' + index + '".');
-	return this._cells[index];
+	assertInBounds(index, this._data, 'No field at index "' + index + '".');
+	return this._data[index];
 };
 
 /**
@@ -4905,11 +5171,25 @@ TableRow.prototype.getCellAt = function(index)
  */
 TableRow.prototype.setCellValue = function(nameOrIndex, value)
 {
-	var cell = isNumeric(nameOrIndex) ? 
-		this.getCellAt(nameOrIndex) : 
-		this.getCell(nameOrIndex);
-
-	cell.setValue(value);
+	var col;
+	
+	if (isNumeric(nameOrIndex)) {
+		col   = this.table.cols[this.table._col_seq[nameOrIndex]];
+		value = col.set(value);
+		if (value === null && col.autoIncrement) {
+			value = this.table._ai;
+		}
+		this._data[nameOrIndex] = value;
+	}
+	else {
+		col   = this.table.cols[nameOrIndex];
+		value = col.set(value);
+		if (value === null && col.autoIncrement) {
+			value = this.table._ai;
+		}
+		this._data[this._cellsByName[nameOrIndex]] = value;
+	}
+	
 	return this;
 };
 
@@ -4922,21 +5202,8 @@ TableRow.prototype.setCellValue = function(nameOrIndex, value)
 TableRow.prototype.getCellValue = function(nameOrIndex)
 {
 	return isNumeric(nameOrIndex) ? 
-		this.getCellAt(nameOrIndex).value : 
-		this.getCell(nameOrIndex).value;
-};
-
-/**
- * Creates and returns the array representation of the instance.
- * @return {Array}
- */
-TableRow.prototype.toArray = function() 
-{
-	var out = [], i;
-	for (i = 0; i < this.length; i++) {
-		out[i] = this._cells[i].value;
-	}
-	return out;
+		this.getCellAt(nameOrIndex) : 
+		this.getCell(nameOrIndex);
 };
 
 /**
@@ -4947,85 +5214,11 @@ TableRow.prototype.toJSON = function()
 {
 	var json = {};
 	for (var x in this._cellsByName) {
-		json[x] = this._cellsByName[x].value;
+		json[x] = this._data[this._cellsByName[x]];
 	}
 	return json;
 };
 
-
-// -----------------------------------------------------------------------------
-// Starts file "src/TableCell.js"
-// -----------------------------------------------------------------------------
-/**
- * Represents a single table cell. Holds a references to the corresponding
- * Column object from the table that contains the cell.
- * @param {Column} column The column of the field
- * @param {String|Number} value (Optional) initial value. Defaults to the 
- *     for the column (which in turn defaults to undefined)
- * @constructor
- * @return {TableCell}
- */
-function TableCell(column, row, value) 
-{
-	this.setColumn(column);
-	this.row = row;
-	if (value !== undefined) {
-		this.setValue(value);
-	} else {
-		this.setValue(
-			this.column.defaultValue === undefined ?
-				null : 
-				this.column.defaultValue
-		);
-	}
-}
-
-TableCell.prototype = {
-
-	/**
-	 * The value of the cell.
-	 * @var {any} Initially null
-	 */
-	value : null,
-
-	/**
-	 * Sets the Column instance that should correspond to this cell
-	 * @param {Column}
-	 * @return {TableCell} Returns the instance
-	 */
-	setColumn : function(column)
-	{
-		assertInstance(column, Column);
-		this.column = column;
-		return this;
-	},
-
-	/**
-	 * Sets the underlying value by passing it to the Column object for
-	 * validation first.
-	 * @param {String|Number} value
-	 * @return {TableCell} Returns the instance
-	 */
-	setValue : function(value)
-	{
-		this.value = this.column.set(value);
-		if (this.value === null && this.column.autoIncrement) {
-			this.value = this.row.table._ai;
-		}
-		return this;
-	},
-
-	/**
-	 * This is useful for low level JS tasks. It will allow two fields to be
-	 * compared using < or > operators for example. Also, an array of such
-	 * objects can be sorted without passing a function to the sort method of
-	 * the array...
-	 */
-	valueOf : function()
-	{
-		return this.value;
-	}
-};
 
 // -----------------------------------------------------------------------------
 // Starts file "src/TableIndex.js"
@@ -5119,7 +5312,7 @@ TableIndex.prototype = {
 			row = [];
 			for ( y = 0; y < colLen; y++ ) 
 			{
-				row.push( allRows[id].getCell(this.columns[y]).value );
+				row.push( allRows[id].getCell(this.columns[y]) );
 			}
 			row = row.join("");
 
@@ -5139,7 +5332,7 @@ TableIndex.prototype = {
 
 		for ( y = 0; y < this.columns.length; y++ ) 
 		{
-			value.push( row.getCell(this.columns[y]).value );
+			value.push( row.getCell(this.columns[y]) );
 		}
 
 		value = value.join("");
@@ -5566,10 +5759,11 @@ GLOBAL.JSDB = {
 	SERVER    : SERVER,
 	Column    : Column,
 	TableRow  : TableRow,
-	TableCell : TableCell,
+	//TableCell : TableCell,
 	binarySearch   : binarySearch,
 	BinaryTree     : BinaryTree,
-	BinaryTreeNode : BinaryTreeNode
+	BinaryTreeNode : BinaryTreeNode,
+	crossJoin      : crossJoin
 };
 
 // -----------------------------------------------------------------------------

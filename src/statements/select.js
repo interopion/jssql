@@ -217,6 +217,7 @@ STATEMENTS.SELECT = function(walker) {
 			tablesLength = query.tables.length,
 			fieldsLength = query.fields.length,
 			rowsLength   = 0,
+			colName,
 			rowIndex,
 			tableIndex,
 			tableRow,
@@ -259,14 +260,14 @@ STATEMENTS.SELECT = function(walker) {
 			// Expand "*"
 			if (col.field == "*") {
 				if (col.table) {
-					for ( var colName in tables[col.table].cols ) {
+					for ( colName in tables[col.table].cols ) {
 						tmp = tables[col.table].cols[colName];
 						columns[i] = columns[colName] = tmp;
 						cols.push(colName);
 					}					
 				} else {
 					for ( y = 0; y < tablesLength; y++ ) {
-						for ( var colName in tables[y].cols ) {
+						for ( colName in tables[y].cols ) {
 							tmp = tables[y].cols[colName];
 							columns[i] = columns[colName] = tmp;
 							cols.push(colName);
@@ -295,34 +296,15 @@ STATEMENTS.SELECT = function(walker) {
 		}
 
 		// Collect all rows from all the tables --------------------------------
-		rowIndex = 0;
-		var hasData;
-		do {
-			hasData = false;
-			row = [];
-			
-			for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
-			{
-				table    = tables[tableIndex];
-				rowId    = table._row_seq[rowIndex];
-				tableRow = rowId ? table.rows[rowId] : null;
+		var _tables = [];
+		for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
+		{
+			_tables.push(tables[tableIndex]);
+		}
+		//debugger;
+		rows = crossJoin(_tables);
 
-				if (tableRow)
-					hasData = true;
-				
-				for ( y = 0; y < table._col_seq.length; y++ )
-				{
-					row.push( tableRow ? tableRow.getCellAt(y).value : null );
-				}
-
-			}
-
-			if (hasData)
-				rows[rowIndex++] = row;
-
-		} while(hasData);
-
-		console.log("tables: ", tables, rows);
+		//console.log("tables: ", tables, rows);
 		return {
 			cols : cols,
 			rows : rows

@@ -44,5 +44,59 @@
 		equal(node0.left, null);
 		equal(node0.right, node1);
 	});
+
+	test("Cross Join", function() {
+		var t1 = {
+			rows : {
+				1 : { _data: [1, "a"] },
+				2 : { _data: [2, "b"] },
+				3 : { _data: [3, "c"] }
+			}
+		};
+
+		var t2 = {
+			rows : {
+				1 : { _data: [5, "d"] },
+				2 : { _data: [6, "e"] }
+			}
+		};
+
+		var t3 = {
+			rows : {
+				1 : { _data: [8, "f"] },
+				2 : { _data: [9, "g"] }
+			}
+		};
+
+		var rows = JSDB.crossJoin([t1, t2]);
+		deepEqual(rows, [
+			[1, "a", 5, "d"],
+			[1, "a", 6, "e"],
+
+			[2, "b", 5, "d"],
+			[2, "b", 6, "e"],
+			
+			[3, "c", 5, "d"],
+			[3, "c", 6, "e"]
+		]);
+
+		rows = JSDB.crossJoin([t1, t2, t3]);
+		deepEqual(rows, [
+			[1, "a", 5, "d"],
+			[1, "a", 6, "e"],
+			[1, "a", 8, "f"],
+			[1, "a", 9, "g"],
+
+			[2, "b", 5, "d"],
+			[2, "b", 6, "e"],
+			[2, "b", 8, "f"],
+			[2, "b", 9, "g"],
+
+			[3, "c", 5, "d"],
+			[3, "c", 6, "e"],
+			[3, "c", 8, "f"],
+			[3, "c", 9, "g"]
+		]);
+	});
 	
 })();

@@ -24,12 +24,12 @@
 		//console.dir(row);
 
 		strictEqual(row.table, table);
-		strictEqual(row._cells[0].column, collA);
-		strictEqual(row._cells[1].column, collB);
-		strictEqual(row.getCellAt(0).column, collA);
-		strictEqual(row.getCellAt(1).column, collB);
-		strictEqual(row.getCell("a").column, collA);
-		strictEqual(row.getCell("b").column, collB);
+		//strictEqual(row._cells[0].column, collA);
+		//strictEqual(row._cells[1].column, collB);
+		//strictEqual(row.getCellAt(0).column, collA);
+		//strictEqual(row.getCellAt(1).column, collB);
+		//strictEqual(row.getCell("a").column, collA);
+		//strictEqual(row.getCell("b").column, collB);
 
 		delete DB.tables.testTable;
 	});
@@ -38,27 +38,25 @@
 		var table = new JSDB.Table("testTable", DB),
 			collA = table.addColumn({ name : "a", type : { name : "int" }, nullable : true }),
 			collB = table.addColumn({ name : "b", type : { name : "int" }, nullable : true }),
-			row   = new JSDB.TableRow(table),
-			cellA = row.getCell("a"),
-			cellB = row.getCell("b");
+			row   = new JSDB.TableRow(table);
 
-		strictEqual(cellA.value, null);
-		strictEqual(cellB.value, null);
+		strictEqual(row.getCell("a"), null);
+		strictEqual(row.getCell("b"), null);
 
 		row.setCellValue("a", 5);
 		row.setCellValue("b", 6);
 
-		strictEqual(cellA.value, 5);
-		strictEqual(cellB.value, 6);
+		strictEqual(row.getCell("a"), 5);
+		strictEqual(row.getCell("b"), 6);
 
 		row.setCellValue(0  , 7);
 		row.setCellValue("1", 8);
 
-		strictEqual(cellA.value, 7);
-		strictEqual(cellB.value, 8);
+		strictEqual(row.getCell("a"), 7);
+		strictEqual(row.getCell("b"), 8);
 
-		ok(cellA < cellB);
-		equal(cellA - cellB, -1);
+		ok(row.getCell("a") < row.getCell("b"));
+		equal(row.getCell("a") - row.getCell("b"), -1);
 
 		strictEqual(row.getCellValue("0"), 7);
 		strictEqual(row.getCellValue( 1 ), 8);
@@ -70,7 +68,7 @@
 			b : 8
 		});
 
-		deepEqual(row.toArray(), [ 7, 8 ]);
+		deepEqual(row._data, [ 7, 8 ]);
 
 		delete DB.tables.testTable;
 	});

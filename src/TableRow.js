@@ -27,11 +27,11 @@ function TableRow(table, id)
 	this.length = 0;
 
 	/**
-	 * The collection of TableCell objects
+	 * The actual data collection
 	 * @var Array
 	 * @private
 	 */
-	this._cells = [];
+	this._data = [];
 	
 	/**
 	 * The collection of TableCell objects by name
@@ -63,8 +63,10 @@ TableRow.prototype.load = function(onSuccess, onError)
 	var row = this;
 	JSDB.events.dispatch("loadstart:row", row);
 	this.read(function(json) {
-		for (var i = 0; i < row.length; i++) {
-			row._cells[i].setValue(json[i]);
+		if (json) {
+			for (var i = 0; i < row.length; i++) {
+				row._data[i] = row.table.cols[row.table._col_seq[i]].set(json[i]);
+			}
 		}
 		JSDB.events.dispatch("load:row", row);
 		onSuccess(row);
@@ -89,19 +91,23 @@ TableRow.prototype.save = function(onSuccess, onError)
  */
 TableRow.prototype.setTable = function(table)
 {
-	var colName, col, cell;
+	var colName, col;
 
 	assertInstance(table, Table);
 	
 	this.length = 0;
 	this._cellsByName = {};
 	this.table = table;
+	this._data = [];
 
-	for (colName in table.cols) {
-		col  = table.cols[colName];
-		cell = new TableCell(col, this);
-		this.length = this._cells.push(cell);
-		this._cellsByName[colName] = cell;
+	for (colName in table.cols) 
+	{
+		col = table.cols[colName];
+		this._cellsByName[colName] = this.length;
+		this.setCellValue(
+			this.length++, 
+			col.defaultValue === undefined ? null : col.defaultValue
+		);
 	}
 
 	return this;
@@ -115,7 +121,7 @@ TableRow.prototype.setTable = function(table)
 TableRow.prototype.getCell = function(name)
 {
 	assertInObject(name, this._cellsByName, 'No such field "' + name + '".');
-	return this._cellsByName[name];
+	return this._data[this._cellsByName[name]];
 };
 
 /**
@@ -125,8 +131,8 @@ TableRow.prototype.getCell = function(name)
  */
 TableRow.prototype.getCellAt = function(index)
 {
-	assertInBounds(index, this._cells, 'No field at index "' + index + '".');
-	return this._cells[index];
+	assertInBounds(index, this._data, 'No field at index "' + index + '".');
+	return this._data[index];
 };
 
 /**
@@ -138,11 +144,25 @@ TableRow.prototype.getCellAt = function(index)
  */
 TableRow.prototype.setCellValue = function(nameOrIndex, value)
 {
-	var cell = isNumeric(nameOrIndex) ? 
-		this.getCellAt(nameOrIndex) : 
-		this.getCell(nameOrIndex);
-
-	cell.setValue(value);
+	var col;
+	
+	if (isNumeric(nameOrIndex)) {
+		col   = this.table.cols[this.table._col_seq[nameOrIndex]];
+		value = col.set(value);
+		if (value === null && col.autoIncrement) {
+			value = this.table._ai;
+		}
+		this._data[nameOrIndex] = value;
+	}
+	else {
+		col   = this.table.cols[nameOrIndex];
+		value = col.set(value);
+		if (value === null && col.autoIncrement) {
+			value = this.table._ai;
+		}
+		this._data[this._cellsByName[nameOrIndex]] = value;
+	}
+	
 	return this;
 };
 
@@ -155,21 +175,8 @@ TableRow.prototype.setCellValue = function(nameOrIndex, value)
 TableRow.prototype.getCellValue = function(nameOrIndex)
 {
 	return isNumeric(nameOrIndex) ? 
-		this.getCellAt(nameOrIndex).value : 
-		this.getCell(nameOrIndex).value;
-};
-
-/**
- * Creates and returns the array representation of the instance.
- * @return {Array}
- */
-TableRow.prototype.toArray = function() 
-{
-	var out = [], i;
-	for (i = 0; i < this.length; i++) {
-		out[i] = this._cells[i].value;
-	}
-	return out;
+		this.getCellAt(nameOrIndex) : 
+		this.getCell(nameOrIndex);
 };
 
 /**
@@ -180,7 +187,7 @@ TableRow.prototype.toJSON = function()
 {
 	var json = {};
 	for (var x in this._cellsByName) {
-		json[x] = this._cellsByName[x].value;
+		json[x] = this._data[this._cellsByName[x]];
 	}
 	return json;
 };

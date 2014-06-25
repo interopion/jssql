@@ -29,7 +29,7 @@ module.exports = function(grunt) {
 		'src/Table.js',
 		'src/Column.js',
 		'src/TableRow.js',
-		'src/TableCell.js',
+		//'src/TableCell.js',
 		'src/TableIndex.js',
 		'src/query.js',
 		'src/export.js',
