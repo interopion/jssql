@@ -506,32 +506,52 @@ function defaultErrorHandler(e)
 }
 
 // JOIN functions --------------------------------------------------------------
-function crossJoin(tables)
+function crossJoin(tables) 
 {
 	console.time("crossJoin");
-	var rows = [], 
-		tablesLength = tables.length,
-		table1 = tables[0], table2,
-		rowId1, rowId2, row, i;
+	var _tables = tables.slice(),
+		tl = _tables.length,
+		left, right, rowId, row, row0, i, l = 0, y;
 
-	for ( rowId1 in table1.rows ) 
+	while ( tl-- )
 	{
-		row = table1.rows[rowId1]._data;
-		if (tablesLength > 1) {
-			for ( i = 1; i < tablesLength; i++ )
+		right = _tables.shift();
+		
+		if (!left) {
+			left = [];
+			for ( rowId in right.rows )
 			{
-				table2 = tables[i];
-				for ( rowId2 in table2.rows ) 
-				{
-					rows.push( row.concat( table2.rows[rowId2]._data ) );
+				l = left.push(right.rows[rowId]._data);
+			}
+			continue;
+		}
+
+		for ( i = 0; i < l; i++ ) 
+		{
+			y = 0;
+			row0 = left[i].slice();
+			for ( rowId in right.rows )
+			{
+				row = row0.concat(right.rows[rowId]._data);
+				if (++y === 1) {
+					left[i] = row;
+				} else {
+					left.splice(++i, 0, row);
+					l++;
 				}
 			}
-		} else {
-			rows.push(row.slice());
 		}
 	}
 	console.timeEnd("crossJoin");
-	return rows;
+	return left || [];
+}
+
+function innerJoin(tables, filter)
+{
+	console.time("innerJoin");
+	var rows = crossJoin(tables);
+	console.timeEnd("innerJoin");
+	return rows.filter(filter);
 }
 
 /**
