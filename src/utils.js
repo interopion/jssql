@@ -504,3 +504,279 @@ function defaultErrorHandler(e)
 	if (window.console && console.error) 
 		console.error(e);
 }
+
+// JOIN functions --------------------------------------------------------------
+function crossJoin(tables)
+{
+	console.time("crossJoin");
+	var rows = [], 
+		tablesLength = tables.length,
+		table1 = tables[0], table2,
+		rowId1, rowId2, row, i;
+
+	for ( rowId1 in table1.rows ) 
+	{
+		row = table1.rows[rowId1]._data;
+		if (tablesLength > 1) {
+			for ( i = 1; i < tablesLength; i++ )
+			{
+				table2 = tables[i];
+				for ( rowId2 in table2.rows ) 
+				{
+					rows.push( row.concat( table2.rows[rowId2]._data ) );
+				}
+			}
+		} else {
+			rows.push(row.slice());
+		}
+	}
+	console.timeEnd("crossJoin");
+	return rows;
+}
+
+/**
+ * Joins two or more arrays together by merging their value objects
+ * @param {Array} arrs An array of arrays of objects to me merged
+ * @return {array} The joined array
+ */
+/*function joinArrays(arrs, join, sort) 
+{
+	var rows = [], rowIndex, row;
+	
+	if (!arrs) {
+		return rows;
+	}
+
+	switch (join ? join.type : "") {
+		case "INNER JOIN": // 280ms / 1000
+			$.each(arrs, function(tableIndex, tableRows) {
+				var hasMatch,
+					tableRowsLength,
+					rowsLength,
+					rowIndex2,
+					tmpRow,
+					match,
+					row2;
+
+				if (tableIndex === 0) {
+					rows = tableRows.slice();
+				} else {
+					rowsLength = rows.length;
+					for (rowIndex = 0; rowIndex < rowsLength; rowIndex++) {
+						hasMatch = false;
+						row      = rows[rowIndex];
+						trLength = tableRows.length;
+						
+						for (rowIndex2 = 0; rowIndex2 < trLength; rowIndex2++) {
+							row2   = tableRows[rowIndex2];
+							tmpRow = $.extend({}, row, row2);
+							match  = tmpRow[join.key1] === tmpRow[join.key2];
+
+							if (match) {
+								if (!hasMatch) {
+									hasMatch = 1;
+									rows.splice(rowIndex, 1, tmpRow);
+								} else {
+									if (rowIndex2 === 0) {
+										rows.splice(rowIndex, 1, tmpRow);
+									} else {
+										rows.splice(++rowIndex, 0, tmpRow);
+										rowsLength++;
+									}
+								}
+							}
+						}
+
+						if (!hasMatch) {
+							rows.splice(rowIndex--, 1);
+							rowsLength--;
+						}
+					}
+				}
+			});
+		break;
+
+		case "LEFT JOIN": // 300ms / 1000
+			var tablesLen = arrs.length,
+				rowsLen,
+				tableRowsLen,
+				tableIndex,
+				tableRows,
+				hasMatch,
+				rowIndex2,
+				row2,
+				tmpRow,
+				match,
+				key;
+
+			for (tableIndex = 0; tableIndex < tablesLen; tableIndex++) {
+				tableRows = arrs[tableIndex];
+				if (tableIndex === 0) {
+					rows = tableRows.slice();
+				} else {
+					rowsLen = rows.length;
+					for (rowIndex = 0; rowIndex < rowsLen; rowIndex++) {
+						hasMatch     = false;
+						row          = rows[rowIndex];
+						tableRowsLen = tableRows.length;
+						for (rowIndex2 = 0; rowIndex2 < tableRows.length; rowIndex2++) {
+							row2   = tableRows[rowIndex2];
+							tmpRow = $.extend({}, row, row2);
+							match  = tmpRow[join.key1] === tmpRow[join.key2];
+
+							if (match) {
+								if (!hasMatch) {
+									hasMatch = 1;
+									rows.splice(rowIndex, 1, tmpRow);
+								} else {
+									if (rowIndex2 === 0) {
+										rows.splice(rowIndex, 1, tmpRow);
+									} else {
+										rows.splice(++rowIndex, 0, tmpRow);
+										rowsLen++;
+									}
+								}
+							} else {
+								if (rowIndex2 === 0) {
+									for (key in row2) {
+										row[key] = null;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		break;
+		
+		case "RIGHT JOIN": // 300ms / 1000
+			var tablesLen = arrs.length,
+				tableIndex,
+				tableRows,
+				tableRowsLen,
+				rowIndex2,
+				row2,
+				rowsLen,
+				hasMatch,
+				tmpRow,
+				match,
+				key;
+
+			for (tableIndex = tablesLen - 1; tableIndex >= 0; tableIndex--) {
+				tableRows = arrs[tableIndex];
+				if (tableIndex === tablesLen - 1) {
+					rows = tableRows.slice();
+				} else {
+					rowsLen = rows.length;
+					for (rowIndex = 0; rowIndex < rowsLen; rowIndex++) {
+						hasMatch     = false;
+						row          = rows[rowIndex];
+						tableRowsLen = tableRows.length;
+						for (rowIndex2 = 0; rowIndex2 < tableRowsLen; rowIndex2++) {
+							row2   = tableRows[rowIndex2];
+							tmpRow = $.extend({}, row, row2);
+							match  = tmpRow[join.key1] === tmpRow[join.key2];
+
+							if (match) {
+								if (!hasMatch) {
+									hasMatch = 1;
+									rows.splice(rowIndex, 1, tmpRow);
+								} else {
+									if (rowIndex2 === 0) {
+										rows.splice(rowIndex, 1, tmpRow);
+									} else {
+										rows.splice(++rowIndex, 0, tmpRow);
+										rowsLen++;
+									}
+								}
+							} else {
+								if (rowIndex2 === 0) {
+									for (key in row2) {
+										row[key] = null;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		break;
+
+		case "OUTER JOIN": // 200ms / 1000
+		case "FULL JOIN":
+		case "FULL OUTER JOIN":
+			var proto      = {},
+				leftTable  = arrs[0],
+				rightTable = arrs[1];
+
+			$.each(arrs, function(tableIndex, tableRows) {
+				$.each(tableRows[0] || {}, function(k) {
+					proto[k] = null;
+				});
+			});
+			
+			$.each(leftTable, function(rowIndex, row) {
+				rows.push($.extend({}, proto, row));
+			});
+
+			$.each(rightTable, function(rowIndexR, rowR) {
+				var found;
+				$.each(rows, function(rowIndexL, rowL) {
+					if (rowL[join.key1] === rowR[join.key2]) {
+						if (rowR[join.key1] === null || rowL[join.key2] !== null) {
+							rows.push($.extend({}, rowL, rowR));		
+						} else {
+							$.extend(rowL, rowR);
+						}
+						found = 1;
+						return false;
+					}
+				});
+				if (!found) {
+					rows.splice(rowIndexR, 0, $.extend({}, proto, rowR));
+				}
+			});
+
+			if (!sort) {
+				rows.sort(function(a, b) {
+					return (a[join.key1] || Infinity) - (b[join.key1] || Infinity);
+				});
+			}
+		break;
+
+		case "CROSS JOIN":// 300ms / 1000
+		default:
+			var rowIndex2,
+				tableLen,
+				rowsLen,
+				row2;
+
+			$.each(arrs, function(tableIndex, tableRows) {
+				if (tableIndex === 0) {
+					rows = tableRows.slice();
+				} else {
+					rowsLen = rows.length;
+					for (rowIndex = 0; rowIndex < rowsLen; rowIndex++) {
+						row      = rows[rowIndex];
+						tableLen = tableRows.length;
+						for (rowIndex2 = 0; rowIndex2 < tableLen; rowIndex2++) {
+							row2 = tableRows[rowIndex2];
+							if (rowIndex2 === 0) {
+								$.extend(row, row2);
+							} else {
+								rows.splice(
+									++rowIndex, 
+									0, 
+									$.extend({}, row, row2)
+								);
+								rowsLen++;
+							}
+						}
+					}
+				}
+			});
+		break;
+	}
+
+	return rows;
+}*/
