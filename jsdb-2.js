@@ -707,9 +707,9 @@ function crossJoin(tables)
 function innerJoin(tables, filter)
 {
 	console.time("innerJoin");
-	var rows = crossJoin(tables);
+	var rows = crossJoin(tables).filter(filter);
 	console.timeEnd("innerJoin");
-	return rows.filter(filter);
+	return rows;
 }
 
 /**
