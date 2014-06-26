@@ -1220,15 +1220,21 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 						state = TOKEN_TYPE_COMMENT;
 					}
 
-					// The "-" char should be an operator 
+					// Should be an operator or start of negative number
 					else 
 					{
-						// Commit pending buffer (if any)
-						if (state !== TOKEN_TYPE_OPERATOR) {
+						if (state !== TOKEN_TYPE_NUMBER && (sql[pos + 1]||"").match(/[0-9]/)) {
+							// Commit pending buffer (if any)
 							if (buf) commit();
-							state = TOKEN_TYPE_OPERATOR;
+							state = TOKEN_TYPE_NUMBER;
+						} else {
+							// Commit pending buffer (if any)
+							if (state !== TOKEN_TYPE_OPERATOR) {
+								if (buf) commit();
+								state = TOKEN_TYPE_OPERATOR;
+							}
 						}
-
+						
 						buf += cur;
 					}
 				}
@@ -3165,7 +3171,7 @@ STATEMENTS.SELECT = function(walker) {
 					out.alias = tok[0];
 				}, "for table alias");
 			}
-			else if (walker.is("WHERE|GROUP|ORDER|LIMIT")) {
+			else if (walker.is("WHERE|GROUP|ORDER|LIMIT|OFFSET")) {
 				
 			}
 			else {
@@ -3214,6 +3220,52 @@ STATEMENTS.SELECT = function(walker) {
 		if (walker.is("ORDER BY")) {
 			walker.forward(2);
 		}
+	}
+
+	function walkLimitAndOffset()
+	{
+		var limit  = 0,
+			offset = 0;
+
+		if (walker.is("LIMIT")) {
+			walker.forward();
+
+			if ( !walker.is("@" + TOKEN_TYPE_NUMBER) ) {
+				throw new SQLParseError(
+					"Expecting a number for the LIMIT clause"
+				);
+			}
+
+			limit = intVal(walker.get());
+			walker.forward();
+
+			if (walker.is(",")) {
+				if (!walker.forward().is("@" + TOKEN_TYPE_NUMBER)) {
+					throw new SQLParseError(
+						"Expecting a number for the offset part of the LIMIT clause"
+					);
+				}
+				offset = intVal(walker.get());
+				walker.forward();
+			}
+		}
+
+		if (walker.is("OFFSET")) {console.log(walker._tokens[walker._pos]);
+			walker.forward();
+			if (!walker.is("@" + TOKEN_TYPE_NUMBER)) {
+				console.log(walker._tokens[walker._pos]);
+				throw new SQLParseError(
+					"Expecting a number for the OFFSET clause"
+				);
+			}
+			offset = intVal(walker.get());
+			walker.forward();
+		}
+
+		return {
+			limit : limit,
+			offset: offset
+		};
 	}
 
 	/**
@@ -3315,6 +3367,25 @@ STATEMENTS.SELECT = function(walker) {
 		//debugger;
 		rows = crossJoin(_tables);
 
+		// Apply the LIMIT and the OFFSET (if any) -----------------------------
+		var limit  = query.bounds.limit,
+			offset = query.bounds.offset,
+			len    = rows.length;
+
+		if (offset < 0) {
+			offset = len + offset;
+		}
+
+		//if (limit < 0) {
+		//	limit = len + limit;
+		//}
+
+		if (limit < 1) {
+			rows = rows.slice(offset);
+		} else {
+			rows = rows.slice(offset, limit + offset);
+		}
+
 		//console.log("tables: ", tables, rows);
 		return {
 			cols : cols,
@@ -3342,6 +3413,8 @@ STATEMENTS.SELECT = function(walker) {
 		if (walker.is("ORDER BY")) {
 
 		}
+
+		query.bounds = walkLimitAndOffset();
 		//console.log("query: ", query);
 		
 		// table -------------------------------------------------------

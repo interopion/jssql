@@ -107,15 +107,21 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 						state = TOKEN_TYPE_COMMENT;
 					}
 
-					// The "-" char should be an operator 
+					// Should be an operator or start of negative number
 					else 
 					{
-						// Commit pending buffer (if any)
-						if (state !== TOKEN_TYPE_OPERATOR) {
+						if (state !== TOKEN_TYPE_NUMBER && (sql[pos + 1]||"").match(/[0-9]/)) {
+							// Commit pending buffer (if any)
 							if (buf) commit();
-							state = TOKEN_TYPE_OPERATOR;
+							state = TOKEN_TYPE_NUMBER;
+						} else {
+							// Commit pending buffer (if any)
+							if (state !== TOKEN_TYPE_OPERATOR) {
+								if (buf) commit();
+								state = TOKEN_TYPE_OPERATOR;
+							}
 						}
-
+						
 						buf += cur;
 					}
 				}

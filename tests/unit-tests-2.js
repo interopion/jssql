@@ -311,6 +311,20 @@
 		assertTokenValue(tok[0], ".3");
 		assertTokenType(tok[0], JSDB.TOKEN_TYPE_NUMBER);
 		equal(parseFloat(tok[0][0]), 0.3);
+
+		tok = getTokens("-0.3");//console.dir(tok);
+		assertTokensCount(tok, 1, "Negative floating point number");
+		assertTokenLength(tok[0], 4);
+		assertTokenValue(tok[0], "-0.3");
+		assertTokenType(tok[0], JSDB.TOKEN_TYPE_NUMBER);
+		equal(parseFloat(tok[0][0]), -0.3);
+
+		tok = getTokens("-3");//console.dir(tok);
+		assertTokensCount(tok, 1, "Negative integer");
+		assertTokenLength(tok[0], 2);
+		assertTokenValue(tok[0], "-3");
+		assertTokenType(tok[0], JSDB.TOKEN_TYPE_NUMBER);
+		equal(parseFloat(tok[0][0]), -3);
 	});
 
 	//module("Table");
