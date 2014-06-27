@@ -415,26 +415,21 @@ Walker.prototype = {
      * Looks forward to find a token that has value mathing the "value" 
      * parameter. If such token is found, moves the pointer right before 
      * that position. Otherwise the pointer remains the same.
-     * @param {String} value The value of the searched token
+     * @param {String} value The value of the token or an "is" expression
      * @param {Function} callback Optional function to be called with each
      *                            skipped token. Note that this will be 
      *                            called event if the searched token is 
      *                            not found.
      * @return {Walker} Returns the instance
      */
-	nextUntil : function(value, callback) { 
-		var pos   = this._pos, 
-			token = this._tokens[pos];
-
-		while ( token && token[0] !== value ) {
-			if (callback) {
-				callback(token);
-			}
-			token = this._tokens[++pos];
-		}
-		
-		if (token && token[0] === value) {
-			this._pos = pos;
+	nextUntil : function(value, callback) 
+	{ 
+		while ( !this.is(value) ) 
+		{
+			if ( callback )
+				callback( this.current() );
+			if ( !this.next() )
+				break;
 		}
 		
 		return this; 

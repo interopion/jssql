@@ -2072,26 +2072,21 @@ Walker.prototype = {
      * Looks forward to find a token that has value mathing the "value" 
      * parameter. If such token is found, moves the pointer right before 
      * that position. Otherwise the pointer remains the same.
-     * @param {String} value The value of the searched token
+     * @param {String} value The value of the token or an "is" expression
      * @param {Function} callback Optional function to be called with each
      *                            skipped token. Note that this will be 
      *                            called event if the searched token is 
      *                            not found.
      * @return {Walker} Returns the instance
      */
-	nextUntil : function(value, callback) { 
-		var pos   = this._pos, 
-			token = this._tokens[pos];
-
-		while ( token && token[0] !== value ) {
-			if (callback) {
-				callback(token);
-			}
-			token = this._tokens[++pos];
-		}
-		
-		if (token && token[0] === value) {
-			this._pos = pos;
+	nextUntil : function(value, callback) 
+	{ 
+		while ( !this.is(value) ) 
+		{
+			if ( callback )
+				callback( this.current() );
+			if ( !this.next() )
+				break;
 		}
 		
 		return this; 
@@ -3124,7 +3119,7 @@ STATEMENTS.SELECT = function(walker) {
 						out.alias = tok[0];
 					});
 				}
-				else if (walker.is("FROM|WHERE|GROUP|ORDER|LIMIT")) {
+				else if (walker.is("FROM|WHERE|GROUP|ORDER|LIMIT|OFFSET")) {
 					
 				}
 				else {
@@ -3215,11 +3210,45 @@ STATEMENTS.SELECT = function(walker) {
 		}
 	}
 
+	function collectNextOrderingTerm()
+	{
+		var orderBy = [],
+			term = {
+				expression : [],
+				direction  : "ASC"
+			};
+
+		walker.nextUntil("ASC|DESC|,|LIMIT|OFFSET|;", function(tok) {
+			term.expression.push(tok[0]);
+		});
+
+		term.expression = term.expression.join(" ");
+		
+		if ( walker.is("ASC|DESC") ) {
+			term.direction = walker.get().toUpperCase();
+			walker.forward();
+		}
+
+		orderBy.push(term);
+
+		if ( walker.is(",") ) {
+			walker.forward();
+			orderBy = orderBy.concat(collectNextOrderingTerm());
+		}
+
+		return orderBy;
+	}
+
 	function walkOrderBy()
 	{
+		var orderBy = [];
+
 		if (walker.is("ORDER BY")) {
 			walker.forward(2);
+			orderBy = collectNextOrderingTerm();
 		}
+
+		return orderBy;
 	}
 
 	function walkLimitAndOffset()
@@ -3364,8 +3393,39 @@ STATEMENTS.SELECT = function(walker) {
 		{
 			_tables.push(tables[tableIndex]);
 		}
-		//debugger;
 		rows = crossJoin(_tables);
+
+		// orderBy -------------------------------------------------------------
+		if ( query.orderBy ) {
+			rows.sort(function(a, b) {
+				var out = 0, col, valA, valB, i, term; 
+				for ( i = 0; i < query.orderBy.length; i++ ) {
+					term = query.orderBy[i];
+					col  = term.expression;
+					//debugger;
+					if (!isNumeric(col)) {
+						col = cols.indexOf(col);
+					}
+					
+					col = intVal(col);
+
+					valA = a[col];
+					valB = b[col];
+
+					if (valA > valB) {
+						out += term.direction == "ASC" ? 1 : -1;
+					}
+					else if (valA < valB) {
+						out += term.direction == "ASC" ? -1 : 1;
+					}
+
+					if (out !== 0)
+						break;
+				}
+				return out;
+			});
+		}
+		
 
 		// Apply the LIMIT and the OFFSET (if any) -----------------------------
 		var limit  = query.bounds.limit,
@@ -3375,10 +3435,6 @@ STATEMENTS.SELECT = function(walker) {
 		if (offset < 0) {
 			offset = len + offset;
 		}
-
-		//if (limit < 0) {
-		//	limit = len + limit;
-		//}
 
 		if (limit < 1) {
 			rows = rows.slice(offset);
@@ -3410,10 +3466,7 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		});
 
-		if (walker.is("ORDER BY")) {
-
-		}
-
+		query.orderBy = walkOrderBy();
 		query.bounds = walkLimitAndOffset();
 		//console.log("query: ", query);
 		

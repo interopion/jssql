@@ -207,14 +207,19 @@
                     }
 					//if (c) {
 						html.push('<tr>');
-						if ($.isArray(c)) {
-							$.each(c, function(x, v) {
-								html.push(
-									'<td>', 
-									v === undefined ? '' : String(v), 
-									'</td>'
-								);
-							});
+						if ($.isArray(c) || $.isPlainObject(c)) {
+                            var i = 0;
+                            while (i in c) {
+                                v = c[i];
+    							//$.each(c, function(x, v) {
+    								html.push(
+    									'<td>', 
+    									v === undefined ? '' : String(v), 
+    									'</td>'
+    								);
+    							//});
+                                i++;
+                            }
 						} else {
 							html.push(
 								'<td>', 
