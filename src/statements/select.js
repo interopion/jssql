@@ -285,6 +285,39 @@ STATEMENTS.SELECT = function(walker) {
 		};
 	}
 
+	function walkJoinConstraint()
+	{
+		if (walker.is("ON")) {
+
+		} else if (walker.is("USING")) {
+
+		}
+	}
+
+	function walkJoinOperator()
+	{
+		var join = [], l;
+
+		if (walker.is("NATURAL")) {
+			l = join.push("NATURAL");
+			walker.forward();
+		}
+
+		if (walker.is("LEFT OUTER")) {
+			l = join.push("LEFT OUTER");
+			walker.forward(2);
+		} else if (walker.is("LEFT|INNER|CROSS")) {
+			l = join.push(walker.get().toUpperCase());
+			walker.forward();
+		}
+
+		if (l) {
+			join.push("JOIN");
+		}
+
+		return join.join(" ");
+	}
+
 	/**
 	 * Executes the SELECT query and returns the result rows.
 	 */
@@ -329,7 +362,7 @@ STATEMENTS.SELECT = function(walker) {
 			if (col.table) {
 				if (!tables.hasOwnProperty(col.table)) {
 					throw new SQLParseError(
-						'The table "%s" fro column "%s" is not included at ' + 
+						'The table "%s" for column "%s" is not included at ' + 
 						'the FROM clause',
 						col.table,
 						col.field
@@ -413,9 +446,7 @@ STATEMENTS.SELECT = function(walker) {
 				return out;
 			});
 		}
-		
 
-		// Apply the LIMIT and the OFFSET (if any) -----------------------------
 		var limit  = query.bounds.limit,
 			offset = query.bounds.offset,
 			len    = rows.length;
@@ -424,16 +455,37 @@ STATEMENTS.SELECT = function(walker) {
 			offset = len + offset;
 		}
 
-		if (limit < 1) {
-			rows = rows.slice(offset);
-		} else {
-			rows = rows.slice(offset, limit + offset);
+		l = rows.length;
+		var rows2 = [];
+		for ( i = 0; i < l; i++ ) {
+
+			// Apply LIMIT -----------------------------------------------------
+			if (limit > 0 && offset + limit < i) {
+				continue;
+			}
+
+			// Apply OFFSET
+			// -----------------------------------------------------------------
+			if (offset && i < offset) {
+				continue;
+			}
+
+			// Exclude unused columns
+			// -----------------------------------------------------------------
+			row = rows[i];
+			tmp = [];
+
+			for ( y = 0; y < cols.length; y++ ) {
+				tmp.push(row[y]);
+			}
+
+			rows2.push(tmp);
 		}
 
 		//console.log("tables: ", tables, rows);
 		return {
 			cols : cols,
-			rows : rows
+			rows : rows2
 		};
 	}
 
