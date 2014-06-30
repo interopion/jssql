@@ -142,5 +142,48 @@
 			[2, "b", 2, "e", 2, "g"]
 		]);
 	});
+
+	test("Left Join", function() {
+		var t1 = {
+			rows : {
+				1 : { _data: [1, "a"] },
+				2 : { _data: [2, "b"] },
+				3 : { _data: [3, "c"] }
+			}
+		};
+
+		var t2 = {
+			rows : {
+				1 : { _data: [1, "d"] },
+				2 : { _data: [2, "e"] }
+			}
+		};
+
+		var t3 = {
+			rows : {
+				1 : { _data: [1, "f"] },
+				2 : { _data: [2, "g"] }
+			}
+		};
+
+		var rows = JSDB.innerJoin([t1, t2], function(row) {
+			return row[0] === row[2];
+		});
+
+		console.dir(rows);
+		deepEqual(rows, [
+			[1, "a", 1, "d"],
+			[2, "b", 2, "e"]
+		]);
+
+		rows = JSDB.innerJoin([t1, t2, t3], function(row) {
+			return row[0] === row[2] && row[0] === row[4];
+		});
+		console.dir(rows);
+		deepEqual(rows, [
+			[1, "a", 1, "d", 1, "f"],
+			[2, "b", 2, "e", 2, "g"]
+		]);
+	});
 	
 })();
