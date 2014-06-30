@@ -195,8 +195,8 @@
 
 			function table(data) {
 				var html = ['<table><thead><tr>'], i, y, c, x;
-				for (i = 0; i < data.head.length; i++) {
-					html.push('<th>', data.head[i], '</th>');
+				for (i = 0; i < data.cols.length; i++) {
+					html.push('<th>', data.cols[i], '</th>');
 				}
 				html.push('</tr></thead><tbody>');
 				//console.log("rows: " , data.rows);
