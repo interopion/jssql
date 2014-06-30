@@ -379,7 +379,7 @@ function getDatabase(dbName)
 {
 	var database;
 	if (!dbName) {
-		database = CURRENT_DATABASE;
+		database = SERVER.currentDatabase;
 		if (!database) {
 			throw new SQLRuntimeError('No database selected.');
 		}
