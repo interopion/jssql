@@ -6,7 +6,7 @@ STATEMENTS.USE = function(walker) {
 		})
 		.errorUntil(";")
 		.commit(function() {
-			setCurrentDatabase(dbName);
+			SERVER.setCurrentDatabase(dbName);
 			walker.onComplete('Database "' + dbName + '" selected.');
 		});
 	};
