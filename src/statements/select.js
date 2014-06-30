@@ -270,7 +270,7 @@ STATEMENTS.SELECT = function(walker) {
 		if (walker.is("OFFSET")) {console.log(walker._tokens[walker._pos]);
 			walker.forward();
 			if (!walker.is("@" + TOKEN_TYPE_NUMBER)) {
-				console.log(walker._tokens[walker._pos]);
+				//console.log(walker._tokens[walker._pos]);
 				throw new SQLParseError(
 					"Expecting a number for the OFFSET clause"
 				);
@@ -278,7 +278,7 @@ STATEMENTS.SELECT = function(walker) {
 			offset = intVal(walker.get());
 			walker.forward();
 		}
-
+		console.warn(walker._input, limit, offset);
 		return {
 			limit : limit,
 			offset: offset
@@ -327,6 +327,7 @@ STATEMENTS.SELECT = function(walker) {
 			cols         = [],
 			tables       = {},
 			columns      = {},
+			colMap       = [],
 			tablesLength = query.tables.length,
 			fieldsLength = query.fields.length,
 			rowsLength   = 0,
@@ -339,7 +340,7 @@ STATEMENTS.SELECT = function(walker) {
 			row,
 			col,
 			tmp,
-			i, y, l;
+			i, y, l, j;
 
 		// Populate the tables object with Table references --------------------
 		for ( i = 0; i < tablesLength; i++ ) 
@@ -354,8 +355,66 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		}
 
+		// Expand "*" ----------------------------------------------------------
+		l = 0;
+		for ( i = 0; i < fieldsLength; i++ )
+		{
+			col = query.fields[i];
+
+			if (col.field == "*") {//debugger;
+				var f = [];
+
+				if (col.table) {
+					j = 0;
+					for ( colName in tables[col.table].cols ) {
+						query.fields.splice(i++, ++j === 1 ? 1 : 0, {
+							field : colName,
+							alias : colName,
+							table : col.table
+						});
+						fieldsLength++;
+					}					
+				} else {
+					j = 0;
+					for ( y = 0; y < tablesLength; y++ ) {
+						for ( colName in tables[y].cols ) {
+							query.fields.splice(i++, ++j === 1 ? 1 : 0, {
+								field : colName,
+								alias : colName,
+								table : tables[y].name
+							});
+							fieldsLength++;
+						}
+					}
+				}
+			}
+		}
+		
+
+		// Build the colMap ----------------------------------------------------
+		l = 0;
+		for ( i = 0; i < tablesLength; i++ ) 
+		{
+			table = tables[i];
+
+			for ( colName in table.cols ) 
+			{
+				col = table.cols[colName];
+				colMap[l] = 0;
+				for ( y = 0; y < query.fields.length; y++ )
+				{
+					var fld = query.fields[y];
+					if (fld.field == col.name && (!fld.table || fld.table == table.name)) {
+						cols.push(fld.field);
+						colMap[l] = 1;
+					}
+				}
+				l++;
+			}
+		}
+		
 		// Populate the columns object -----------------------------------------
-		for ( i = 0; i < fieldsLength; i++ ) 
+		/*for ( i = 0; i < fieldsLength; i++ ) 
 		{
 			col = query.fields[i];
 			
@@ -406,7 +465,7 @@ STATEMENTS.SELECT = function(walker) {
 
 			columns[i] = columns[col.alias] = col;
 			cols.push(col.alias);
-		}
+		}*/
 
 		// Collect all rows from all the tables --------------------------------
 		var _tables = [];
@@ -457,16 +516,17 @@ STATEMENTS.SELECT = function(walker) {
 
 		l = rows.length;
 		var rows2 = [];
+		console.log(limit, offset);
 		for ( i = 0; i < l; i++ ) {
-
-			// Apply LIMIT -----------------------------------------------------
-			if (limit > 0 && offset + limit < i) {
+			
+			// Apply OFFSET
+			// -----------------------------------------------------------------
+			if (i < offset) {
 				continue;
 			}
 
-			// Apply OFFSET
-			// -----------------------------------------------------------------
-			if (offset && i < offset) {
+			// Apply LIMIT -----------------------------------------------------
+			if (limit && i >= offset + limit) {
 				continue;
 			}
 
@@ -475,8 +535,9 @@ STATEMENTS.SELECT = function(walker) {
 			row = rows[i];
 			tmp = [];
 
-			for ( y = 0; y < cols.length; y++ ) {
-				tmp.push(row[y]);
+			for ( y = 0; y < row.length; y++ ) {
+				if (colMap[y])
+					tmp.push(row[y]);
 			}
 
 			rows2.push(tmp);
@@ -523,7 +584,7 @@ STATEMENTS.SELECT = function(walker) {
 			console.log("query: ", query, "result: ", result);
 
 			walker.onComplete({
-				head : result.cols,
+				cols : result.cols,
 				rows : result.rows
 			});
 		});
