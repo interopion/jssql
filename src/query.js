@@ -36,12 +36,7 @@ CreateQuery.prototype.toString = function() {
 
 function query(sql, onSuccess, onError) {
 	try {
-		var parser = new Parser(onSuccess, onError);
-		var out    = parser.parse(sql);
-
-		//setTimeout(function() {
-		//	onSuccess(out.result);
-		//}, 500);
+		(new Parser(onSuccess, onError)).parse(sql);
 	} catch (ex) {
 		(onError || defaultErrorHandler)(ex);
 	}
