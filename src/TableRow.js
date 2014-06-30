@@ -77,7 +77,7 @@ TableRow.prototype.save = function(onSuccess, onError)
 {
 	var row = this;
 	JSDB.events.dispatch("before_save:row", row);
-	row.write( this.toArray(), function() {
+	row.write( this._data, function() {
 		JSDB.events.dispatch("after_save:row", row);
 		if (onSuccess) onSuccess(row);
 	}, onError );
