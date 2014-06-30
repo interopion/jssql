@@ -42,6 +42,7 @@ Server.prototype.load = function(onSuccess, onError)
 					inst.databases[db.name] = db;
 					if (++loaded === dbCount) {
 						JSDB.events.dispatch("load:server", inst);
+						inst.loaded = true;
 						onSuccess.call(inst);
 					}
 				};
@@ -120,4 +121,23 @@ Server.prototype.dropDatabase = function(name, ifExists)
 			throw new SQLRuntimeError('Database "' + name + '" does not exist');
 		}
 	}
+};
+
+Server.prototype.getDatabase = function(name)
+{
+	return this.databases[trim(name)];
+};
+
+Server.prototype.setCurrentDatabase = function(name)
+{
+	var db = trim(name);
+	if (!this.databases.hasOwnProperty(db)) {
+		throw new SQLRuntimeError('No such database "%s".', db);
+	}
+	CURRENT_DATABASE = this.currentDatabase = this.databases[db];
+};
+
+Server.prototype.getCurrentDatabase = function()
+{
+	return this.currentDatabase;
 };
