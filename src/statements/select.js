@@ -396,7 +396,7 @@ STATEMENTS.SELECT = function(walker) {
 			tmp,
 			fld,
 			db,
-			i, y, l, j;
+			i, y, l, j, f;
 
 		// Compose a row prototype object --------------------------------------
 		var _databases = {};
@@ -513,7 +513,7 @@ STATEMENTS.SELECT = function(walker) {
 		{
 			arr = [];
 			table = tables[i];
-			for (var rowId in table.rows)
+			for ( rowId in table.rows )
 			{
 				arr.push(table.rows[rowId].toJSON());
 			}
@@ -580,7 +580,7 @@ STATEMENTS.SELECT = function(walker) {
 		for ( i = 0; i < l; i++ ) {
 			row = rows[i];
 			for ( fieldName in row ) {
-				var f = rowProto[fieldName];
+				f = rowProto[fieldName];
 				if (f && f.isExpr) {
 					row[fieldName] = executeCondition(row[fieldName], row);
 				}
@@ -622,7 +622,7 @@ STATEMENTS.SELECT = function(walker) {
 			// Exclude unused fields from the result rows
 			// -----------------------------------------------------------------
 			for ( fieldName in row ) {
-				var f = rowProto[fieldName];
+				f = rowProto[fieldName];
 				if (!f) {
 					delete row[fieldName];
 				} 

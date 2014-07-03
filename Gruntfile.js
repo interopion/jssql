@@ -61,6 +61,16 @@ module.exports = function(grunt) {
 			},
 		},
 		jshint: {
+			options: {
+				//curly: true,
+				//eqeqeq: true,
+				eqnull: true,
+				browser: true,
+				evil : true,
+				globals: {
+					
+				}
+			},
 			beforeconcat: jsFiles.concat(["Gruntfile.js"]),
 			afterconcat : ['<%= pkg.name %>.js']
 		},

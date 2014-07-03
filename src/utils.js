@@ -505,7 +505,7 @@ function defaultErrorHandler(e)
 		console.error(e);
 }
 
-function mixin(a, b)
+function mixin()
 {
 	var l = arguments.length, key, len, tmp, i, a, b;
 
@@ -586,8 +586,8 @@ function executeInSandbox(options)
 
 	body = body.replace(/^(\s*return\s+)?/, "return ");
 
-	console.log(body, args, values, context);
-	return Function( args.join(", "), body ).apply( context, values );
+	//console.log(body, args, values, context);
+	return (new Function( args.join(", "), body )).apply( context, values );
 }
 
 function executeCondition(condition, scope) 
@@ -607,6 +607,19 @@ function executeCondition(condition, scope)
 		scope   : scope, 
 		context : {}
 	});
+}
+
+function LIKE(input, val) {//console.log("--> ", arguments);
+	return (new RegExp(
+		"^" + String(val)
+		.replace(/\\%/g, "__ESCAPED_PCT__")
+		.replace(/%/g, ".+?")
+		.replace(/__ESCAPED_PCT__/g, "%")
+		.replace(/\\_/g, "__ESCAPED_USC__")
+		.replace(/_/g, ".")
+		.replace(/__ESCAPED_USC__/g, "_")
+		.replace(/\[\!(.+?)\]/g, "[^$1]") + "$"
+	)).exec(input);
 }
 
 // JOIN functions --------------------------------------------------------------
