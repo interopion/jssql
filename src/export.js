@@ -33,5 +33,6 @@ GLOBAL.JSDB = {
 	BinaryTree     : BinaryTree,
 	BinaryTreeNode : BinaryTreeNode,
 	crossJoin      : crossJoin,
-	innerJoin      : innerJoin
+	innerJoin      : innerJoin,
+	crossJoin2     : crossJoin2
 };

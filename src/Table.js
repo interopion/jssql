@@ -267,7 +267,7 @@ Table.prototype.insert = function(keys, values)
 		for (ki = 0; ki < kl; ki++) {
 			row.setCellValue(keys[ki], values[ri][ki]);
 		}
-		console.dir(row);
+		//console.dir(row);
 
 		for (ki in this.keys) {
 			this.keys[ki].beforeInsert(row);

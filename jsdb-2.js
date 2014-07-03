@@ -663,6 +663,110 @@ function defaultErrorHandler(e)
 		console.error(e);
 }
 
+function mixin(a, b)
+{
+	var l = arguments.length, key, len, tmp, i, a, b;
+
+	if (l < 1)
+		return;
+
+	a = arguments[0];
+
+	if (l === 1)
+		return mixin(isArray(a) ? [] : {}, a);
+
+	for ( i = 1; i < l; i++ )
+	{
+		b = arguments[i];
+
+		if ( isArray(b) ) 
+		{
+			len = b.length;
+			for ( key = 0; key < len; key++ ) 
+			{
+				tmp = b[key];
+				if ( tmp && typeof tmp == "object" ) {
+					a[key] = mixin(isArray(tmp) ? [] : {}, tmp);
+				} else {
+					a[key] = tmp;
+				}
+			}
+		} 
+		else 
+		{
+			for ( key in b ) 
+			{
+				if ( b.hasOwnProperty(key) ) 
+				{
+					tmp = b[key];
+					if ( tmp && typeof tmp == "object" ) {
+						a[key] = mixin(isArray(tmp) ? [] : {}, tmp);
+					} else {
+						a[key] = tmp;
+					}
+				}
+			}
+		}
+	}
+
+	return a;
+}
+
+function executeInSandbox(options)
+{
+	var args         = [],
+		values       = [],
+		sandbox      = options.sandbox || {},
+		translations = options.translations || {},
+		scope        = options.scope || {},
+		body         = options.code || '',
+		context      = options.context || options.context === null ? options.context : {},
+		key;
+
+	for ( key in sandbox ) {
+		args.push( key );
+		values.push( sandbox[key] );
+	}
+
+	for ( key in scope ) {
+		body = body.replace(
+			new RegExp("\\b" + key + "\\b", "gi"),
+			"__scope__['" + key + "']"
+		);
+	}
+
+	args.push( "__scope__" );
+	values.push( scope );
+
+	for ( key in translations ) {
+		body = body.replace(new RegExp(key, "gi"), translations[key]);
+	}
+
+	body = body.replace(/^(\s*return\s+)?/, "return ");
+
+	console.log(body, args, values, context);
+	return Function( args.join(", "), body ).apply( context, values );
+}
+
+function executeCondition(condition, scope) 
+{
+	return executeInSandbox({
+		code    : condition, 
+		sandbox : {},
+		translations : {
+			"={1,}"   : "===",
+			"\\bOR\\b"  : "||",
+			"\\bAND\\b" : "&&",
+			"!={1,}"     : "!==",
+			"(__scope__\\[[^\\]]+\\])\\s*LIKE\\s*('[^']*')" : function(all, input, search) {
+				return 'LIKE(' + input + ', ' + search + ')';
+			}
+		},
+		scope   : scope, 
+		context : {}
+	});
+}
+
 // JOIN functions --------------------------------------------------------------
 function LinkedListNode(data)
 {
@@ -753,10 +857,61 @@ function crossJoinUsingLinkedList(tables)
 	return rows;
 }
 
+function crossJoin2(arrays)
+{
+	var al = arrays.length,
+		ai = 0,
+		ri,
+		rl,
+		li,
+		ll,
+		row,
+		right,
+		left = [], y;
+
+	while( ai < al )
+	{
+		right = arrays[ai];
+		rl = right.length;
+
+		if ( ai === 0 )
+		{
+			for ( ri = 0; ri < rl; ri++ )
+			{
+				ll = left.push(mixin(right[ri]));
+			}
+		}
+		else
+		{
+			for ( li = 0; li < ll; li++ ) 
+			{
+				row = mixin(left[li]);
+				y = 0;
+				for ( ri = 0; ri < rl; ri++ )
+				{
+					if (++y === 1) 
+					{
+						mixin(left[li], right[ri]);
+					} 
+					else 
+					{
+						left.splice(++li, 0, mixin({}, row, right[ri]));
+						ll++;
+					}
+				}
+			}
+		}
+
+		ai++;
+	}
+
+	return left;
+}
+
 function crossJoin(tables) 
 {
 	//crossJoinUsingLinkedList(tables);
-	console.time("crossJoin");
+	//console.time("crossJoin");
 	var _tables = tables.slice(),
 		tl = _tables.length,
 		left, right, rowId, row, row0, i, l = 0, y;
@@ -790,7 +945,7 @@ function crossJoin(tables)
 			}
 		}
 	}
-	console.timeEnd("crossJoin");
+	//console.timeEnd("crossJoin");
 	return left || [];
 }
 
@@ -3056,7 +3211,8 @@ STATEMENTS.SELECT = function(walker) {
 		var out = {
 			database : null, 
 			table    : null,
-			field    : null
+			field    : null,
+			isExpr   : false
 		};
 
 		var name = identifier;
@@ -3071,43 +3227,54 @@ STATEMENTS.SELECT = function(walker) {
 			out.alias = null;
 		}
 
-		walker.require(name);
-		out.field = walker.get();
-		walker.forward();
-		if (walker.is(".")) {
-			walker.forward().require(name);
-			out.table = out.field;
+		try {
+			walker.require(name);
 			out.field = walker.get();
 			walker.forward();
-			if (options.includeDB && walker.is(".")) {
+			if (walker.is(".")) {
 				walker.forward().require(name);
-				out.database = out.table;
-				out.table    = out.field;
-				out.field    = walker.get();
+				out.table = out.field;
+				out.field = walker.get();
 				walker.forward();
+				if (options.includeDB && walker.is(".")) {
+					walker.forward().require(name);
+					out.database = out.table;
+					out.table    = out.field;
+					out.field    = walker.get();
+					walker.forward();
+				}
 			}
-		}
 
-		// now check what we have so far
-		if (isNumeric(out.field)) {
-			out.field = intVal(out.field);
-			if (out.field < 0) {
-				throw new SQLParseError('Negative column index is not allowed.');	
+			// now check what we have so far
+			if (isNumeric(out.field)) {
+				out.field = intVal(out.field);
+				if (out.field < 0) {
+					throw new SQLParseError('Negative column index is not allowed.');	
+				}
+			} else if (!out.field) {
+				throw new SQLParseError('Expecting a field name');
 			}
-		} else if (!out.field) {
-			throw new SQLParseError('Expecting a field name');
-		}
 
-		if (out.table == "*") {
-			throw new SQLParseError('You cannot use "*" as table name');
-		} else if (isNumeric(out.table)) {
-			throw new SQLParseError('You cannot use number as table name');
-		}
+			if (out.table == "*") {
+				throw new SQLParseError('You cannot use "*" as table name');
+			} else if (isNumeric(out.table)) {
+				throw new SQLParseError('You cannot use number as table name');
+			}
 
-		if (out.database == "*") {
-			throw new SQLParseError('You cannot use "*" as database name');
-		} else if (isNumeric(out.database)) {
-			throw new SQLParseError('You cannot use number as database name');
+			if (out.database == "*") {
+				throw new SQLParseError('You cannot use "*" as database name');
+			} else if (isNumeric(out.database)) {
+				throw new SQLParseError('You cannot use number as database name');
+			}
+		} catch(e) {
+			var start = walker.current()[2],
+				end   = start;
+			walker.nextUntil("AS|FROM|WHERE|GROUP|ORDER|LIMIT|OFFSET|;", function(tok) {
+				end = tok[3];
+			});
+
+			out.field = walker._input.substring(start, end);
+			out.isExpr = true;
 		}
 
 		// now check for an alias or just continue
@@ -3279,7 +3446,7 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		}
 
-		if (walker.is("OFFSET")) {console.log(walker._tokens[walker._pos]);
+		if (walker.is("OFFSET")) {//console.log(walker._tokens[walker._pos]);
 			walker.forward();
 			if (!walker.is("@" + TOKEN_TYPE_NUMBER)) {
 				//console.log(walker._tokens[walker._pos]);
@@ -3290,7 +3457,7 @@ STATEMENTS.SELECT = function(walker) {
 			offset = intVal(walker.get());
 			walker.forward();
 		}
-		console.warn(walker._input, limit, offset);
+		//console.warn(walker._input, limit, offset);
 		return {
 			limit : limit,
 			offset: offset
@@ -3330,31 +3497,25 @@ STATEMENTS.SELECT = function(walker) {
 		return join.join(" ");
 	}
 
-	/**
-	 * Executes the SELECT query and returns the result rows.
-	 */
-	function execute(query)
+	function walkWhere()
 	{
-		var rows         = [],
-			cols         = [],
-			tables       = {},
-			columns      = {},
-			colMap       = [],
-			tablesLength = query.tables.length,
-			fieldsLength = query.fields.length,
-			rowsLength   = 0,
-			colName,
-			rowIndex,
-			tableIndex,
-			tableRow,
-			table,
-			rowId,
-			row,
-			col,
-			tmp,
-			i, y, l, j;
+		var start = 0, end   = 0;
 
-		// Populate the tables object with Table references --------------------
+		if ( walker.is("WHERE") ) {
+			walker.forward();
+			start = walker.current()[2];
+			end   = start;
+			walker.nextUntil("GROUP|ORDER|LIMIT|OFFSET|;");
+			end = walker.current()[2];
+		}
+			
+		return walker._input.substring(start, end);
+	}
+
+	function collectQueryTables(query)
+	{
+		var tablesLength = query.tables.length, tables = {}, i;
+
 		for ( i = 0; i < tablesLength; i++ ) 
 		{
 			tables[i] = tables[query.tables[i].table] = getTable(
@@ -3367,125 +3528,179 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		}
 
-		// Expand "*" ----------------------------------------------------------
-		l = 0;
+		return tables;
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+	function Row()
+	{
+
+	}
+	////////////////////////////////////////////////////////////////////////////
+
+	/**
+	 * Executes the SELECT query and returns the result rows.
+	 */
+	function execute(query)
+	{//debugger;
+		var rows         = [],
+			cols         = [],
+			tables       = collectQueryTables(query),
+			columns      = {},
+			colMap       = [],
+			tablesLength = query.tables.length,
+			fieldsLength = query.fields.length,
+			rowsLength   = 0,
+			fieldName,
+			colName,
+			rowIndex,
+			tableIndex,
+			tableRow,
+			table,
+			rowId,
+			row,
+			col,
+			tmp,
+			fld,
+			db,
+			i, y, l, j;
+
+		// Compose a row prototype object --------------------------------------
+		var _databases = {};
+		var _tables = {};
+		var rowProto = {};
+
+		function prepareField(fld, i)
+		{
+			var col = {
+				database : fld.database,
+				table    : fld.table,
+				colIndex : i,
+				value    : null,
+				name     : fld.field,
+				alias    : fld.alias,
+				isExpr   : fld.isExpr
+			};
+
+			if (fld.table) {
+				table = getTable(fld.table.table, fld.table.database);
+
+				if (!_tables.hasOwnProperty(table.name))
+					_tables[table.name] = { name : table.name };
+
+				col.table = _tables[table.name];
+
+				if (!_databases.hasOwnProperty(table._db.name))
+					_databases[table._db.name] = {};
+
+				_tables[table.name].database = _databases[table._db.name];
+				_databases[table._db.name][table.name] = col.table;
+				col.database = _databases[table._db.name];
+			}
+
+			rowProto[i] = rowProto[fld.field] = col;
+			if (fld.alias) {
+				rowProto[fld.alias] = col;
+			}
+
+			cols.push(col.alias || col.name);
+		}
+
+		y = 0;
 		for ( i = 0; i < fieldsLength; i++ )
 		{
-			col = query.fields[i];
+			fld = query.fields[i];
 
-			if (col.field == "*") {//debugger;
-				var f = [];
-
-				if (col.table) {
-					j = 0;
-					for ( colName in tables[col.table].cols ) {
-						query.fields.splice(i++, ++j === 1 ? 1 : 0, {
-							field : colName,
-							alias : colName,
-							table : col.table
-						});
-						fieldsLength++;
-					}					
-				} else {
-					j = 0;
-					for ( y = 0; y < tablesLength; y++ ) {
-						for ( colName in tables[y].cols ) {
-							query.fields.splice(i++, ++j === 1 ? 1 : 0, {
-								field : colName,
-								alias : colName,
-								table : tables[y].name
-							});
-							fieldsLength++;
-						}
-					}
-				}
-			}
-		}
-		
-
-		// Build the colMap ----------------------------------------------------
-		l = 0;
-		for ( i = 0; i < tablesLength; i++ ) 
-		{
-			table = tables[i];
-
-			for ( colName in table.cols ) 
+			if (fld.field == "*") 
 			{
-				col = table.cols[colName];
-				colMap[l] = 0;
-				for ( y = 0; y < query.fields.length; y++ )
+				if (fld.table)
 				{
-					var fld = query.fields[y];
-					if (fld.field == col.name && (!fld.table || fld.table == table.name)) {
-						cols.push(fld.field);
-						colMap[l] = 1;
+					//debugger;
+					table = getTable(fld.table, fld.database);
+					for ( colName in table.cols ) 
+					{
+						prepareField({
+							field    : colName,
+							alias    : null,
+							table    : { table : table.name, database : table.database },
+							database : table._db.name,
+							isExpr   : false
+						}, y++);
 					}
 				}
-				l++;
-			}
-		}
-		
-		// Populate the columns object -----------------------------------------
-		/*for ( i = 0; i < fieldsLength; i++ ) 
-		{
-			col = query.fields[i];
-			
-			if (col.table) {
-				if (!tables.hasOwnProperty(col.table)) {
-					throw new SQLParseError(
-						'The table "%s" for column "%s" is not included at ' + 
-						'the FROM clause',
-						col.table,
-						col.field
-					);
-				}
-			}
-
-			// Expand "*"
-			if (col.field == "*") {
-				if (col.table) {
-					for ( colName in tables[col.table].cols ) {
-						tmp = tables[col.table].cols[colName];
-						columns[i] = columns[colName] = tmp;
-						cols.push(colName);
-					}					
-				} else {
-					for ( y = 0; y < tablesLength; y++ ) {
-						for ( colName in tables[y].cols ) {
-							tmp = tables[y].cols[colName];
-							columns[i] = columns[colName] = tmp;
-							cols.push(colName);
+				else
+				{
+					for ( j = 0; j < tablesLength; j++ ) 
+					{
+						table = tables[j];
+						for ( colName in table.cols ) 
+						{
+							prepareField({
+								field    : colName,
+								alias    : null,
+								table    : { table : table.name, database : table.database },
+								database : table._db.name,
+								isExpr   : false
+							}, y++);
 						}
 					}
 				}
-				continue;
+			} 
+			else 
+			{
+				// If the field is not an expression and the number of used 
+				// tables is not 1, require a table name to be specified
+				if (!fld.isExpr && !fld.table) 
+				{
+					if ( tablesLength !== 1 )
+					{
+						throw new SQLParseError(
+							'The column "%s" needs to have it\'s table specified',
+							fld.field
+						);
+					}
+
+					fld.table = query.tables[0];
+				}
+
+				prepareField(fld, y++);
 			}
+		}
 
+		rowProto.__length__ = y;
 
-			//if (col.table) {
-			//	if (col.alias in columns) {
-			//		throw new SQLParseError(
-			//			'Column "%s" is ambiguous',
-			//			col.alias
-			//		);
-			//	}
-			//}
-
-			if (!col.alias) {
-				col.alias = col.field;
-			}
-
-			columns[i] = columns[col.alias] = col;
-			cols.push(col.alias);
-		}*/
+		//console.log("rowProto: ");
+		//console.dir(rowProto);
 
 		// Collect all rows from all the tables --------------------------------
-		var _tables = [];
-		for ( tableIndex = 0; tableIndex < tablesLength; tableIndex++ )
+
+		// For each used table
+		var _data = [], arr;
+		for ( i = 0; i < tablesLength; i++ )
 		{
-			_tables.push(tables[tableIndex]);
+			arr = [];
+			table = tables[i];
+			for (var rowId in table.rows)
+			{
+				arr.push(table.rows[rowId].toJSON());
+			}
+			_data.push(arr);
 		}
-		rows = crossJoin(_tables);
+
+		// Add expression fields -----------------------------------------------
+		for ( i = 0; i < fieldsLength; i++ )
+		{
+			fld = query.fields[i];
+			if (fld.isExpr) {
+				col = {};
+				col[fld.alias || fld.field] = fld.field;
+				_data.push([col]);
+			}
+		}
+
+		console.dir(_data);
+		rows = crossJoin2(_data);
+		
 
 		// orderBy -------------------------------------------------------------
 		if ( query.orderBy ) {
@@ -3495,11 +3710,11 @@ STATEMENTS.SELECT = function(walker) {
 					term = query.orderBy[i];
 					col  = term.expression;
 					//debugger;
-					if (!isNumeric(col)) {
-						col = cols.indexOf(col);
-					}
+					//if (!isNumeric(col)) {
+					//	col = cols.indexOf(col);
+					//}
 					
-					col = intVal(col);
+					//col = intVal(col);
 
 					valA = a[col];
 					valB = b[col];
@@ -3527,8 +3742,20 @@ STATEMENTS.SELECT = function(walker) {
 		}
 
 		l = rows.length;
+
+		// Evaluate expressions in field list ----------------------------------
+		for ( i = 0; i < l; i++ ) {
+			row = rows[i];
+			for ( fieldName in row ) {
+				var f = rowProto[fieldName];
+				if (f && f.isExpr) {
+					row[fieldName] = executeCondition(row[fieldName], row);
+				}
+			}
+		}
+
 		var rows2 = [];
-		console.log(limit, offset);
+		
 		for ( i = 0; i < l; i++ ) {
 			
 			// Apply OFFSET
@@ -3542,17 +3769,45 @@ STATEMENTS.SELECT = function(walker) {
 				continue;
 			}
 
-			// Exclude unused columns
-			// -----------------------------------------------------------------
 			row = rows[i];
-			tmp = [];
 
-			for ( y = 0; y < row.length; y++ ) {
-				if (colMap[y])
-					tmp.push(row[y]);
+			// Apply the "WHERE" conditions
+			// -----------------------------------------------------------------
+			if (query.where && !executeCondition(query.where, row)) {
+				continue;
 			}
 
-			rows2.push(tmp);
+			// Add expression fields -------------------------------------------
+			//for ( y = 0; y < fieldsLength; y++ )
+			//{
+			//	fld = query.fields[y];
+			//	if (fld.isExpr) {
+			//		row.splice(y, 0, "x");
+			//	}
+			//}
+
+			// Exclude unused fields from the result rows
+			// -----------------------------------------------------------------
+			for ( fieldName in row ) {
+				var f = rowProto[fieldName];
+				if (!f) {
+					delete row[fieldName];
+				} 
+				else if (f.alias && f.alias !== fieldName) {
+					delete row[fieldName];
+				}
+			}
+
+			// Exclude unused columns
+			// -----------------------------------------------------------------
+			//tmp = [];
+			//for ( y = 0; y < row.length; y++ ) 
+			//{
+			//	if (colMap[y])
+			//		tmp.push(row[y]);
+			//}
+
+			rows2.push(row);
 		}
 
 		//console.log("tables: ", tables, rows);
@@ -3573,26 +3828,29 @@ STATEMENTS.SELECT = function(walker) {
 
 		
 		//console.log("current: ", walker.current()[0]);
-		walker.pick({
+		walker.optional({
 			"FROM" : function() {//console.log("current: ", walker.current()[0]);
 				collectTableRefs(query.tables);
 			}
 		});
 
+		query.where   = walkWhere(); 
 		query.orderBy = walkOrderBy();
-		query.bounds = walkLimitAndOffset();
+		query.bounds  = walkLimitAndOffset();
 		//console.log("query: ", query);
 		
 		// table -------------------------------------------------------
-		var //tbl   = tableRef(),
-			table = getTable(query.tables[0].table, query.tables[0].database);
+		//var //tbl   = tableRef(),
+		//	table = getTable(query.tables[0].table, query.tables[0].database);
 		
 		walker
 		.errorUntil(";")
 		.commit(function() {
 			//execute(query);
 			
+			console.warn(walker._input);
 			var result = execute(query);
+			
 			console.log("query: ", query, "result: ", result);
 
 			walker.onComplete({
@@ -4553,7 +4811,7 @@ Table.prototype.insert = function(keys, values)
 		for (ki = 0; ki < kl; ki++) {
 			row.setCellValue(keys[ki], values[ri][ki]);
 		}
-		console.dir(row);
+		//console.dir(row);
 
 		for (ki in this.keys) {
 			this.keys[ki].beforeInsert(row);
@@ -5579,11 +5837,16 @@ TableRow.prototype.getCellValue = function(nameOrIndex)
  * Creates and returns the plain object representation of the instance.
  * @return {Object}
  */
-TableRow.prototype.toJSON = function() 
+TableRow.prototype.toJSON = function(mixed) 
 {
 	var json = {};
 	for (var x in this._cellsByName) {
 		json[x] = this._data[this._cellsByName[x]];
+	}
+	if (mixed) {
+		for ( var i = 0; i < this.length; i++ ) {
+			json[i] = this._data[i];
+		}	
 	}
 	return json;
 };
@@ -6128,7 +6391,8 @@ GLOBAL.JSDB = {
 	BinaryTree     : BinaryTree,
 	BinaryTreeNode : BinaryTreeNode,
 	crossJoin      : crossJoin,
-	innerJoin      : innerJoin
+	innerJoin      : innerJoin,
+	crossJoin2     : crossJoin2
 };
 
 // -----------------------------------------------------------------------------
