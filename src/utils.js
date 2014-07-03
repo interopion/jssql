@@ -505,6 +505,110 @@ function defaultErrorHandler(e)
 		console.error(e);
 }
 
+function mixin(a, b)
+{
+	var l = arguments.length, key, len, tmp, i, a, b;
+
+	if (l < 1)
+		return;
+
+	a = arguments[0];
+
+	if (l === 1)
+		return mixin(isArray(a) ? [] : {}, a);
+
+	for ( i = 1; i < l; i++ )
+	{
+		b = arguments[i];
+
+		if ( isArray(b) ) 
+		{
+			len = b.length;
+			for ( key = 0; key < len; key++ ) 
+			{
+				tmp = b[key];
+				if ( tmp && typeof tmp == "object" ) {
+					a[key] = mixin(isArray(tmp) ? [] : {}, tmp);
+				} else {
+					a[key] = tmp;
+				}
+			}
+		} 
+		else 
+		{
+			for ( key in b ) 
+			{
+				if ( b.hasOwnProperty(key) ) 
+				{
+					tmp = b[key];
+					if ( tmp && typeof tmp == "object" ) {
+						a[key] = mixin(isArray(tmp) ? [] : {}, tmp);
+					} else {
+						a[key] = tmp;
+					}
+				}
+			}
+		}
+	}
+
+	return a;
+}
+
+function executeInSandbox(options)
+{
+	var args         = [],
+		values       = [],
+		sandbox      = options.sandbox || {},
+		translations = options.translations || {},
+		scope        = options.scope || {},
+		body         = options.code || '',
+		context      = options.context || options.context === null ? options.context : {},
+		key;
+
+	for ( key in sandbox ) {
+		args.push( key );
+		values.push( sandbox[key] );
+	}
+
+	for ( key in scope ) {
+		body = body.replace(
+			new RegExp("\\b" + key + "\\b", "gi"),
+			"__scope__['" + key + "']"
+		);
+	}
+
+	args.push( "__scope__" );
+	values.push( scope );
+
+	for ( key in translations ) {
+		body = body.replace(new RegExp(key, "gi"), translations[key]);
+	}
+
+	body = body.replace(/^(\s*return\s+)?/, "return ");
+
+	console.log(body, args, values, context);
+	return Function( args.join(", "), body ).apply( context, values );
+}
+
+function executeCondition(condition, scope) 
+{
+	return executeInSandbox({
+		code    : condition, 
+		sandbox : {},
+		translations : {
+			"={1,}"   : "===",
+			"\\bOR\\b"  : "||",
+			"\\bAND\\b" : "&&",
+			"!={1,}"     : "!==",
+			"(__scope__\\[[^\\]]+\\])\\s*LIKE\\s*('[^']*')" : function(all, input, search) {
+				return 'LIKE(' + input + ', ' + search + ')';
+			}
+		},
+		scope   : scope, 
+		context : {}
+	});
+}
+
 // JOIN functions --------------------------------------------------------------
 function LinkedListNode(data)
 {
@@ -595,10 +699,61 @@ function crossJoinUsingLinkedList(tables)
 	return rows;
 }
 
+function crossJoin2(arrays)
+{
+	var al = arrays.length,
+		ai = 0,
+		ri,
+		rl,
+		li,
+		ll,
+		row,
+		right,
+		left = [], y;
+
+	while( ai < al )
+	{
+		right = arrays[ai];
+		rl = right.length;
+
+		if ( ai === 0 )
+		{
+			for ( ri = 0; ri < rl; ri++ )
+			{
+				ll = left.push(mixin(right[ri]));
+			}
+		}
+		else
+		{
+			for ( li = 0; li < ll; li++ ) 
+			{
+				row = mixin(left[li]);
+				y = 0;
+				for ( ri = 0; ri < rl; ri++ )
+				{
+					if (++y === 1) 
+					{
+						mixin(left[li], right[ri]);
+					} 
+					else 
+					{
+						left.splice(++li, 0, mixin({}, row, right[ri]));
+						ll++;
+					}
+				}
+			}
+		}
+
+		ai++;
+	}
+
+	return left;
+}
+
 function crossJoin(tables) 
 {
 	//crossJoinUsingLinkedList(tables);
-	console.time("crossJoin");
+	//console.time("crossJoin");
 	var _tables = tables.slice(),
 		tl = _tables.length,
 		left, right, rowId, row, row0, i, l = 0, y;
@@ -632,7 +787,7 @@ function crossJoin(tables)
 			}
 		}
 	}
-	console.timeEnd("crossJoin");
+	//console.timeEnd("crossJoin");
 	return left || [];
 }
 
