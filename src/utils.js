@@ -586,7 +586,7 @@ function executeInSandbox(options)
 
 	body = body.replace(/^(\s*return\s+)?/, "return ");
 
-	//console.log(body, args, values, context);
+	console.log(body, args, values, context);
 	return (new Function( args.join(", "), body )).apply( context, values );
 }
 
