@@ -193,45 +193,39 @@
                 $in        = $("#in"),
                 $out       = $("#out");
 
-			function table(data) {
-				var html = ['<table><thead><tr>'], i, y, c, x;
-				for (i = 0; i < data.cols.length; i++) {
+			function table(data) 
+            {
+				var html = ['<table><thead><tr>'], 
+                    colLen = data.cols.length,
+                    i, y, c, x;
+
+				for (i = 0; i < colLen; i++) 
+                {
 					html.push('<th>', data.cols[i], '</th>');
 				}
-				html.push('</tr></thead><tbody>');
-				//console.log("rows: " , data.rows);
-                $.each(data.rows, function(key, c) {
+				
+                html.push('</tr></thead><tbody>');
+				
+                $.each(data.rows, function(key, row) {
 					
-                    if (c.toArray) {
-                        c = c.toArray();
+                	html.push('<tr>');
+
+                    for ( i = 0; i < colLen; i++ ) 
+                    {
+                        v = row[data.cols[i]];
+                        html.push(
+                            '<td>', 
+                            v === undefined ? '' : String(v), 
+                            '</td>'
+                        );
                     }
-					//if (c) {
-						html.push('<tr>');
-						if ($.isArray(c) || $.isPlainObject(c)) {
-                            var i = 0;
-                            while (i in c) {
-                                v = c[i];
-    							//$.each(c, function(x, v) {
-    								html.push(
-    									'<td>', 
-    									v === undefined ? '' : String(v), 
-    									'</td>'
-    								);
-    							//});
-                                i++;
-                            }
-						} else {
-							html.push(
-								'<td>', 
-								c === undefined ? '' : String(c), 
-								'</td>'
-							);
-						}
-						html.push('</tr>');
-					//}
+					
+					html.push('</tr>');
 				});
+
 				html.push('</tbody></table>');
-				return '<p>' + data.rows.length + " rows:</p>" + html.join("");
+				
+                return '<p>' + data.rows.length + " rows:</p>" + html.join("");
 			}
 			
             loadState();
