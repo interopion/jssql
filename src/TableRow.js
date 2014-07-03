@@ -183,11 +183,16 @@ TableRow.prototype.getCellValue = function(nameOrIndex)
  * Creates and returns the plain object representation of the instance.
  * @return {Object}
  */
-TableRow.prototype.toJSON = function() 
+TableRow.prototype.toJSON = function(mixed) 
 {
 	var json = {};
 	for (var x in this._cellsByName) {
 		json[x] = this._data[this._cellsByName[x]];
+	}
+	if (mixed) {
+		for ( var i = 0; i < this.length; i++ ) {
+			json[i] = this._data[i];
+		}	
 	}
 	return json;
 };
