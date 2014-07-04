@@ -454,16 +454,16 @@
 
 	QUnit.asyncTest("Various xpressions", function(assert) {
 		expect(1);
-		var sql = 'select (a + b + (2 + 3)) as sum, (Math.PI) as PI from t1;';
+		var sql = 'select (a + b + (2 + 3)) as sum, (Math.PI * 1) from t1;';
 		JSDB.query(
 			sql, 
 			function(result) {
 				assert.deepEqual(result, {
-					cols : ["sum", "PI"],
+					cols : ["sum", "(Math.PI * 1)"],
 					rows : [
-						{ sum : 'a1b15', PI : Math.PI },
-						{ sum : 'a2b25', PI : Math.PI },
-						{ sum : 'a3b35', PI : Math.PI }
+						{ sum : 'a1b15', "(Math.PI * 1)" : Math.PI },
+						{ sum : 'a2b25', "(Math.PI * 1)" : Math.PI },
+						{ sum : 'a3b35', "(Math.PI * 1)" : Math.PI }
 					]
 				});
 				QUnit.start();

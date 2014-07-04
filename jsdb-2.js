@@ -1266,7 +1266,7 @@ var events = (function() {
 			i, 
 			canceled = false;
 
-		console.info("dispatch: ", e, data);
+		//console.info("dispatch: ", e, data);
 
 		for (i = 0; i < l; i++) {
 			if (handlers[i](data) === false) {
@@ -1740,8 +1740,8 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 					if (buf) commit();
 					state = TOKEN_TYPE_OPERATOR;
 					buf += cur;
-					commit();
 					pos++;
+					commit();
 				}
 			break;
 			
@@ -3291,9 +3291,11 @@ STATEMENTS.SELECT = function(walker) {
 				throw new SQLParseError('You cannot use number as database name');
 			}
 		} catch(e) {
+			
 			var start = walker.current()[2],
-				end   = start;
-			walker.nextUntil("AS|FROM|WHERE|GROUP|ORDER|LIMIT|OFFSET|;", function(tok) {
+				end   = walker.current()[3];
+
+			walker.nextUntil(",|AS|FROM|WHERE|GROUP|ORDER|LIMIT|OFFSET|;", function(tok) {
 				end = tok[3];
 			});
 
@@ -3379,7 +3381,7 @@ STATEMENTS.SELECT = function(walker) {
 		var out = walkFieldRef({
 			includeAlias : true, 
 			allowAll     : true, 
-			allowIndexes : true,
+			allowIndexes : false,//true,
 			includeDB    : true
 		});
 
@@ -3555,19 +3557,45 @@ STATEMENTS.SELECT = function(walker) {
 		return tables;
 	}
 
-	////////////////////////////////////////////////////////////////////////////
-	function Row()
+	function getEnvironment()
 	{
+		var env = {},
+			dbName,
+			tableName,
+			colName,
+			table,
+			col,
+			db;
 
+		for ( dbName in SERVER.databases )
+		{
+			db = SERVER.databases[dbName];
+			env[dbName] = {};
+
+			for ( tableName in db.tables )
+			{
+				table = db.tables[tableName];
+				env[dbName][tableName] = {};
+
+				for ( colName in table.cols )
+				{
+					col = table.cols[colName];
+					env[dbName][tableName][colName] = col;
+				}
+			}
+		}
+
+		return env;
 	}
-	////////////////////////////////////////////////////////////////////////////
 
+	
 	/**
 	 * Executes the SELECT query and returns the result rows.
 	 */
 	function execute(query)
 	{//debugger;
-		var rows         = [],
+		var ENV          = getEnvironment(),
+			rows         = [],
 			cols         = [],
 			tables       = collectQueryTables(query),
 			columns      = {},
@@ -3589,6 +3617,8 @@ STATEMENTS.SELECT = function(walker) {
 			db,
 			i, y, l, j, f;
 
+		
+		
 		// Compose a row prototype object --------------------------------------
 		var _databases = {};
 		var _tables = {};
@@ -3606,6 +3636,8 @@ STATEMENTS.SELECT = function(walker) {
 				isExpr   : fld.isExpr
 			};
 
+			//console.log("fld: ", fld);
+
 			if (fld.table) {
 				table = getTable(fld.table.table, fld.table.database);
 
@@ -3620,6 +3652,11 @@ STATEMENTS.SELECT = function(walker) {
 				_tables[table.name].database = _databases[table._db.name];
 				_databases[table._db.name][table.name] = col.table;
 				col.database = _databases[table._db.name];
+			}
+
+			ENV[fld.field] = null;
+			if (fld.alias) {
+				ENV[fld.alias] = null;
 			}
 
 			rowProto[i] = rowProto[fld.field] = col;
@@ -3693,12 +3730,9 @@ STATEMENTS.SELECT = function(walker) {
 
 		rowProto.__length__ = y;
 
-		//console.log("rowProto: ");
-		//console.dir(rowProto);
+		//console.warn(ENV, rowProto);
 
 		// Collect all rows from all the tables --------------------------------
-
-		// For each used table
 		var _data = [], arr;
 		for ( i = 0; i < tablesLength; i++ )
 		{
@@ -3717,12 +3751,12 @@ STATEMENTS.SELECT = function(walker) {
 			fld = query.fields[i];
 			if (fld.isExpr) {
 				col = {};
-				col[fld.alias || fld.field] = fld.field;
+				col[fld.alias || fld.field] = fld.field.replace(/^\s*\((.*?)(\)\s*$)/, "$1");
 				_data.push([col]);
 			}
 		}
 
-		console.dir(_data);
+		//console.dir(_data);
 		rows = crossJoin2(_data);
 		
 
@@ -3801,15 +3835,6 @@ STATEMENTS.SELECT = function(walker) {
 				continue;
 			}
 
-			// Add expression fields -------------------------------------------
-			//for ( y = 0; y < fieldsLength; y++ )
-			//{
-			//	fld = query.fields[y];
-			//	if (fld.isExpr) {
-			//		row.splice(y, 0, "x");
-			//	}
-			//}
-
 			// Exclude unused fields from the result rows
 			// -----------------------------------------------------------------
 			for ( fieldName in row ) {
@@ -3822,19 +3847,9 @@ STATEMENTS.SELECT = function(walker) {
 				}
 			}
 
-			// Exclude unused columns
-			// -----------------------------------------------------------------
-			//tmp = [];
-			//for ( y = 0; y < row.length; y++ ) 
-			//{
-			//	if (colMap[y])
-			//		tmp.push(row[y]);
-			//}
-
 			rows2.push(row);
 		}
 
-		//console.log("tables: ", tables, rows);
 		return {
 			cols : cols,
 			rows : rows2
@@ -3872,10 +3887,10 @@ STATEMENTS.SELECT = function(walker) {
 		.commit(function() {
 			//execute(query);
 			
-			console.warn(walker._input);
+			//console.warn(walker._input);
 			var result = execute(query);
 			
-			console.log("query: ", query, "result: ", result);
+			//console.log("query: ", query, "result: ", result);
 
 			walker.onComplete({
 				cols : result.cols,
