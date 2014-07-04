@@ -52,14 +52,23 @@ Server.prototype.load = function(onSuccess, onError)
 			inst.databases = {};
 
 
-			for ( dbName in json.databases ) {
-				db = new Database(dbName);
-				databases[dbCount++] = db;
+			if (json.databases) {
+				for ( dbName in json.databases ) {
+					if (json.databases.hasOwnProperty(dbName)) {
+						db = new Database(dbName);
+						databases[dbCount++] = db;
+					}
+				}
 			}
 
-			for ( i = 0; i < dbCount; i++ ) {
-				db = databases[i];
-				db.load(onDatabaseLoad(db), onError);
+			if (dbCount > 0) {
+				for ( i = 0; i < dbCount; i++ ) {
+					db = databases[i];
+					db.load(onDatabaseLoad(db), onError);
+				}
+			} else {
+				JSDB.events.dispatch("load:server", inst);
+				onSuccess.call(inst);
 			}
 
 			//inst.save();
@@ -113,6 +122,8 @@ Server.prototype.createDatabase = function(name, ifNotExists)
 Server.prototype.dropDatabase = function(name, ifExists) 
 {
 	if (this.databases.hasOwnProperty(name)) {
+		if (this.currentDatabase === this.databases[name])
+			this.currentDatabase = null;
 		this.databases[name].drop();
 		delete this.databases[name];
 		this.save();
