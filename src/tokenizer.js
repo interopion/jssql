@@ -448,8 +448,8 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 					if (buf) commit();
 					state = TOKEN_TYPE_OPERATOR;
 					buf += cur;
-					commit();
 					pos++;
+					commit();
 				}
 			break;
 			
