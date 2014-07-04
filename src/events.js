@@ -10,6 +10,16 @@ var events = (function() {
 		return handler;
 	}
 
+	function one(eType, handler) 
+	{
+		function fn(data) {
+			handler(data);
+			unbind(eType, handler);
+		} 
+		bind(eType, fn);
+		return fn;
+	}
+
 	function unbind(eType, handler) 
 	{
 		if (!eType) {
@@ -48,7 +58,8 @@ var events = (function() {
 	return {
 		dispatch : dispatch,
 		bind     : bind,
-		unbind   : unbind
+		unbind   : unbind,
+		one      : one
 	};
 
 })();
