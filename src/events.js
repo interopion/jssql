@@ -43,7 +43,7 @@ var events = (function() {
 			i, 
 			canceled = false;
 
-		console.info("dispatch: ", e, data);
+		//console.info("dispatch: ", e, data);
 
 		for (i = 0; i < l; i++) {
 			if (handlers[i](data) === false) {
