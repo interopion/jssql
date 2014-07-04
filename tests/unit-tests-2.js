@@ -1,5 +1,58 @@
 (function() {
 
+	QUnit.config.reorder = false;
+	QUnit.config.scrolltop = false;
+	QUnit.config.blocking = true;
+
+	function TestQueue(options) 
+	{
+		var tests = [],
+			cfg = $.extend({
+				onFailure  : $.noop,
+				onSuccess  : $.noop,
+				onComplete : $.noop
+			}, options);
+
+		function add(name, test) 
+		{
+			tests.push(function(done, fail) {
+				QUnit.asyncTest(name, function(assert) {
+					test(done, fail)
+				});
+			});
+		}
+
+		function done() 
+		{
+			QUnit.start();
+			run();
+		}
+
+		function fail(message, actual) 
+		{
+			QUnit.pushFailure(message || "Failed", actual);
+			cfg.onFailure();
+			cfg.onComplete();
+			QUnit.start();
+		}
+
+		function run() 
+		{
+			if (tests.length) {
+				tests.shift()(done, fail);
+			} else {
+				cfg.onSuccess();
+				cfg.onComplete();
+			}
+		}
+
+		this.add = add;
+		this.run = run;
+	}
+
+	window.TestQueue = TestQueue;
+	//window.testQueue = new TestQueue();
+
 	module("Tokenizer");
 
 	var tokenize  = JSDB.tokenize,

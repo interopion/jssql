@@ -1233,6 +1233,16 @@ var events = (function() {
 		return handler;
 	}
 
+	function one(eType, handler) 
+	{
+		function fn(data) {
+			handler(data);
+			unbind(eType, handler);
+		} 
+		bind(eType, fn);
+		return fn;
+	}
+
 	function unbind(eType, handler) 
 	{
 		if (!eType) {
@@ -1271,7 +1281,8 @@ var events = (function() {
 	return {
 		dispatch : dispatch,
 		bind     : bind,
-		unbind   : unbind
+		unbind   : unbind,
+		one      : one
 	};
 
 })();
@@ -4349,14 +4360,23 @@ Server.prototype.load = function(onSuccess, onError)
 			inst.databases = {};
 
 
-			for ( dbName in json.databases ) {
-				db = new Database(dbName);
-				databases[dbCount++] = db;
+			if (json.databases) {
+				for ( dbName in json.databases ) {
+					if (json.databases.hasOwnProperty(dbName)) {
+						db = new Database(dbName);
+						databases[dbCount++] = db;
+					}
+				}
 			}
 
-			for ( i = 0; i < dbCount; i++ ) {
-				db = databases[i];
-				db.load(onDatabaseLoad(db), onError);
+			if (dbCount > 0) {
+				for ( i = 0; i < dbCount; i++ ) {
+					db = databases[i];
+					db.load(onDatabaseLoad(db), onError);
+				}
+			} else {
+				JSDB.events.dispatch("load:server", inst);
+				onSuccess.call(inst);
 			}
 
 			//inst.save();
@@ -4410,6 +4430,8 @@ Server.prototype.createDatabase = function(name, ifNotExists)
 Server.prototype.dropDatabase = function(name, ifExists) 
 {
 	if (this.databases.hasOwnProperty(name)) {
+		if (this.currentDatabase === this.databases[name])
+			this.currentDatabase = null;
 		this.databases[name].drop();
 		delete this.databases[name];
 		this.save();
@@ -6393,21 +6415,22 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		TOKEN_TYPE_EOL                 : TOKEN_TYPE_EOL,
 		TOKEN_TYPE_EOF                 : TOKEN_TYPE_EOF,
 
-		tokenize  : tokenize,
-		getTokens : getTokens,
-		Walker    : Walker,
-		parse     : parse,
-		Table     : Table,
-		SERVER    : SERVER,
-		Column    : Column,
-		TableRow  : TableRow,
+		tokenize         : tokenize,
+		getTokens        : getTokens,
+		Walker           : Walker,
+		parse            : parse,
+		Table            : Table,
+		SERVER           : SERVER,
+		Column           : Column,
+		TableRow         : TableRow,
 		//TableCell : TableCell,
-		binarySearch   : binarySearch,
-		BinaryTree     : BinaryTree,
-		BinaryTreeNode : BinaryTreeNode,
-		crossJoin      : crossJoin,
-		innerJoin      : innerJoin,
-		crossJoin2     : crossJoin2
+		binarySearch     : binarySearch,
+		BinaryTree       : BinaryTree,
+		BinaryTreeNode   : BinaryTreeNode,
+		crossJoin        : crossJoin,
+		innerJoin        : innerJoin,
+		crossJoin2       : crossJoin2,
+		executeCondition : executeCondition
 	});
 }
 

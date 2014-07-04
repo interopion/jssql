@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>QUnit Example</title>
+  <title>JSSQL Unit Tests</title>
   <link rel="stylesheet" href="qunit.css">
 </head>
 <body>
@@ -12,13 +12,17 @@
   var JSDB_EXPORT_FOR_TESTING = true;
   </script>
   <script src="qunit.js"></script>
-  <script type="text/javascript" src="../jquery.min.js"></script>
+  <script type="text/javascript" src="../console/jquery.min.js"></script>
   <script type="text/javascript" src="../jsdb-2.js"></script>
   <script src="BinaryTree.js"></script>
   <script src="unit-tests-2.js"></script>
   <script src="Walker.js"></script>
   <script src="Columns.js"></script>
   <script src="TableRow.js"></script>
+  <script src="test.expressions.js"></script>
+
+  <script src="statements/test.CREATE_DATABASE.js"></script>
+  <script src="statements/test.USE.js"></script>
   <script src="select.js"></script>
 </body>
 </html>
