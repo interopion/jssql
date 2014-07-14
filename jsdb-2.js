@@ -266,6 +266,26 @@ function quote(str, q)
 	return q + String(str).replace(q, q + "" + q) + q;
 }
 
+function makeArray(x)
+{
+	if ( isArray(x) )
+	{
+		return x;
+	}
+
+	if ( typeof x.toArray == "function" )
+	{
+		return makeArray(x.toArray());
+	}
+
+	if ( x && typeof x == "object" && "length" in x )
+	{
+		return Array.prototype.slice.call(x);
+	}
+
+	return [x];
+}
+
 function error(options)
 {
 	options = typeof options == "string" ? 
@@ -2592,8 +2612,8 @@ STATEMENTS.SHOW_DATABASES = function(walker) {
 	return function() {
 		walker.errorUntil(";").commit(function() {
 			walker.onComplete({
-				head : ["Databases"],
-				rows : keys(SERVER.databases)
+				cols : ["Databases"],
+				rows : keys(SERVER.databases).map(makeArray)
 			});
 		});
 	};
@@ -2620,8 +2640,8 @@ STATEMENTS.SHOW_TABLES = function(walker) {
 						);
 					}
 					walker.onComplete({
-						head : ['Tables in database "' + db + '"'],
-						rows : keys(database.tables)
+						cols : ['Tables in database "' + db + '"'],
+						rows : keys(database.tables).map(makeArray)
 					});
 				});
 			}
@@ -2684,7 +2704,7 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 			}
 			
 			var result = {
-				head : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
+				cols : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
 				rows : []
 			};
 			
@@ -3938,17 +3958,19 @@ function Parser(onComplete, onError)
 {
 	var parser = this,
 		env    = {},
+		result = new Result(),
 		tokens;
 
 	function parse2(tokens, input) {
 		var walker = new Walker(tokens, input),
 			queryNum = 1;
 
-		walker.onComplete = function(result) {
+		walker.onComplete = function(_result) {
 			if (walker.current()) {
 				queryNum++;
 				start();
 			} else {
+				result.setData(_result);
 				if (onComplete) 
 					onComplete(
 						queryNum > 1 ? 
@@ -6448,6 +6470,97 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		executeCondition : executeCondition
 	});
 }
+
+// -----------------------------------------------------------------------------
+// Starts file "src/Result.js"
+// -----------------------------------------------------------------------------
+/**
+ * Class Result - represents the result of any query
+ */
+function Result(data)
+{
+	this.data = null;
+	this.cols = null;
+	this.rows = null;
+	this._startTime = Date.now();
+}
+
+Result.prototype = {
+	
+	setData : function(data)
+	{
+		this._endTime   = Date.now();
+		this.time       = this._endTime - this._startTime;
+		this._startTime = this._endTime;
+		this.data       = data || null;
+
+		if ( data )
+		{
+			if ( typeof data == "object" )
+			{
+				this.cols = data.cols || null;
+				this.rows = data.rows || null;
+			}
+			else if ( Object.prototype.toString.call(data) == "[object Array]" )
+			{
+				this.rows = data;
+				this.cols = null;
+			}
+			else
+			{
+				this.cols = null;
+				this.rows = null;
+			}
+		}
+	},
+
+	toHTML : function() 
+	{
+		var html   = [ '<table><thead><tr>' ],
+			colLen = this.cols.length,
+			rowLen = this.rows.length,
+			row, i, j, v;
+		
+		for ( i = 0; i < colLen; i++ )
+        {
+			html.push('<th>', this.cols[i], '</th>');
+		}
+
+		html.push('</tr></thead><tbody>');
+
+		for ( i = 0; i < rowLen; i++ )
+		{
+			row = this.rows[i];
+			html.push('<tr>');
+			for ( j = 0; j < colLen; j++ ) 
+			{
+				v = row[this.cols[j]] || row[j];
+				html.push(
+					'<td>', 
+					v === undefined ? '' : String(v), 
+					'</td>'
+				);
+			}
+			html.push('</tr>');
+		}
+
+		html.push('</tbody></table>');
+		html.push(rowLen + " rows in set. ");
+		html.push("Query took " + this.time + "ms.");
+
+		return html.join("");
+	},
+
+	toJSON : function() {},
+
+	toString : function() {},
+
+	toXML : function() {},
+
+	toCSV : function() {},
+
+	forEach : function() {}
+};
 
 // -----------------------------------------------------------------------------
 // Starts file "src/init.js"

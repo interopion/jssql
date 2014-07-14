@@ -100,6 +100,7 @@ TableIndex.prototype = {
 	 * Updates the index state to reflect the table contents. The table calls 
 	 * this before INSERT.
 	 * @param {TableRow} row The row that is about to be inserted
+	 * @return void
 	 */
 	beforeInsert : function(row)
 	{
@@ -127,11 +128,23 @@ TableIndex.prototype = {
 		this._index.splice(i, 0, value);
 	},
 
+	/**
+	 * Updates the index state to reflect the table contents. The table calls 
+	 * this before UPDATE.
+	 * @param {TableRow} row The row that is about to be updated
+	 * @return void
+	 */
 	beforeUpdate : function(row) 
 	{
 		// TODO
 	},
 
+	/**
+	 * Deletes the corresponding entry from the index. The table calls 
+	 * this before DELETE.
+	 * @param {TableRow} row The row that is about to be deleted
+	 * @return void
+	 */
 	beforeDelete : function(row) 
 	{
 		// TODO

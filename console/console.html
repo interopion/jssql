@@ -195,6 +195,7 @@
 
 			function table(data) 
             {
+                console.log(data);
 				var html = ['<table><thead><tr>'], 
                     colLen = data.cols.length,
                     i, y, c, x;
@@ -346,7 +347,8 @@
             	//);
             	
                 if (result && typeof result == "object") {
-                	$out.append(table(result));
+                	//$out.append(table(result));
+                    $out.append(result.toHTML() + '<br><br>');
                 } else {
                 	$out.append(
                 		$('<div class="old-output"/>')

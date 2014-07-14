@@ -50,7 +50,7 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 			}
 			
 			var result = {
-				head : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
+				cols : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
 				rows : []
 			};
 			

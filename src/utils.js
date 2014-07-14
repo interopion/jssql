@@ -108,6 +108,26 @@ function quote(str, q)
 	return q + String(str).replace(q, q + "" + q) + q;
 }
 
+function makeArray(x)
+{
+	if ( isArray(x) )
+	{
+		return x;
+	}
+
+	if ( typeof x.toArray == "function" )
+	{
+		return makeArray(x.toArray());
+	}
+
+	if ( x && typeof x == "object" && "length" in x )
+	{
+		return Array.prototype.slice.call(x);
+	}
+
+	return [x];
+}
+
 function error(options)
 {
 	options = typeof options == "string" ? 

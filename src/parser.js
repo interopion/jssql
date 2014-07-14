@@ -33,17 +33,19 @@ function Parser(onComplete, onError)
 {
 	var parser = this,
 		env    = {},
+		result = new Result(),
 		tokens;
 
 	function parse2(tokens, input) {
 		var walker = new Walker(tokens, input),
 			queryNum = 1;
 
-		walker.onComplete = function(result) {
+		walker.onComplete = function(_result) {
 			if (walker.current()) {
 				queryNum++;
 				start();
 			} else {
+				result.setData(_result);
 				if (onComplete) 
 					onComplete(
 						queryNum > 1 ? 

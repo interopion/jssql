@@ -33,6 +33,7 @@ module.exports = function(grunt) {
 		'src/TableIndex.js',
 		'src/query.js',
 		'src/export.js',
+		'src/Result.js',
 		'src/init.js'
 	];
 
@@ -89,6 +90,14 @@ module.exports = function(grunt) {
 					interrupt : true
 				}
 			}
+		},
+		jsdoc : {
+			dist : {
+				src: jsFiles.concat(["readme.md"]),
+				options: {
+					destination: 'doc',
+				}
+			}
 		}
 	});
 
@@ -97,6 +106,7 @@ module.exports = function(grunt) {
 	grunt.loadNpmTasks('grunt-contrib-watch' );
 	grunt.loadNpmTasks('grunt-contrib-jshint');
 	grunt.loadNpmTasks('grunt-contrib-uglify');
+	grunt.loadNpmTasks('grunt-jsdoc');
 
 	// Default task(s).
 	grunt.registerTask('default', [

@@ -16,8 +16,8 @@ STATEMENTS.SHOW_TABLES = function(walker) {
 						);
 					}
 					walker.onComplete({
-						head : ['Tables in database "' + db + '"'],
-						rows : keys(database.tables)
+						cols : ['Tables in database "' + db + '"'],
+						rows : keys(database.tables).map(makeArray)
 					});
 				});
 			}
