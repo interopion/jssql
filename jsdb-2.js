@@ -6029,6 +6029,7 @@ TableIndex.prototype = {
 	 * Updates the index state to reflect the table contents. The table calls 
 	 * this before INSERT.
 	 * @param {TableRow} row The row that is about to be inserted
+	 * @return void
 	 */
 	beforeInsert : function(row)
 	{
@@ -6056,11 +6057,23 @@ TableIndex.prototype = {
 		this._index.splice(i, 0, value);
 	},
 
+	/**
+	 * Updates the index state to reflect the table contents. The table calls 
+	 * this before UPDATE.
+	 * @param {TableRow} row The row that is about to be updated
+	 * @return void
+	 */
 	beforeUpdate : function(row) 
 	{
 		// TODO
 	},
 
+	/**
+	 * Deletes the corresponding entry from the index. The table calls 
+	 * this before DELETE.
+	 * @param {TableRow} row The row that is about to be deleted
+	 * @return void
+	 */
 	beforeDelete : function(row) 
 	{
 		// TODO
@@ -6476,8 +6489,9 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 // -----------------------------------------------------------------------------
 /**
  * Class Result - represents the result of any query
+ * @constructor
  */
-function Result(data)
+function Result()
 {
 	this.data = null;
 	this.cols = null;
@@ -6487,6 +6501,17 @@ function Result(data)
 
 Result.prototype = {
 	
+	/**
+	 * Sets the actual data that this result object represents. The data might 
+	 * be in different formats:
+	 * <ul>
+	 *   <li>An object with @rows and @cols properties</li>
+	 *   <li>An Array</li>
+	 *   <li>A string</li>
+	 *   <li>A boolean value</li>
+	 * </ul>
+	 * @param {*} data
+	 */
 	setData : function(data)
 	{
 		this._endTime   = Date.now();
@@ -6520,7 +6545,7 @@ Result.prototype = {
 			colLen = this.cols.length,
 			rowLen = this.rows.length,
 			row, i, j, v;
-		
+
 		for ( i = 0; i < colLen; i++ )
         {
 			html.push('<th>', this.cols[i], '</th>');

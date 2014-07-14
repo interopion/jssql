@@ -97,6 +97,12 @@ module.exports = function(grunt) {
 				options: {
 					destination: 'doc',
 				}
+			},
+			website : {
+				src: jsFiles.concat(["readme.md"]),
+				options: {
+					destination: '../jekyll-bootstrap/doc',
+				}
 			}
 		}
 	});
