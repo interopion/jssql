@@ -341,23 +341,28 @@
             }
             
             function onSuccess(result) {
-            	//$out.append(
-            	//	$('<code class="prettyprint old-input lang-sql"/>')
-            	//		.text(input)
-            	//);
-            	
-                if (result && typeof result == "object") {
-                	//$out.append(table(result));
-                    $out.append(result.toHTML() + '<br><br>');
-                } else {
-                	$out.append(
-                		$('<div class="old-output"/>')
-                			.text(result || "Done")
-                	);
+                if (result.type === JSDB.Result.TYPE_ARRAY ||
+                    result.type === JSDB.Result.TYPE_SET) 
+                {
+                    $out.append(result.toHTML());
+                    $out.append('<br><br>');
+                    $out.append(result.toJSONString(4));
+                    $out.append('<br><br>');
+                    $out.append(result.toCSV());
+                    $out.append('<br><br>');
+                    $out.append(
+                        result.toXML("\t")
+                            .replace(/&/g, "&amp;")
+                            .replace(/</g, "&lt;")
+                            .replace(/>/g, "&gt;")
+                            .replace(/"/g, "&quot;")
+                    );
                 }
-                
+
+                $out.append('<br>');
+                $out.append(result.getMessage());
+                $out.append('<br><br>');
                 PR.prettyPrint("out");
-                
                 $in.removeClass("waiting").trigger("input").trigger("focus");
             }
             
