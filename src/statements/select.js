@@ -3,7 +3,7 @@ STATEMENTS.SELECT = function(walker) {
 	/**
 	 * This will match any string (in any quotes) or just a word as unquoted 
 	 * name.
-	 * @var string
+	 * @type {String}
 	 */ 
 	var identifier = [
 		"@" + TOKEN_TYPE_WORD,
@@ -14,7 +14,7 @@ STATEMENTS.SELECT = function(walker) {
 
 	/**
 	 * This will match any identifier but also the "*" symbol.
-	 * @var string
+	 * @type {String}
 	 */ 
 	var identifierOrAll = "*|" + identifier;
 
