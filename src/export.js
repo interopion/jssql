@@ -1,5 +1,6 @@
 GLOBAL.JSDB = {
 	query : query,
+	Result: Result
 };
 
 if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
