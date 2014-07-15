@@ -4979,24 +4979,86 @@ var columnDataTypes = {
 	//"spatial_type"
 };
 
-
+/**
+ * @classdesc Represents a column which is an abstract object resposible for 
+ * handling the datatype constraints
+ * @constructor
+ */
 function Column() 
 {
+	/**
+	 * The arguments for the data type. If the column type support some 
+	 * arguments they will be stored here.
+	 * @type {Array}
+	 */
 	this.typeParams = [];
 }
 
+/**
+ * A map the supported SQL data types and the corresponding constructor function
+ * that should create an instance of the given column type.
+ * @type {Object}
+ * @static
+ * @readonly
+ */
 Column.constructors = columnDataTypes;
 
 Column.prototype = {
+
+	/**
+	 * The type of the key that this column belongs to (if any). Can be "KEY",
+	 * "INDEX", "UNIQUE", "PRIMARY" or undefined.
+	 * @type {String}
+	 * @default undefined
+	 */
+	key : undefined,
+
+	/**
+	 * The name of the column. This should not be set directly. The setName
+	 * method should be used instead.
+	 * @type {String}
+	 * @default null - Initially null
+	 */
+	name : null,
+
+	/**
+	 * Many of the Column subclasses have "length" property. This just provides
+	 * the default base value of -1, meaning that no length has been specified.
+	 * @type {Number}
+	 */
 	length : -1,
-	name   : null,
-	type   : null,
+	
+	/**
+	 * The type of the Column object. This only provides the base value for all
+	 * the subclasses. Each of the concrete subclasses must redefine this to a
+	 * value that matches it's type (One of the keys in Column.constructors).
+	 * @abstract
+	 * @type {String} 
+	 * @default null
+	 */
+	type : null,
+
+	/**
+	 * This flag indicates if the column can be set to null
+	 * @type {Boolean}
+	 * @default null
+	 */
 	nullable : false,
+
+	/**
+	 * The setter method for the name property. The name argument will be 
+	 * converted to string and trimmed before setting it.
+	 * @param {String} name - The name to set.
+	 * @return {Column} Returns the instance.
+	 * @throws {SQLRuntimeError} exception - If the provided name is not valid.
+	 */
 	setName : function(name)
 	{
-		if (name) {
+		if (name) 
+		{
 			name = trim(name);
-			if (name) {
+			if (name) 
+			{
 				this.name = name;
 				return this;
 			}
@@ -5004,18 +5066,56 @@ Column.prototype = {
 		
 		throw new SQLRuntimeError('Invalid column name "%s".', name);
 	},
-	setKey : function(key) {
+
+	/**
+	 * Sets the key property of the column instance.
+	 * @param {String} key - The type of the key to set. Can be:
+	 * <ul>
+	 *   <li><b>KEY</b> or <b>INDEX</b> to mark the column as indexed</li>
+	 *   <li><b>UNIQUE</b> to mark the column as unique</li>
+	 *   <li><b>PRIMARY</b> to mark the column as primary key</li>
+	 * </ul>
+	 * If the argoment does not match any of the above, the key property will 
+	 * be reset back to undefined value.
+	 * @return {void}
+	 */
+	setKey : function(key) 
+	{
 		key = String(key).toUpperCase();
-		if (key == "KEY" || key == "INDEX" || key == "UNIQUE" || key == "PRIMARY") {
+		if (key == "KEY" || key == "INDEX" || key == "UNIQUE" || key == "PRIMARY") 
+		{
 			this.key = key;
-		} else {
+		} 
+		else 
+		{
 			this.key = undefined;
 		}
 	},
-	setDefaultValue : function(val) {//if (val == 43) debugger; 
-		this.defaultValue = val === undefined ? val : this.set(val);
+
+	/**
+	 * Sets the default value of the column.
+	 * @param {String|Number|undefined} val - The default value. The argument 
+	 * can be undefined to clear the default value, or anything else to be used
+	 * as default. Note that (if not undefined) the value will be applied using
+	 * the "set" method which means that all the validation rules will be 
+	 * applied and an exception might be thrown if the value is not acceptable.
+	 * @return {void}
+	 */
+	setDefaultValue : function(val) 
+	{
+		this.defaultValue = val === undefined ? 
+			val : 
+			this.set(val);
 	},
 
+	/**
+	 * The initialization method. Sets the name, key, defaultValue and nullable
+	 * properties of the instance.
+	 * @param {Object} options - The options object must contain the "name" 
+	 * property and may also include "key", "defaultValue" and "nullable"
+	 * properties.
+	 * @return {Column} Returns the instance
+	 */
 	init : function(options) 
 	{
 		this.setName(options.name);
@@ -5025,7 +5125,14 @@ Column.prototype = {
 		return this;
 	},
 
-	toJSON : function() {
+	/**
+	 * This is the basic version of the toJSON method. Many Column subclasses
+	 * are using it as is, but some of them redefine it to match their custom
+	 * needs.
+	 * @return {Object} The JSON representation of the column
+	 */
+	toJSON : function() 
+	{
 		var json = {
 			name : this.name,
 			key      : this.key,
@@ -5033,13 +5140,21 @@ Column.prototype = {
 			nullable : !!this.nullable,
 			type : {
 				name : this.type,
-				params : this.typeParams.slice()//[this.length]
+				params : this.typeParams.slice()
 			}
 		};
 		
 		return json;
 	},
-	typeToSQL : function() {
+
+	/**
+	 * This is the basic version of the typeToSQL method. Many Column subclasses
+	 * are using it as is, but some of them redefine it to match their custom
+	 * needs.
+	 * @return {String} The SQL representation of the column
+	 */
+	typeToSQL : function() 
+	{
 		var sql = [this.type];
 		if (this.typeParams.length) {
 			sql.push(
@@ -5052,6 +5167,18 @@ Column.prototype = {
 	}
 };
 
+/**
+ * The column factory function. Creates and returns an instance of one of the 
+ * available Column subclasses.
+ * @param {Object}  options - Might have various properties:
+ * @param {Object}  options.type
+ * @param {String}  options.type.name - The name of the data type
+ * @param {Array}   options.type.params - The data type parameters (if any)
+ * @param {Boolean} options.unsigned - For numeric columns only
+ * @param {Boolean} options.autoIncrement - For numeric columns only
+ * @param {Boolean} options.zerofill - For numeric columns only
+ * @static
+ */
 Column.create = function(options)
 {
 	var type = options.type.name.toUpperCase(),
@@ -5077,8 +5204,12 @@ Column.create = function(options)
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-// NumericColumn extends Column
-// =============================================================================
+/** 
+ * @classdesc Class NumericColumn extends Column. Thais is the basic class for 
+ * all numeric data types.
+ * @constructor
+ * @extends Column
+ */
 function NumericColumn() {}
 NumericColumn.prototype               = new Column();
 NumericColumn.prototype.constructor   = NumericColumn;
@@ -5092,6 +5223,18 @@ NumericColumn.prototype.maxSigned     =  1;
 NumericColumn.prototype.max           =  1;
 NumericColumn.prototype.min           = -1;
 
+/**
+ * Overrides the parent init method so that the numeric columns will also 
+ * initialize their "autoIncrement", "zerofill" and "unsigned" properties.
+ * @param {Object}  options - Might have various properties:
+ * @param {Object}  options.type
+ * @param {String}  options.type.name - The name of the data type
+ * @param {Array}   options.type.params - The data type parameters (if any)
+ * @param {Boolean} options.unsigned - For numeric columns only
+ * @param {Boolean} options.autoIncrement - For numeric columns only
+ * @param {Boolean} options.zerofill - For numeric columns only
+ * @static
+ */
 NumericColumn.prototype.init = function(options) 
 {
 	this.setUnsigned(options.unsigned);
@@ -5099,8 +5242,6 @@ NumericColumn.prototype.init = function(options)
 	if ( isArray(options.type.params) && options.type.params.length > 0 ) {
 		this.setLength(options.type.params[0]);
 		this.typeParams = [this.length];	
-	} else {
-		//this.setLength(options.length === undefined ? 1 : options.length );	
 	}
 	
 	this.setAutoIncrement(options.autoIncrement);
@@ -5191,8 +5332,8 @@ NumericColumn.prototype.toSQL = function()
 // =============================================================================
 
 /**
- * The BIT data type is used to store bit-field values. A type of BIT(M) 
- * enables storage of M-bit values. M can range from 1 to 64.
+ * @classdesc The BIT data type is used to store bit-field values. A type of 
+ * BIT(M) enables storage of M-bit values. M can range from 1 to 64.
  * To specify bit values, b'value' notation can be used. value is a binary 
  * value written using zeros and ones. For example, b'111' and b'10000000' 
  * represent 7 and 128, respectively. 
@@ -5200,6 +5341,9 @@ NumericColumn.prototype.toSQL = function()
  * the value is padded on the left with zeros. For example, assigning a 
  * value of b'101' to a BIT(6) column is, in effect, the same as assigning 
  * b'000101'.
+ * @constructor
+ * @extends {NumericColumn}
+ * @todo Enable the "b'xxx'" syntax
  */
 function Column_BIT() {}
 Column_BIT.prototype             = new NumericColumn();
@@ -5277,6 +5421,11 @@ Column_BIT.prototype.set = function(value) {
 
 // Column_INT extends NumericColumn
 // =============================================================================
+/**
+ * @classdesc Class Column_INT extends NumericColumn
+ * @constructor
+ * @extends {NumericColumn}
+ */
 function Column_INT() {}
 Column_INT.prototype             = new NumericColumn();
 Column_INT.prototype.constructor = Column_INT;
@@ -5345,6 +5494,13 @@ Column_INT.prototype.set = function(value)
 
 // Column_INTEGER - alias of Column_INT
 // =============================================================================
+/**
+ * @classdesc Class Column_INTEGER extends Column_INT. This is an alias of
+ * Column_INT. The only difference is that the "type" property is set to 
+ * "INTEGER" instead of "INT".
+ * @constructor
+ * @extends {Column_INT}
+ */
 function Column_INTEGER() {}
 Column_INTEGER.prototype             = new Column_INT();
 Column_INTEGER.prototype.constructor = Column_INTEGER;
@@ -5353,6 +5509,11 @@ Column_INTEGER.prototype.type        = "INTEGER";
 
 // Column_TINYINT extends Column_INT
 // =============================================================================
+/**
+ * @classdesc Class Column_TINYINT extends Column_INT
+ * @constructor
+ * @extends {Column_INT}
+ */
 function Column_TINYINT() {}
 Column_TINYINT.prototype             = new Column_INT();
 Column_TINYINT.prototype.constructor = Column_TINYINT;
@@ -5365,6 +5526,11 @@ Column_TINYINT.prototype.maxSigned   =  127;
 
 // Column_SMALLINT extends Column_INT
 // =============================================================================
+/**
+ * @classdesc Class Column_SMALLINT extends Column_INT
+ * @constructor
+ * @extends {Column_INT}
+ */
 function Column_SMALLINT() {}
 Column_SMALLINT.prototype             = new Column_INT();
 Column_SMALLINT.prototype.constructor = Column_SMALLINT;
@@ -5377,6 +5543,11 @@ Column_SMALLINT.prototype.maxSigned   =  32767;
 
 // Column_MEDIUMINT extends Column_INT
 // =============================================================================
+/**
+ * @classdesc Class Column_MEDIUMINT extends Column_INT
+ * @constructor
+ * @extends {Column_INT}
+ */
 function Column_MEDIUMINT() {}
 Column_MEDIUMINT.prototype             = new Column_INT();
 Column_MEDIUMINT.prototype.constructor = Column_MEDIUMINT;
@@ -5389,6 +5560,11 @@ Column_MEDIUMINT.prototype.maxSigned   =  8388607;
 
 // Column_BIGINT extends Column_INT
 // =============================================================================
+/**
+ * @classdesc Class Column_BIGINT extends Column_INT
+ * @constructor
+ * @extends {Column_INT}
+ */
 function Column_BIGINT() {}
 Column_BIGINT.prototype             = new Column_INT();
 Column_BIGINT.prototype.constructor = Column_BIGINT;
