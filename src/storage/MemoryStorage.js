@@ -1,5 +1,7 @@
 /**
  * Class MemoryStorage extends StorageBase
+ * @constructor
+ * @extends {StorageBase}
  */
 function MemoryStorage() {
 	var _store = {};

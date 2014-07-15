@@ -1,4 +1,6 @@
-
+/**
+ * @classdesc The Storage is a singleton storage manager
+ */
 var Storage = (function() {
 	var engines = {},
 		engineInstances = {};

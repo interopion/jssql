@@ -1,5 +1,7 @@
 /**
  * Class LocalStorage extends LocalStorage
+ * @constructor
+ * @extends {StorageBase}
  */
 function LocalStorage() 
 {
