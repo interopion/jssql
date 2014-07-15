@@ -119,6 +119,7 @@ module.exports = function(grunt) {
 		'jshint:beforeconcat', 
 		'concat', 
 		'jshint:afterconcat', 
-		'uglify:afterconcat'
+		'uglify:afterconcat',
+		'jsdoc:dist'
 	]);
 };
