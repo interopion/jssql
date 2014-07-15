@@ -1,7 +1,9 @@
 
 /**
  * The standard index type is "INDEX".
- * @var Number
+ * @type Number
+ * @constant
+ * @static
  */
 TableIndex.TYPE_INDEX = 2;
 
@@ -9,14 +11,17 @@ TableIndex.TYPE_INDEX = 2;
  * The "UNIQUE" index works like the standard index but also 
  * checks for duplicated values before insert and update and
  * throws exceptions if such are found.
- * @var Number
+ * @type Number
+ * @constant
+ * @static
  */
 TableIndex.TYPE_UNIQUE = 4;
 
 /**
  * The "PRIMARY" index is an unique key but it also ensures that there is only
  * one PRIMARY KEY per table
- * @var Number
+ * @constant
+ * @static
  */
 TableIndex.TYPE_PRIMARY = 8;
 
@@ -33,8 +38,19 @@ TableIndex.TYPE_PRIMARY = 8;
  */
 function TableIndex(table, columns, type, name)
 {
+	/**
+	 * An array of the names of the columns that are included in this index.
+	 * @type Array
+	 */
 	this.columns = [];
+
+	/**
+	 * The actual index that is just a sorted array of row IDs.
+	 * @type Array
+	 * @private
+	 */
 	this._index  = [];
+
 	this.setTable(table);
 	this.setType(type);
 	this.setName(name || columns.join("_"));

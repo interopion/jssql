@@ -3,39 +3,42 @@
  * @param {Table} table (optional; can be set later too)
  * @constructor
  * @return {TableRow}
+ * @extends Persistable
  */
 function TableRow(table, id)
 {
 	/**
 	 * The id of the row is just it's sequence number provided by the contaning
 	 * Table instance.
-	 * @var Number
+	 * @type Number
+	 * @readonly
 	 */
 	this.id = id;
 
 	/**
 	 * The Table of this row
-	 * @var Table
+	 * @type Table
 	 */
 	this.table = null;
 
 	/**
 	 * The length of the row, i.e. the number of the cells inside it.
 	 * IMPORTANT: Must me treated as read-only
-	 * @var Number
+	 * @type Number
+	 * @readonly
 	 */
 	this.length = 0;
 
 	/**
 	 * The actual data collection
-	 * @var Array
+	 * @type Array
 	 * @private
 	 */
 	this._data = [];
 	
 	/**
 	 * The collection of TableCell objects by name
-	 * @var Object
+	 * @type Object
 	 * @private
 	 */
 	this._cellsByName = {};
@@ -58,6 +61,17 @@ TableRow.prototype.getStorageKey = function()
 	].join(".");
 };
 
+/**
+ * Loads the row data from the storage.
+ * @emits loadstart:row - before the loading starts
+ * @emits load:row - If the load was successfully completed
+ * @return {void} This method is async. Use the callback instead of relying on 
+ * 		return value.
+ * @param {Function} onSuccess - The callback to be invoced upon successfull 
+ * load. It will be called with the row object as a single argument.
+ * @param {Function} onError - The callback to be invoced upon failure. It will
+ *		be called with the Error object as a single argument.
+ */
 TableRow.prototype.load = function(onSuccess, onError)
 {
 	var row = this;
@@ -73,12 +87,23 @@ TableRow.prototype.load = function(onSuccess, onError)
 	}, onError);
 };
 
+/**
+ * Saves the row data to the storage.
+ * @emits savestart:row - before the saving starts
+ * @emits save:row - If the save was successfully completed
+ * @return {void} This method is async. Use the callback instead of relying on 
+ * 		return value.
+ * @param {Function} onSuccess - The callback to be invoced upon successfull 
+ * load. It will be called with the row object as a single argument.
+ * @param {Function} onError - The callback to be invoced upon failure. It will
+ *		be called with the Error object as a single argument.
+ */
 TableRow.prototype.save = function(onSuccess, onError)
 {
 	var row = this;
-	JSDB.events.dispatch("before_save:row", row);
+	JSDB.events.dispatch("savestart:row", row);
 	row.write( this._data, function() {
-		JSDB.events.dispatch("after_save:row", row);
+		JSDB.events.dispatch("save:row", row);
 		if (onSuccess) onSuccess(row);
 	}, onError );
 };

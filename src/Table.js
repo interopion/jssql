@@ -35,29 +35,32 @@
 	}
 }*/
 
+/**
+ * @constructor
+ */
 function Table(tableName, db) 
 {
 	/**
 	 * The name of the table
-	 * @var String
+	 * @type String
 	 */
 	this.name = tableName;
 	
 	/**
 	 * Collection of TableRow instances by sequence
-	 * @var Object
+	 * @type Object
 	 */
 	this.rows = {};
 
 	/**
 	 * The indexes of the table
-	 * @var Object
+	 * @type Object
 	 */
 	this.keys = {};
 
 	/**
 	 * Collection of Column instances by name
-	 * @var Object
+	 * @type Object
 	 */
 	this.cols = {};
 	
