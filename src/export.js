@@ -1,7 +1,7 @@
-GLOBAL.JSDB = {
-	query : query,
-	Result: Result
-};
+GLOBAL[NS] = JSDB;
+
+JSDB.query  = query;
+JSDB.Result = Result;
 
 if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 	mixin(GLOBAL.JSDB, {

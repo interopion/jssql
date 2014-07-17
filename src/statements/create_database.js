@@ -1,3 +1,10 @@
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.CREATE_DATABASE = function(walker) {
 	return function() {
 		var q = new CreateDatabaseQuery();

@@ -1,9 +1,18 @@
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.SELECT = function(walker) {
 
 	/**
 	 * This will match any string (in any quotes) or just a word as unquoted 
 	 * name.
 	 * @type {String}
+	 * @inner
+	 * @private
 	 */ 
 	var identifier = [
 		"@" + TOKEN_TYPE_WORD,

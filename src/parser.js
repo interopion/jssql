@@ -3,29 +3,8 @@
 //                               SQL Parser                                   //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
-function SQLParseError(message)
-{
-	this.name    = "SQLParseError";
-	this.message = strf.apply(
-		this, 
-		arguments.length ? arguments : ["Error while parsing sql query"]
-	);
-}
 
-SQLParseError.prototype = new Error();
-SQLParseError.prototype.constructor = SQLParseError;
 
-function SQLRuntimeError(message)
-{
-	this.name    = "SQLRuntimeError";
-	this.message = strf.apply(
-		this, 
-		arguments.length ? arguments : ["Error while executing sql query"]
-	);
-}
-
-SQLParseError.prototype = new Error();
-SQLParseError.prototype.constructor = SQLParseError;
 
 
 

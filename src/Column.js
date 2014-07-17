@@ -911,17 +911,27 @@ Column_CHAR.prototype.maxLength   = 65535;
 
 // Column_ENUM extends StringColumn
 // =============================================================================
+/**
+ * @constructor
+ * @extends {StringColumn}
+ */
 function Column_ENUM() {}
+
 Column_ENUM.prototype             = new StringColumn();
 Column_ENUM.prototype.constructor = Column_ENUM;
-Column_ENUM.prototype.type        = "ENUM";
+
+Column_ENUM.prototype.type = "ENUM";
 
 Column_ENUM.prototype.setLength = function(n) {};
 
+/**
+ * The initialization of ENUM columns requires at least one option to be 
+ * specified in the options.type.params array.
+ */
 Column_ENUM.prototype.init = function(options) 
 {
-	//console.log("Column_ENUM.prototype.init: ", options);
-	if ( !isArray(options.type.params) || options.type.params.length < 1 ) {
+	if ( !isArray(options.type.params) || options.type.params.length < 1 ) 
+	{
 		throw new SQLRuntimeError(
 			'The "%s" column type requires at least one option.',
 			this.type
@@ -932,12 +942,18 @@ Column_ENUM.prototype.init = function(options)
 	Column.prototype.init.call(this, options);	
 };
 
+/**
+ * Setting a value on ENUM column requires that that value is present in the
+ * options list. Otherwise an exception is thrown.
+ * @param {String|Number} value - The value to set
+ * @return {String} - The value that has been set as string
+ * @throws {SQLRuntimeError} exception - If the value is invalid
+ */
 Column_ENUM.prototype.set = function(value) 
 {
-	//console.log("Column_ENUM.prototype.set -> this.typeParams: ", this.typeParams, value, this.toSQL());
-
 	var s = String(value);
-	if (this.typeParams.indexOf(s) == -1) {
+	if (this.typeParams.indexOf(s) == -1) 
+	{
 		throw new SQLRuntimeError(
 			'The value for column "%s" must be %s.',
 			this.name,
@@ -948,6 +964,11 @@ Column_ENUM.prototype.set = function(value)
 	return s;
 };
 
+/**
+ * Overrides the basic typeToSQL method so that the ENUM columns include their
+ * options as comma-separated list in brackets after the type name.
+ * @return {String} - The SQL representation of the column
+ */
 Column_ENUM.prototype.typeToSQL = function() {
 	var sql = [this.type];
 	if (this.typeParams.length) {

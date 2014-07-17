@@ -8,8 +8,24 @@
 var 
 
 SERVER,
+
+/**
+ * This object contains parsers for various SQL statements
+ * @namespace STATEMENTS
+ */
 STATEMENTS = {},
+
+/**
+ * The name of the global namespace
+ * @type {String}
+ */
 NS = "JSDB",
+
+/**
+ * The namespace that will be exported globally
+ * @namespace JSDB
+ */
+JSDB = {},
 
 // Token type constants --------------------------------------------------------
 TOKEN_TYPE_UNKNOWN             = 0,
@@ -215,7 +231,7 @@ function roundToPrecision(n, p)
  * whatever is supplied in the rest of the arguments. If no argument is supplied
  * the "%s" token is left as is.
  * @param {String} s The string to format
- * @param {*}+ The rest of the arguments are used for the replacements
+ * @param {*} ... The rest of the arguments are used for the replacements
  * @return {String}
  */
 function strf(s) 
@@ -381,20 +397,7 @@ function getTokens(sql, options)
 	return tokens;
 }
 
-/**
- * Selects the current database.
- * @param {String} sql The name of the databse
- * @throws {SQLRuntimeError} if the database does not exist.
- * @return void
- */
-function setCurrentDatabase(name) 
-{
-	var db = trim(name);
-	if (!SERVER.databases.hasOwnProperty(db)) {
-		throw new SQLRuntimeError('No such database "%s".', db);
-	}
-	CURRENT_DATABASE = SERVER.databases[db];
-}
+
 
 function createTable(name, fields, ifNotExists, database)
 {
@@ -1854,6 +1857,11 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 // -----------------------------------------------------------------------------
 // Starts file "src/Walker.js"
 // -----------------------------------------------------------------------------
+/**
+ * @constructor
+ * @param {Array} tokens
+ * @param {String} input
+ */
 function Walker(tokens, input)
 {
 	this._pos = 0;
@@ -2517,25 +2525,25 @@ BinaryTreeNode.prototype = {
 // -----------------------------------------------------------------------------
 /**
  * Note that the entire on-conflict clause is optional
- * 
+ * <pre>
  *  »» ══╦════════════════════════════════════════════════╦══ »» 
- *		 │                                                │                     
- *		 │  ┌────┐ ┌──────────┐         ┌────────────┐    │
- *		 └──┤ ON ├─┤ CONFLICT ├────┬────┤  ROLLBACK  ├────┤
- *		    └────┘ └──────────┘    │    └────────────┘    │
- *		                           │    ┌────────────┐    │
- *		                           ├────┤    ABORT   ├────┤
- *		                           │    └────────────┘    │
- *		                           │    ┌────────────┐    │
- *		                           ├────┤    FAIL    ├────┤
- *		                           │    └────────────┘    │
- *		                           │    ┌────────────┐    │
- *		                           ├────┤   IGNORE   ├────┤
- *		                           │    └────────────┘    │
- *		                           │    ┌────────────┐    │
- *		                           └────┤   REPLACE  ├────┘
- *		                                └────────────┘
- *
+ *       │                                                │                     
+ *       │  ┌────┐ ┌──────────┐         ┌────────────┐    │
+ *       └──┤ ON ├─┤ CONFLICT ├────┬────┤  ROLLBACK  ├────┤
+ *          └────┘ └──────────┘    │    └────────────┘    │
+ *                                 │    ┌────────────┐    │
+ *                                 ├────┤    ABORT   ├────┤
+ *                                 │    └────────────┘    │
+ *                                 │    ┌────────────┐    │
+ *                                 ├────┤    FAIL    ├────┤
+ *                                 │    └────────────┘    │
+ *                                 │    ┌────────────┐    │
+ *                                 ├────┤   IGNORE   ├────┤
+ *                                 │    └────────────┘    │
+ *                                 │    ┌────────────┐    │
+ *                                 └────┤   REPLACE  ├────┘
+ *                                      └────────────┘
+ * </pre>
  */
 Walker.prototype.walkOnConflictClause = function(callback)
 {
@@ -2591,6 +2599,13 @@ Walker.prototype.walkIndexedColumn = function(callback)
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/use.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.USE = function(walker) {
 	return function() {
 		var dbName;
@@ -2608,6 +2623,13 @@ STATEMENTS.USE = function(walker) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/show_databases.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.SHOW_DATABASES = function(walker) {
 	return function() {
 		walker.errorUntil(";").commit(function() {
@@ -2622,6 +2644,13 @@ STATEMENTS.SHOW_DATABASES = function(walker) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/show_tables.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.SHOW_TABLES = function(walker) {
 	return function() {
 		walker.pick({
@@ -2652,6 +2681,13 @@ STATEMENTS.SHOW_TABLES = function(walker) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/show_columns.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.SHOW_COLUMNS = function(walker) {
 	
 	function getExtrasList(meta) {
@@ -2732,6 +2768,13 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/create_database.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.CREATE_DATABASE = function(walker) {
 	return function() {
 		var q = new CreateDatabaseQuery();
@@ -2753,6 +2796,13 @@ STATEMENTS.CREATE_DATABASE = function(walker) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/create_table.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.CREATE_TABLE = function(walker) {
 	
 	function walk_createTable()
@@ -2985,6 +3035,13 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/drop_database.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.DROP_DATABASE = function(walker) {
 	return function() {
 		var q = {};
@@ -3005,6 +3062,13 @@ STATEMENTS.DROP_DATABASE = function(walker) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/drop_table.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.DROP_TABLE = function(walker) {
 	var ifExists = false,
 		tableName,
@@ -3073,6 +3137,13 @@ STATEMENTS.DROP_TABLE = function(walker) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/insert.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.INSERT = function(walker) {
 	var dbName, 
 		tableName, 
@@ -3209,12 +3280,21 @@ STATEMENTS.INSERT = function(walker) {
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/select.js"
 // -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.SELECT = function(walker) {
 
 	/**
 	 * This will match any string (in any quotes) or just a word as unquoted 
 	 * name.
 	 * @type {String}
+	 * @inner
+	 * @private
 	 */ 
 	var identifier = [
 		"@" + TOKEN_TYPE_WORD,
@@ -3928,29 +4008,8 @@ STATEMENTS.SELECT = function(walker) {
 //                               SQL Parser                                   //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
-function SQLParseError(message)
-{
-	this.name    = "SQLParseError";
-	this.message = strf.apply(
-		this, 
-		arguments.length ? arguments : ["Error while parsing sql query"]
-	);
-}
 
-SQLParseError.prototype = new Error();
-SQLParseError.prototype.constructor = SQLParseError;
 
-function SQLRuntimeError(message)
-{
-	this.name    = "SQLRuntimeError";
-	this.message = strf.apply(
-		this, 
-		arguments.length ? arguments : ["Error while executing sql query"]
-	);
-}
-
-SQLParseError.prototype = new Error();
-SQLParseError.prototype.constructor = SQLParseError;
 
 
 
@@ -5852,17 +5911,27 @@ Column_CHAR.prototype.maxLength   = 65535;
 
 // Column_ENUM extends StringColumn
 // =============================================================================
+/**
+ * @constructor
+ * @extends {StringColumn}
+ */
 function Column_ENUM() {}
+
 Column_ENUM.prototype             = new StringColumn();
 Column_ENUM.prototype.constructor = Column_ENUM;
-Column_ENUM.prototype.type        = "ENUM";
+
+Column_ENUM.prototype.type = "ENUM";
 
 Column_ENUM.prototype.setLength = function(n) {};
 
+/**
+ * The initialization of ENUM columns requires at least one option to be 
+ * specified in the options.type.params array.
+ */
 Column_ENUM.prototype.init = function(options) 
 {
-	//console.log("Column_ENUM.prototype.init: ", options);
-	if ( !isArray(options.type.params) || options.type.params.length < 1 ) {
+	if ( !isArray(options.type.params) || options.type.params.length < 1 ) 
+	{
 		throw new SQLRuntimeError(
 			'The "%s" column type requires at least one option.',
 			this.type
@@ -5873,12 +5942,18 @@ Column_ENUM.prototype.init = function(options)
 	Column.prototype.init.call(this, options);	
 };
 
+/**
+ * Setting a value on ENUM column requires that that value is present in the
+ * options list. Otherwise an exception is thrown.
+ * @param {String|Number} value - The value to set
+ * @return {String} - The value that has been set as string
+ * @throws {SQLRuntimeError} exception - If the value is invalid
+ */
 Column_ENUM.prototype.set = function(value) 
 {
-	//console.log("Column_ENUM.prototype.set -> this.typeParams: ", this.typeParams, value, this.toSQL());
-
 	var s = String(value);
-	if (this.typeParams.indexOf(s) == -1) {
+	if (this.typeParams.indexOf(s) == -1) 
+	{
 		throw new SQLRuntimeError(
 			'The value for column "%s" must be %s.',
 			this.name,
@@ -5889,6 +5964,11 @@ Column_ENUM.prototype.set = function(value)
 	return s;
 };
 
+/**
+ * Overrides the basic typeToSQL method so that the ENUM columns include their
+ * options as comma-separated list in brackets after the type name.
+ * @return {String} - The SQL representation of the column
+ */
 Column_ENUM.prototype.typeToSQL = function() {
 	var sql = [this.type];
 	if (this.typeParams.length) {
@@ -6447,6 +6527,13 @@ CreateQuery.prototype.toString = function() {
 	return this.generateSQL();
 };
 
+/**
+ * @memberof JSDB
+ * @type {Function}
+ * @param {String} sql
+ * @param {Function} onSuccess
+ * @param {Function} onError
+ */
 function query(sql, onSuccess, onError) {
 	try {
 		(new Parser(onSuccess, onError)).parse(sql);
@@ -6667,10 +6754,10 @@ CreateTableQuery.prototype.execute = function()
 // -----------------------------------------------------------------------------
 // Starts file "src/export.js"
 // -----------------------------------------------------------------------------
-GLOBAL.JSDB = {
-	query : query,
-	Result: Result
-};
+GLOBAL[NS] = JSDB;
+
+JSDB.query  = query;
+JSDB.Result = Result;
 
 if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 	mixin(GLOBAL.JSDB, {
@@ -7257,6 +7344,44 @@ Result.prototype = {
 // -----------------------------------------------------------------------------
 // Starts file "src/init.js"
 // -----------------------------------------------------------------------------
+/**
+ * @constructor
+ * @extends {Error}
+ * @param {String} message - The error message. Defaults to "Error while parsing
+ * sql query". The message, along with any other following arguments will be 
+ * passed to the {@link strf strf function}
+ */
+function SQLParseError(message)
+{
+	this.name    = "SQLParseError";
+	this.message = strf.apply(
+		this, 
+		arguments.length ? arguments : ["Error while parsing sql query"]
+	);
+}
+
+SQLParseError.prototype = new Error();
+SQLParseError.prototype.constructor = SQLParseError;
+
+/**
+ * @constructor
+ * @extends {Error}
+ * @param {String} message - The error message. Defaults to "Error while parsing
+ * sql query". The message, along with any other following arguments will be 
+ * passed to the {@link strf strf function}
+ */
+function SQLRuntimeError(message)
+{
+	this.name    = "SQLRuntimeError";
+	this.message = strf.apply(
+		this, 
+		arguments.length ? arguments : ["Error while executing sql query"]
+	);
+}
+
+SQLParseError.prototype = new Error();
+SQLParseError.prototype.constructor = SQLParseError;
+
 (function() {
 	JSDB.events = events;
 	JSDB.SERVER = SERVER = new Server();

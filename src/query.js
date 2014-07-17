@@ -34,6 +34,13 @@ CreateQuery.prototype.toString = function() {
 	return this.generateSQL();
 };
 
+/**
+ * @memberof JSDB
+ * @type {Function}
+ * @param {String} sql
+ * @param {Function} onSuccess
+ * @param {Function} onError
+ */
 function query(sql, onSuccess, onError) {
 	try {
 		(new Parser(onSuccess, onError)).parse(sql);

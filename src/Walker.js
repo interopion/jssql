@@ -1,3 +1,8 @@
+/**
+ * @constructor
+ * @param {Array} tokens
+ * @param {String} input
+ */
 function Walker(tokens, input)
 {
 	this._pos = 0;

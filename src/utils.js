@@ -57,7 +57,7 @@ function roundToPrecision(n, p)
  * whatever is supplied in the rest of the arguments. If no argument is supplied
  * the "%s" token is left as is.
  * @param {String} s The string to format
- * @param {*}+ The rest of the arguments are used for the replacements
+ * @param {*} ... The rest of the arguments are used for the replacements
  * @return {String}
  */
 function strf(s) 
@@ -223,20 +223,7 @@ function getTokens(sql, options)
 	return tokens;
 }
 
-/**
- * Selects the current database.
- * @param {String} sql The name of the databse
- * @throws {SQLRuntimeError} if the database does not exist.
- * @return void
- */
-function setCurrentDatabase(name) 
-{
-	var db = trim(name);
-	if (!SERVER.databases.hasOwnProperty(db)) {
-		throw new SQLRuntimeError('No such database "%s".', db);
-	}
-	CURRENT_DATABASE = SERVER.databases[db];
-}
+
 
 function createTable(name, fields, ifNotExists, database)
 {

@@ -1,3 +1,10 @@
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {void}
+ */
 STATEMENTS.CREATE_TABLE = function(walker) {
 	
 	function walk_createTable()

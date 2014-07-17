@@ -1,8 +1,24 @@
 var 
 
 SERVER,
+
+/**
+ * This object contains parsers for various SQL statements
+ * @namespace STATEMENTS
+ */
 STATEMENTS = {},
+
+/**
+ * The name of the global namespace
+ * @type {String}
+ */
 NS = "JSDB",
+
+/**
+ * The namespace that will be exported globally
+ * @namespace JSDB
+ */
+JSDB = {},
 
 // Token type constants --------------------------------------------------------
 TOKEN_TYPE_UNKNOWN             = 0,
