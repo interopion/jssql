@@ -173,8 +173,13 @@ TOKEN_TYPE_MAP[TOKEN_TYPE_EOL]                 = "new line";
 // Starts file "src/utils.js"
 // -----------------------------------------------------------------------------
 /**
+ * @namespace Utils
+ */
+
+/**
  * Returns the float representation of the first argument or the
  * "defaultValue" if the float conversion is not possible.
+ * @memberof Utils
  * @param {*} x The argument to convert
  * @param {*} defaultValue The fall-back return value. This is going to be
  *                         converted to float too.
@@ -192,6 +197,7 @@ function floatVal(x, defaultValue)
 /**
  * Returns the int representation of the first argument or the
  * "defaultValue" if the int conversion is not possible.
+ * @memberof Utils
  * @param {*} x The argument to convert
  * @param {*} defaultValue The fall-back return value. This is going to be
  *                         converted to integer too.
@@ -208,6 +214,7 @@ function intVal(x, defaultValue)
 
 /**
  * Rounds the given number to configurable precision.
+ * @memberof Utils
  * @param {numeric} n The argument to round.
  * @param {Number} p The precision (number of digits after the
  *                   decimal point) to use.
@@ -230,6 +237,7 @@ function roundToPrecision(n, p)
  * Simplified version of printf. Just replaces all the occurrences of "%s" with
  * whatever is supplied in the rest of the arguments. If no argument is supplied
  * the "%s" token is left as is.
+ * @memberof Utils
  * @param {String} s The string to format
  * @param {*} ... The rest of the arguments are used for the replacements
  * @return {String}
@@ -247,6 +255,7 @@ function strf(s)
 /**
  * Generates and returns a human-readable representation of arrays. This is used 
  * to generate the "expecting one of" strings... 
+ * @memberof Utils
  * @param {Array} The array to join
  * @return {String} 
  */
@@ -274,6 +283,7 @@ function prettyList(arr)
 
 /**
  * Quotes a string using the specified quotation mark (should be one of '|"|`).
+ * @memberof Utils
  * @param {String} 
  */
 function quote(str, q) 
@@ -2716,6 +2726,27 @@ STATEMENTS.SHOW_TABLES = function(walker)
  * @param {Walker} walker - The walker instance used to parse the current 
  * statement
  * @return {void}
+ @example
+ * <pre style="font-family:Menlo, monospace">
+ * 
+ *                                  ┌──────┐
+ *                               ┌──┤ FROM ├──┐
+ *     ┌──────┐ ┌──────────┐     │  └──────┘  │  ┌────────────┐  
+ *  >──┤ SHOW ├─┤  TABLES  ├─────┤            ├──┤ table name ├──┐
+ *     └──────┘ └──────────┘     │  ┌──────┐  │  └────────────┘  │
+ *                               └──┤  IN  ├──┘                  │
+ *                                  └──────┘                     │
+ *   ┌───────────────────────────────────────────────────────────┘  
+ *   │
+ *   └─────┬───────────────────────────────────────┬──────────────────>
+ *         │        ┌──────┐                       │
+ *         │     ┌──┤ FROM ├──┐                    │
+ *         │     │  └──────┘  │  ┌──────────────┐  │
+ *         └─────┤            ├──┤ databse name ├──┘
+ *               │  ┌──────┐  │  └──────────────┘
+ *               └──┤  IN  ├──┘
+ *                  └──────┘
+ * </pre>
  */
 STATEMENTS.SHOW_COLUMNS = function(walker) {
 	
@@ -2735,36 +2766,51 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 			
 	return function() {
 		var dbName, tableName;
+
 		walker.pick({
 			"FROM|IN" : function() {
 				walker.someType(WORD_OR_STRING, function(token) {
 					tableName = token[0];
 				});
 			}
-		})
-		.pick({
-			"FROM|IN" : function() {
-				walker.someType(WORD_OR_STRING, function(token) {
-					dbName = token[0];
-				});
-			}
-		})
-		.nextUntil(";") // TODO: LIKE
-		.commit(function() {
-			var database = SERVER.databases[dbName], table;
-			if (!database) {
-				throw new SQLRuntimeError(
-					'No such database "%s"',
-					dbName
-				);
+		});
+
+		if ( walker.is("FROM|IN") )
+		{
+			walker.forward();
+			walker.someType(WORD_OR_STRING, function(token) {
+				dbName = token[0];
+			});
+		}
+
+		walker.nextUntil(";"); // TODO: Implement LIKE here
+		
+		walker.commit(function() {
+			var database = dbName ? 
+					SERVER.databases[dbName] : 
+					SERVER.getCurrentDatabase(), 
+				table;
+			
+			if (!database) 
+			{
+				if ( dbName )
+				{
+					throw new SQLRuntimeError('No such database "%s"', dbName);
+				}
+				else 
+				{
+					throw new SQLRuntimeError('No database selected');
+				}
 			}
 			
 			table = database.tables[tableName];
-			if (!table) {
+
+			if (!table)
+			{
 				throw new SQLRuntimeError(
 					'No such table "%s" in databse "%s"',
 					tableName,
-					dbName
+					database.name
 				);
 			}
 			
@@ -2774,7 +2820,7 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 			};
 			
 			each(table.cols, function(col) {
-				var meta = col.toJSON(); console.log("meta: ", meta);
+				var meta = col.toJSON(); //console.log("meta: ", meta);
 				result.rows.push([
 					meta.name,
 					col.typeToSQL(),

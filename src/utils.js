@@ -1,6 +1,11 @@
 /**
+ * @namespace Utils
+ */
+
+/**
  * Returns the float representation of the first argument or the
  * "defaultValue" if the float conversion is not possible.
+ * @memberof Utils
  * @param {*} x The argument to convert
  * @param {*} defaultValue The fall-back return value. This is going to be
  *                         converted to float too.
@@ -18,6 +23,7 @@ function floatVal(x, defaultValue)
 /**
  * Returns the int representation of the first argument or the
  * "defaultValue" if the int conversion is not possible.
+ * @memberof Utils
  * @param {*} x The argument to convert
  * @param {*} defaultValue The fall-back return value. This is going to be
  *                         converted to integer too.
@@ -34,6 +40,7 @@ function intVal(x, defaultValue)
 
 /**
  * Rounds the given number to configurable precision.
+ * @memberof Utils
  * @param {numeric} n The argument to round.
  * @param {Number} p The precision (number of digits after the
  *                   decimal point) to use.
@@ -56,6 +63,7 @@ function roundToPrecision(n, p)
  * Simplified version of printf. Just replaces all the occurrences of "%s" with
  * whatever is supplied in the rest of the arguments. If no argument is supplied
  * the "%s" token is left as is.
+ * @memberof Utils
  * @param {String} s The string to format
  * @param {*} ... The rest of the arguments are used for the replacements
  * @return {String}
@@ -73,6 +81,7 @@ function strf(s)
 /**
  * Generates and returns a human-readable representation of arrays. This is used 
  * to generate the "expecting one of" strings... 
+ * @memberof Utils
  * @param {Array} The array to join
  * @return {String} 
  */
@@ -100,6 +109,7 @@ function prettyList(arr)
 
 /**
  * Quotes a string using the specified quotation mark (should be one of '|"|`).
+ * @memberof Utils
  * @param {String} 
  */
 function quote(str, q) 

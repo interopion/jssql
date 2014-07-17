@@ -4,6 +4,27 @@
  * @param {Walker} walker - The walker instance used to parse the current 
  * statement
  * @return {void}
+ @example
+ * <pre style="font-family:Menlo, monospace">
+ * 
+ *                                  ┌──────┐
+ *                               ┌──┤ FROM ├──┐
+ *     ┌──────┐ ┌──────────┐     │  └──────┘  │  ┌────────────┐  
+ *  >──┤ SHOW ├─┤  TABLES  ├─────┤            ├──┤ table name ├──┐
+ *     └──────┘ └──────────┘     │  ┌──────┐  │  └────────────┘  │
+ *                               └──┤  IN  ├──┘                  │
+ *                                  └──────┘                     │
+ *   ┌───────────────────────────────────────────────────────────┘  
+ *   │
+ *   └─────┬───────────────────────────────────────┬──────────────────>
+ *         │        ┌──────┐                       │
+ *         │     ┌──┤ FROM ├──┐                    │
+ *         │     │  └──────┘  │  ┌──────────────┐  │
+ *         └─────┤            ├──┤ databse name ├──┘
+ *               │  ┌──────┐  │  └──────────────┘
+ *               └──┤  IN  ├──┘
+ *                  └──────┘
+ * </pre>
  */
 STATEMENTS.SHOW_COLUMNS = function(walker) {
 	
@@ -23,36 +44,51 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 			
 	return function() {
 		var dbName, tableName;
+
 		walker.pick({
 			"FROM|IN" : function() {
 				walker.someType(WORD_OR_STRING, function(token) {
 					tableName = token[0];
 				});
 			}
-		})
-		.pick({
-			"FROM|IN" : function() {
-				walker.someType(WORD_OR_STRING, function(token) {
-					dbName = token[0];
-				});
-			}
-		})
-		.nextUntil(";") // TODO: LIKE
-		.commit(function() {
-			var database = SERVER.databases[dbName], table;
-			if (!database) {
-				throw new SQLRuntimeError(
-					'No such database "%s"',
-					dbName
-				);
+		});
+
+		if ( walker.is("FROM|IN") )
+		{
+			walker.forward();
+			walker.someType(WORD_OR_STRING, function(token) {
+				dbName = token[0];
+			});
+		}
+
+		walker.nextUntil(";"); // TODO: Implement LIKE here
+		
+		walker.commit(function() {
+			var database = dbName ? 
+					SERVER.databases[dbName] : 
+					SERVER.getCurrentDatabase(), 
+				table;
+			
+			if (!database) 
+			{
+				if ( dbName )
+				{
+					throw new SQLRuntimeError('No such database "%s"', dbName);
+				}
+				else 
+				{
+					throw new SQLRuntimeError('No database selected');
+				}
 			}
 			
 			table = database.tables[tableName];
-			if (!table) {
+
+			if (!table)
+			{
 				throw new SQLRuntimeError(
 					'No such table "%s" in databse "%s"',
 					tableName,
-					dbName
+					database.name
 				);
 			}
 			
@@ -62,7 +98,7 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 			};
 			
 			each(table.cols, function(col) {
-				var meta = col.toJSON(); console.log("meta: ", meta);
+				var meta = col.toJSON(); //console.log("meta: ", meta);
 				result.rows.push([
 					meta.name,
 					col.typeToSQL(),
