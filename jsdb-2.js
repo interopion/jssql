@@ -2645,35 +2645,64 @@ STATEMENTS.SHOW_DATABASES = function(walker) {
 // Starts file "src/statements/show_tables.js"
 // -----------------------------------------------------------------------------
 /**
+ * The syntax is "SHOW tables [FROM|IN databse]". If the [FROM|IN databse] part
+ * is missing, the current databse is used.
  * @memberof STATEMENTS
  * @type {Function}
  * @param {Walker} walker - The walker instance used to parse the current 
  * statement
  * @return {void}
+ * @throws {SQLRuntimeError} exception - If the databse cannot be resolved
+ * @example
+ * <pre style="font-family:Menlo, monospace">
+ * 
+ *     ┌──────┐ ┌──────────┐       
+ *   ──┤ SHOW ├─┤  TABLES  ├──┬────────────────────────────────────┬────
+ *     └──────┘ └──────────┘  │                                    │
+ *                            │     ┌──────┐                       │
+ *                            │  ┌──┤ FROM ├──┐                    │
+ *                            │  │  └──────┘  │  ┌──────────────┐  │
+ *                            └──┤            ├──┤ databse name ├──┘
+ *                               │  ┌──────┐  │  └──────────────┘
+ *                               └──┤  IN  ├──┘
+ *                                  └──────┘
+ * </pre>
  */
-STATEMENTS.SHOW_TABLES = function(walker) {
-	return function() {
-		walker.pick({
-			"FROM|IN" : function() {
-				var db;
-				walker.someType(WORD_OR_STRING, function(token) {
-					db = token[0];
-				})
-				.nextUntil(";")
-				.commit(function() {
-					var database = SERVER.databases[db];
-					if (!database) {
-						throw new SQLRuntimeError(
-							'No such database "%s"',
-							db
-						);
-					}
-					walker.onComplete({
-						cols : ['Tables in database "' + db + '"'],
-						rows : keys(database.tables).map(makeArray)
-					});
-				});
+STATEMENTS.SHOW_TABLES = function(walker) 
+{
+	return function() 
+	{
+		var db = SERVER.getCurrentDatabase(), dbName;
+
+		if ( walker.is("FROM|IN") ) 
+		{
+			walker.forward();
+			walker.someType(WORD_OR_STRING, function(token) {
+				dbName = token[0];
+				db = SERVER.databases[dbName];
+			});
+		}
+		
+		walker.nextUntil(";").commit(function() {
+			if (!db) 
+			{
+				if (dbName)
+				{
+					throw new SQLRuntimeError(
+						'No such database "%s"',
+						dbName
+					);
+				}
+				else
+				{
+					throw new SQLRuntimeError('No database selected');
+				}
 			}
+
+			walker.onComplete({
+				cols : ['Tables in database "' + db.name + '"'],
+				rows : keys(db.tables).map(makeArray)
+			});
 		});
 	};
 };
@@ -4348,6 +4377,12 @@ Storage.registerEngine("MemoryStorage", MemoryStorage);
 // -----------------------------------------------------------------------------
 // Starts file "src/Persistable.js"
 // -----------------------------------------------------------------------------
+/**
+ * @constructor
+ * @abstract
+ * @classdesc The base class for persistable objects. Provides the basic methods
+ * for key-value based async. persistance
+ */
 function Persistable() {}
 
 Persistable.prototype = {
@@ -4359,12 +4394,25 @@ Persistable.prototype = {
 		return {};
 	},
 	
+	/**
+	 * Each subclass must define it's own storage key which is the key used for
+	 * the key-value base storage
+	 * @abstract
+	 * @return {String}
+	 */
 	getStorageKey : function()
 	{
 		throw "Please implement the 'getStorageKey' method to return the " + 
 			"storage key";
 	},
 	
+	/**
+	 * This method attempts to read the serialized version of the instance from
+	 * the storage and parse it to JS Object
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	read : function(onSuccess, onError)
 	{
 		this.storage.get(this.getStorageKey(), function(data) {
@@ -4408,9 +4456,19 @@ Persistable.prototype = {
 // -----------------------------------------------------------------------------
 // Starts file "src/Server.js"
 // -----------------------------------------------------------------------------
-
+/**
+ * @constructor
+ * @classdesc The Server class is used to create a single instance that is a 
+ * persistable collection of databases.
+ * @extends {Persistable}
+ */
 function Server()
 {
+	/**
+	 * The databases currently in this server
+	 * @type {Object}
+	 * @private
+	 */
 	this.databases = {};
 }
 
@@ -4422,6 +4480,10 @@ Server.prototype.getStorageKey = function()
 	return NS;
 };
 
+/**
+ * Overrides {@link Persistable.prototype.toJSON}
+ * @return {Object}
+ */
 Server.prototype.toJSON = function()
 {
 	var json = { databases : {} };
@@ -4503,7 +4565,7 @@ Server.prototype.load = function(onSuccess, onError)
  * @param {String} name The name of the database to create
  * @param {Boolean} ifNotExists Note that an exception will be thrown if such 
  * database exists and this is not set to true.
- * @return void
+ * @return {void}
  */
 Server.prototype.createDatabase = function(name, ifNotExists) 
 {
@@ -4529,6 +4591,13 @@ Server.prototype.createDatabase = function(name, ifNotExists)
 	return db;
 };
 
+/**
+ * Drops a database from the server.
+ * @param {String} name The name of the database to drop
+ * @param {Boolean} ifNotExists Note that an exception will be thrown if such 
+ * database does not exists and this is not set to true.
+ * @return {void}
+ */
 Server.prototype.dropDatabase = function(name, ifExists) 
 {
 	if (this.databases.hasOwnProperty(name)) {
@@ -4544,6 +4613,11 @@ Server.prototype.dropDatabase = function(name, ifExists)
 	}
 };
 
+/**
+ * Get a database by name.
+ * @param {String} name - The name of the desired database
+ * @return {Database|undefined}
+ */
 Server.prototype.getDatabase = function(name)
 {
 	return this.databases[trim(name)];
@@ -4572,6 +4646,13 @@ Server.prototype.getCurrentDatabase = function()
 //                             Class Database                                 //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @constructor
+ * @classdesc The Server class is used to create databses which are persistable 
+ * collections of tables.
+ * @extends {Persistable}
+ */
 function Database(name) 
 {
 	this.tables = {};

@@ -1,3 +1,9 @@
+/**
+ * @constructor
+ * @abstract
+ * @classdesc The base class for persistable objects. Provides the basic methods
+ * for key-value based async. persistance
+ */
 function Persistable() {}
 
 Persistable.prototype = {
@@ -9,12 +15,25 @@ Persistable.prototype = {
 		return {};
 	},
 	
+	/**
+	 * Each subclass must define it's own storage key which is the key used for
+	 * the key-value base storage
+	 * @abstract
+	 * @return {String}
+	 */
 	getStorageKey : function()
 	{
 		throw "Please implement the 'getStorageKey' method to return the " + 
 			"storage key";
 	},
 	
+	/**
+	 * This method attempts to read the serialized version of the instance from
+	 * the storage and parse it to JS Object
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	read : function(onSuccess, onError)
 	{
 		this.storage.get(this.getStorageKey(), function(data) {

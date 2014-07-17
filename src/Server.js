@@ -1,6 +1,16 @@
-
+/**
+ * @constructor
+ * @classdesc The Server class is used to create a single instance that is a 
+ * persistable collection of databases.
+ * @extends {Persistable}
+ */
 function Server()
 {
+	/**
+	 * The databases currently in this server
+	 * @type {Object}
+	 * @private
+	 */
 	this.databases = {};
 }
 
@@ -12,6 +22,10 @@ Server.prototype.getStorageKey = function()
 	return NS;
 };
 
+/**
+ * Overrides {@link Persistable.prototype.toJSON}
+ * @return {Object}
+ */
 Server.prototype.toJSON = function()
 {
 	var json = { databases : {} };
@@ -93,7 +107,7 @@ Server.prototype.load = function(onSuccess, onError)
  * @param {String} name The name of the database to create
  * @param {Boolean} ifNotExists Note that an exception will be thrown if such 
  * database exists and this is not set to true.
- * @return void
+ * @return {void}
  */
 Server.prototype.createDatabase = function(name, ifNotExists) 
 {
@@ -119,6 +133,13 @@ Server.prototype.createDatabase = function(name, ifNotExists)
 	return db;
 };
 
+/**
+ * Drops a database from the server.
+ * @param {String} name The name of the database to drop
+ * @param {Boolean} ifNotExists Note that an exception will be thrown if such 
+ * database does not exists and this is not set to true.
+ * @return {void}
+ */
 Server.prototype.dropDatabase = function(name, ifExists) 
 {
 	if (this.databases.hasOwnProperty(name)) {
@@ -134,6 +155,11 @@ Server.prototype.dropDatabase = function(name, ifExists)
 	}
 };
 
+/**
+ * Get a database by name.
+ * @param {String} name - The name of the desired database
+ * @return {Database|undefined}
+ */
 Server.prototype.getDatabase = function(name)
 {
 	return this.databases[trim(name)];

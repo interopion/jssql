@@ -3,6 +3,13 @@
 //                             Class Database                                 //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @constructor
+ * @classdesc The Server class is used to create databses which are persistable 
+ * collections of tables.
+ * @extends {Persistable}
+ */
 function Database(name) 
 {
 	this.tables = {};
