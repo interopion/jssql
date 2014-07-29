@@ -5,8 +5,25 @@
  */
 function Walker(tokens, input)
 {
+	/**
+	 * The current position in the tokens array
+	 * @type {Number}
+	 * @private
+	 */
 	this._pos = 0;
+	
+	/**
+	 * The tokens array
+	 * @type {Array}
+	 * @private
+	 */
 	this._tokens = tokens;
+
+	/**
+	 * The input string that has been used to produce the tokens array
+	 * @type {String}
+	 * @private
+	 */
 	this._input = input;
 }
 
@@ -173,7 +190,11 @@ Walker.prototype = {
 				prev = "..." + prev;
 			}
 			
-			throw new SQLParseError('You have an error after %s', prev);
+			throw new SQLParseError(
+				'You have an error after %s. Expecting %s.', 
+				prev,
+				arg
+			);
 		}
 	},
 
