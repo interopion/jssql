@@ -34,6 +34,15 @@ function LocalStorage()
 		}, 0);
 	};
 
+	/**
+	 * Delete multiple items. If everything goes well, calls the onSuccess
+	 * callback. Otherwise calls the onError callback.
+	 * @param {Array} keys - An array of keys to delete
+	 * @param {Function} onSuccess - This is called on success without arguments
+	 * @param {Function} onError - This is called on error with the error as
+	 * single argument
+	 * @return {void} undefined - This method is async. so use the callbacks
+	 */
 	this.unsetMany = function(keys, onSuccess, onError)
 	{
 		setTimeout(function() {
