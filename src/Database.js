@@ -112,3 +112,22 @@ Database.prototype.createTable = function(name, fields, ifNotExists)
 	this.save();
 	return table;
 };
+
+/**
+ * Get a table by name from the database.
+ * @param {String} name - The name of the desired table
+ * @return {Table}
+ * @throws {SQLRuntimeError} error - If there is no such table
+ */
+Database.prototype.getTable = function(tableName)
+{			
+	var table = this.tables[tableName];
+	if (!table) {
+		throw new SQLRuntimeError(
+			'No such table "%s" in database "%s"',
+			tableName,
+			this.name
+		);
+	}
+	return table;
+};
