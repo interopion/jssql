@@ -51,6 +51,11 @@ function TableRow(table, id)
 TableRow.prototype = new Persistable();
 TableRow.prototype.constructor = TableRow;
 
+/**
+ * Overrides the Persistable.prototype.getStorageKey method. Generates and 
+ * returns the key to be used as storage key.
+ * @return {String}
+ */
 TableRow.prototype.getStorageKey = function()
 {
 	return [
