@@ -435,7 +435,7 @@ STATEMENTS.SELECT = function(walker) {
 			db,
 			i, y, l, j, f;
 
-		
+		//debugger;
 		
 		// Compose a row prototype object --------------------------------------
 		var _databases = {};
@@ -501,7 +501,7 @@ STATEMENTS.SELECT = function(walker) {
 						prepareField({
 							field    : colName,
 							alias    : null,
-							table    : { table : table.name, database : table.database },
+							table    : { table : table.name, database : table._db.name },
 							database : table._db.name,
 							isExpr   : false
 						}, y++);
@@ -517,7 +517,7 @@ STATEMENTS.SELECT = function(walker) {
 							prepareField({
 								field    : colName,
 								alias    : null,
-								table    : { table : table.name, database : table.database },
+								table    : { table : table.name, database : table._db.name },
 								database : table._db.name,
 								isExpr   : false
 							}, y++);
