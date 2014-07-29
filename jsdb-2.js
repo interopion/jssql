@@ -407,8 +407,6 @@ function getTokens(sql, options)
 	return tokens;
 }
 
-
-
 function createTable(name, fields, ifNotExists, database)
 {
 	database = database || CURRENT_DATABASE;
@@ -444,9 +442,9 @@ function each(o, callback, scope)
 	}
 	
 	if (Object.prototype.toString.call(o) == "[object Array]") {
-		if ( typeof o.every == "function" ) {
-			return o.every(callback, scope);
-		}
+		//if ( typeof o.every == "function" ) {
+		//	return o.every(callback, scope);
+		//}
 		len = o.length;
 		for ( key = 0; key < len; key++ ) {
 			if ( argLen > 2 ) {
@@ -607,6 +605,11 @@ function isArray(x)
 	return Object.prototype.toString.call(x) == "[object Array]";
 }
 
+function isFunction(x)
+{
+	return Object.prototype.toString.call(x) == "[object Function]";
+}
+
 function isNumeric(x)
 {
 	var n = parseFloat(x);
@@ -744,6 +747,46 @@ function mixin()
 
 	return a;
 }
+/*
+function expr(input, scope)
+{
+	var operators = {
+		"."        : "",
+		"("        : "",
+		")"        : "",
+		"CAST"     : "",
+		"AS"       : "",
+		"COLLATE"  : "",
+		"LIKE"     : "",
+		"ESCAPE"   : "",
+		"GLOB"     : "",
+		"REGEXP"   : "",
+		"MATCH"    : "",
+		"ISNULL"   : "",
+		"NOTNULL"  : "",
+		"NOT"      : "",
+		"NULL"     : "",
+		"IS"       : "",
+		"BETWEEN"  : "",
+		"AND"      : "",
+		"IN"       : "",
+		"EXISTS"   : "",
+		"CASE"     : "",
+		"WHEN"     : "",
+		"THEN"     : "",
+		"ELSE"     : "",
+		"DISTINCT" : ""
+	};
+
+	// literal value
+	// Column ref
+	// "(" + expr + ")"
+	// unary operator (-, +, ~)
+	// CAST
+	// EXISTS|NOT EXISTS
+	// CASE
+	// FINCTION name
+}*/
 
 function executeInSandbox(options)
 {
@@ -777,7 +820,7 @@ function executeInSandbox(options)
 
 	body = body.replace(/^(\s*return\s+)?/, "return ");
 
-	console.log(body, args, values, context);
+	//console.log(body, args, values, context);
 	return (new Function( args.join(", "), body )).apply( context, values );
 }
 
@@ -1874,8 +1917,25 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
  */
 function Walker(tokens, input)
 {
+	/**
+	 * The current position in the tokens array
+	 * @type {Number}
+	 * @private
+	 */
 	this._pos = 0;
+	
+	/**
+	 * The tokens array
+	 * @type {Array}
+	 * @private
+	 */
 	this._tokens = tokens;
+
+	/**
+	 * The input string that has been used to produce the tokens array
+	 * @type {String}
+	 * @private
+	 */
 	this._input = input;
 }
 
@@ -2042,7 +2102,11 @@ Walker.prototype = {
 				prev = "..." + prev;
 			}
 			
-			throw new SQLParseError('You have an error after %s', prev);
+			throw new SQLParseError(
+				'You have an error after %s. Expecting %s.', 
+				prev,
+				arg
+			);
 		}
 	},
 
@@ -2661,21 +2725,26 @@ STATEMENTS.SHOW_DATABASES = function(walker) {
  * @type {Function}
  * @param {Walker} walker - The walker instance used to parse the current 
  * statement
- * @return {void}
+ * @return {Function}
  * @throws {SQLRuntimeError} exception - If the databse cannot be resolved
  * @example
  * <pre style="font-family:Menlo, monospace">
  * 
  *     ┌──────┐ ┌──────────┐       
- *   ──┤ SHOW ├─┤  TABLES  ├──┬────────────────────────────────────┬────
- *     └──────┘ └──────────┘  │                                    │
- *                            │     ┌──────┐                       │
- *                            │  ┌──┤ FROM ├──┐                    │
- *                            │  │  └──────┘  │  ┌──────────────┐  │
- *                            └──┤            ├──┤ databse name ├──┘
- *                               │  ┌──────┐  │  └──────────────┘
- *                               └──┤  IN  ├──┘
- *                                  └──────┘
+ *  >──┤ SHOW ├─┤  TABLES  ├───┬──────────────────────────────────────┬────>
+ *     └──────┘ └──────────┘ ┌─│──────────────────────────────────────│─┐
+ *                           │ │     ┌──────┐                         │ │
+ *                           │ │  ┌──┤ FROM ├──┐                      │ │
+ *                           │ │  │  └──────┘  │  ┌────────────────┐  │ │
+ *                           │ └──┤            ├──┤ "databse name" ├──┘ │
+ *                           │    │  ┌──────┐  │  └────────────────┘    │
+ *                           │    └──┤  IN  ├──┘                        │
+ *                           │       └──────┘                           │
+ *                           └──────────────────────────────────────────┘
+ *                           // If this is omitted, then the query is
+ *                           // executed against the current database
+ *                           // (if any)
+ *                           
  * </pre>
  */
 STATEMENTS.SHOW_TABLES = function(walker) 
@@ -2725,27 +2794,30 @@ STATEMENTS.SHOW_TABLES = function(walker)
  * @type {Function}
  * @param {Walker} walker - The walker instance used to parse the current 
  * statement
- * @return {void}
- @example
+ * @return {Function}
+ * @example
  * <pre style="font-family:Menlo, monospace">
  * 
  *                                  ┌──────┐
  *                               ┌──┤ FROM ├──┐
- *     ┌──────┐ ┌──────────┐     │  └──────┘  │  ┌────────────┐  
- *  >──┤ SHOW ├─┤  TABLES  ├─────┤            ├──┤ table name ├──┐
- *     └──────┘ └──────────┘     │  ┌──────┐  │  └────────────┘  │
- *                               └──┤  IN  ├──┘                  │
- *                                  └──────┘                     │
- *   ┌───────────────────────────────────────────────────────────┘  
+ *     ┌──────┐ ┌───────────┐    │  └──────┘  │  ┌──────────────┐  
+ *  >──┤ SHOW ├─┤  COLUMNS  ├────┤            ├──┤ "table name" ├──┐
+ *     └──────┘ └───────────┘    │  ┌──────┐  │  └──────────────┘  │
+ *                               └──┤  IN  ├──┘                    │
+ *                                  └──────┘                       │
+ *   ┌─────────────────────────────────────────────────────────────┘  
  *   │
  *   └─────┬───────────────────────────────────────┬──────────────────>
- *         │        ┌──────┐                       │
- *         │     ┌──┤ FROM ├──┐                    │
- *         │     │  └──────┘  │  ┌──────────────┐  │
- *         └─────┤            ├──┤ databse name ├──┘
- *               │  ┌──────┐  │  └──────────────┘
- *               └──┤  IN  ├──┘
- *                  └──────┘
+ *         │                                       │
+ *       ┌─│───────────────────────────────────────│─┐
+ *       │ │      ┌──────┐                         │ │
+ *       │ │   ┌──┤ FROM ├──┐                      │ │
+ *       │ │   │  └──────┘  │  ┌────────────────┐  │ │ // If this is omitted, then the query is
+ *       │ └───┤            ├──┤ "databse name" ├──┘ │ // executed against the current database
+ *       │     │  ┌──────┐  │  └────────────────┘    │ // (if any)
+ *       │     └──┤  IN  ├──┘                        │
+ *       │        └──────┘                           │
+ *       └───────────────────────────────────────────┘
  * </pre>
  */
 STATEMENTS.SHOW_COLUMNS = function(walker) {
@@ -2777,8 +2849,7 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 
 		if ( walker.is("FROM|IN") )
 		{
-			walker.forward();
-			walker.someType(WORD_OR_STRING, function(token) {
+			walker.forward().someType(WORD_OR_STRING, function(token) {
 				dbName = token[0];
 			});
 		}
@@ -3792,7 +3863,7 @@ STATEMENTS.SELECT = function(walker) {
 			db,
 			i, y, l, j, f;
 
-		
+		//debugger;
 		
 		// Compose a row prototype object --------------------------------------
 		var _databases = {};
@@ -3858,7 +3929,7 @@ STATEMENTS.SELECT = function(walker) {
 						prepareField({
 							field    : colName,
 							alias    : null,
-							table    : { table : table.name, database : table.database },
+							table    : { table : table.name, database : table._db.name },
 							database : table._db.name,
 							isExpr   : false
 						}, y++);
@@ -3874,7 +3945,7 @@ STATEMENTS.SELECT = function(walker) {
 							prepareField({
 								field    : colName,
 								alias    : null,
-								table    : { table : table.name, database : table.database },
+								table    : { table : table.name, database : table._db.name },
 								database : table._db.name,
 								isExpr   : false
 							}, y++);
@@ -4076,6 +4147,150 @@ STATEMENTS.SELECT = function(walker) {
 };
 
 // -----------------------------------------------------------------------------
+// Starts file "src/statements/delete.js"
+// -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {Function}
+ * @example
+ * <pre style="font-family:Menlo, monospace">
+ * 
+ *     ┌────────┐ ┌──────┐                                ┌──────────────┐  
+ *  >──┤ DELETE ├─┤ FROM ├─┬────────────────────────────┬─┤ "table name" ├──┐
+ *     └────────┘ └──────┘ │ ┌─────────────────┐  ┌───┐ │ └──────────────┘  │
+ *                         └─┤ "Database name" ├──┤ . ├─┘                   │
+ *                           └─────────────────┘  └───┘                     │
+ *   ┌──────────────────────────────────────────────────────────────────────┘  
+ *   │
+ *   └─────┬────────────────────────────────┬──────────────────>
+ *         │    ┌───────┐    ┌───────┐      │
+ *         └────┤ WHERE ├────┤ EXPR. ├──────┘
+ *              └───────┘    └───────┘
+ *             
+ *
+ * </pre>
+ */
+STATEMENTS.DELETE = function(walker) {
+
+	return function()
+	{
+		var tableName, dbName, start = 0, end = 0, where = "";
+
+		/**
+		 * This will match any string (in any quotes) or just a word as unquoted 
+		 * name.
+		 * @type {String}
+		 * @inner
+		 * @private
+		 */ 
+		var identifier = [
+			"@" + TOKEN_TYPE_WORD,
+			"@" + TOKEN_TYPE_SINGLE_QUOTE_STRING,
+			"@" + TOKEN_TYPE_DOUBLE_QUOTE_STRING,
+			"@" + TOKEN_TYPE_BACK_TICK_STRING
+		].join("|");
+
+		walker.require("FROM");
+		
+		if ( !walker.forward().is(identifier) )
+		{
+			throw new SQLParseError(
+				'Expecting an identifier for table name before "%s"',
+				walker.get()
+			);
+		}
+
+		tableName = walker.get();
+
+		if ( walker.forward().is(".") )
+		{
+			if ( !walker.forward().is(identifier) )
+			{
+				throw new SQLParseError(
+					'Expecting an identifier for table name after %s.',
+					tableName
+				);
+			}
+
+			dbName = tableName;
+			tableName = walker.get();
+			walker.forward();
+		}
+
+
+
+		if ( walker.is("WHERE") ) 
+		{
+			walker.forward();
+			start = walker.current()[2];
+			end   = start;
+			walker.nextUntil(";");
+			end   = walker.current()[2];
+			where = walker._input.substring(start, end);
+		}
+		else 
+		{
+			walker.errorUntil(";");
+		}	
+
+		walker.commit(function() {
+
+			var db = dbName ?
+					SERVER.getDatabase(dbName) :
+					SERVER.getCurrentDatabase(),
+				table,
+				rows,
+				rowIds = [],
+				len = 0;
+
+			if ( !db )
+			{
+				if ( dbName )
+				{
+					throw new SQLRuntimeError("No such database '%s'", dbName);
+				}
+				else
+				{
+					throw new SQLRuntimeError("No database selected");
+				}
+			}
+
+			table = db.getTable(tableName);
+			rows  = table.rows;
+
+			//console.log(
+			//	" dbName   : ", db.name   , "\n",
+			//	"tableName: ", table.name, "\n",
+			//	"where    : ", where, "\n",
+			//	"rows     : ", rows
+			//);
+
+			each(rows, function(row, rowId, allRows) {
+				if ( !where || executeCondition( where, row.toJSON(true) ) )
+				{
+					len = rowIds.push(row);
+				}
+			});
+
+			if ( len ) 
+			{
+				
+				table.deleteRows(rowIds, function() {
+					walker.onComplete(len + " rows deleted");
+				}, walker.onError);
+			}
+			else
+			{
+				walker.onComplete(len + " rows deleted");
+			}
+		});
+	};
+};
+
+// -----------------------------------------------------------------------------
 // Starts file "src/parser.js"
 // -----------------------------------------------------------------------------
 ////////////////////////////////////////////////////////////////////////////////
@@ -4104,13 +4319,14 @@ function Parser(onComplete, onError)
 				queryNum++;
 				start();
 			} else {
-				result.setData(_result);
+				result.setData(
+					queryNum > 1 ? 
+					queryNum + ' queries executed successfully.' :
+					_result
+				);
+
 				if (onComplete) 
-					onComplete(
-						queryNum > 1 ? 
-							queryNum + ' queries executed successfully.' :
-							result
-					);
+					onComplete(result);
 			}
 		};
 
@@ -4142,7 +4358,8 @@ function Parser(onComplete, onError)
 					});
 				},
 				"INSERT" : STATEMENTS.INSERT(walker),
-				"SELECT" : STATEMENTS.SELECT(walker)
+				"SELECT" : STATEMENTS.SELECT(walker),
+				"DELETE" : STATEMENTS.DELETE(walker)
 			});
 		}
 
@@ -4263,6 +4480,15 @@ function LocalStorage()
 		}, 0);
 	};
 
+	/**
+	 * Delete multiple items. If everything goes well, calls the onSuccess
+	 * callback. Otherwise calls the onError callback.
+	 * @param {Array} keys - An array of keys to delete
+	 * @param {Function} onSuccess - This is called on success without arguments
+	 * @param {Function} onError - This is called on error with the error as
+	 * single argument
+	 * @return {void} undefined - This method is async. so use the callbacks
+	 */
 	this.unsetMany = function(keys, onSuccess, onError)
 	{
 		setTimeout(function() {
@@ -4433,11 +4659,22 @@ function Persistable() {}
 
 Persistable.prototype = {
 	
+	/**
+	 * The storage engine instance used by this object.
+	 * @todo This should be configurable!
+	 */
 	storage : Storage.getEngine("LocalStorage"),
 	
+	/**
+	 * The method that should generate and return the plain (JSON) 
+	 * representation of the object. The subclasses must redefine it.
+	 * @return {Object}
+	 * @abstract
+	 */
 	toJSON : function() 
 	{
-		return {};
+		throw "Please implement the 'toJSON' method to return the JSON " + 
+			"representation of the instance";
 	},
 	
 	/**
@@ -4471,6 +4708,13 @@ Persistable.prototype = {
 		}, onError);
 	},
 	
+	/**
+	 * Saves the data in the storage.
+	 * @param {Object|Array} data - The data to store
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	write : function(data, onSuccess, onError)
 	{
 		this.storage.set(
@@ -4481,16 +4725,34 @@ Persistable.prototype = {
 		);
 	},
 	
+	/**
+	 * Deletes the corresponding data from the storage.
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	drop : function(onSuccess, onError)
 	{
 		this.storage.unset(this.getStorageKey(), onSuccess, onError);
 	},
 	
+	/**
+	 * Saves the instance (as JSON) in the storage.
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	save : function(onSuccess, onError) 
 	{
 		this.write( this.toJSON(), onSuccess, onError );
 	},
 	
+	/**
+	 * Reads the corresponding data from the storage.
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	load : function(onSuccess, onError)
 	{
 		this.read(onSuccess, onError);
@@ -4802,6 +5064,25 @@ Database.prototype.createTable = function(name, fields, ifNotExists)
 	return table;
 };
 
+/**
+ * Get a table by name from the database.
+ * @param {String} name - The name of the desired table
+ * @return {Table}
+ * @throws {SQLRuntimeError} error - If there is no such table
+ */
+Database.prototype.getTable = function(tableName)
+{			
+	var table = this.tables[tableName];
+	if (!table) {
+		throw new SQLRuntimeError(
+			'No such table "%s" in database "%s"',
+			tableName,
+			this.name
+		);
+	}
+	return table;
+};
+
 
 // -----------------------------------------------------------------------------
 // Starts file "src/Table.js"
@@ -4919,6 +5200,12 @@ Table.prototype.toJSON = function()
 	return json;
 };
 
+/**
+ * Overrides the Persistable.prototype.getStorageKey method. Generates and 
+ * returns the key to be used as storage key. The key represents the full path
+ * to the table expressed as "{namespace}.{database name}.{table name}".
+ * @return {String}
+ */
 Table.prototype.getStorageKey = function() 
 {
 	return [NS, this._db.name, this.name].join(".");
@@ -4982,11 +5269,26 @@ Table.prototype.addColumn = function(props)
 	return col;
 };
 
+/**
+ * Overrides the Persistable.prototype.save method. Saves the table and when 
+ * done, also saves the database that this table belongs to.
+ * @param {Function} onSuccess
+ * @param {Function} onError
+ * @return {void}
+ * @emits savestart:table - Before the save procedure is started
+ * @emits save:table - If the save finishes successfully
+ */
 Table.prototype.save = function(onComplete, onError) 
 {
-	var db = this._db;
+	var db = this._db, table = this;
+	JSDB.events.dispatch("savestart:table", table);
 	Persistable.prototype.save.call(this, function() {
-		db.save(onComplete, onError);	
+		db.save(function() {
+			JSDB.events.dispatch("save:table", table);
+			if ( isFunction(onComplete) ) {
+				onComplete();
+			}
+		}, onError);	
 	}, onError);
 	return this;
 };
@@ -5119,6 +5421,129 @@ Table.prototype.drop = function(onComplete, onError)
 			}, onError);
 		}, onError);
 	}
+};
+
+/**
+ * Returns table rows (usually a filtered subset). This method is mostly used to 
+ * get a set of rows that are going to be updated with UPDATE query or deleted 
+ * with DELETE query.
+ * @param {String} filter - What to include. Can be:
+ * <ul>
+ *   <li>String "*" - Use "*" to get all the rows of the table</li>
+ *   <li>Number|numeric - The index of the row to include.</li>
+ *   <li>String   - The key of single row that should be included</li>
+ *   <li>Number   - The index of the row to include</li>
+ *   <li>TableRow - The row to be included</li>
+ *   <li>Array    - Array of row keys to include multiple rows</li>
+ * </ul>
+ * @return {Object} 
+ * @example
+ * // Get all rows of table
+ * table.getRows("*");
+ *
+ * // Get row at index
+ * table.getRows(2);
+ * table.getRows("3");
+ *
+ * // Single row by storage key
+ * table.getRows("JSDB.tests.City.16");
+ *
+ * // An array of any of the above
+ * table.getRows([2, "3", "JSDB.tests.City.16", 50]);
+ *//*
+Table.prototype.getRows = function(filter)
+{
+	var out = {}, row;
+
+	// All
+	if ( filter == "*" )
+	{
+		out = this.rows;
+	}
+
+	// The index of the row to delete
+	else if ( isNumeric(filter) )
+	{
+		filter = intVal(filter, -1);
+		if ( filter >= 0 && filter < this._row_seq.length )
+		{
+			row = this._row_seq[filter];
+			out[ row.id ] = row;
+		}
+	}
+
+	// Single row by storage key
+	else if ( typeof filter == "string" )
+	{
+		filter = filter.replace(/^.*?[^\.]$/, "");
+		row    = this.rows[ intVal(filter) + "" ];
+		if ( row )
+		{
+			out[ row.id ] = row;
+		}
+	}
+
+	// Array of the above
+	else if ( isArray(filter) )
+	{
+		for ( var i = 0, l = filter.length; i < l; i++ )
+		{
+			mixin(out, this.getRows( filter[i] ));
+		}
+	}
+
+	return out;
+};*/
+
+/**
+ * Deletes rows from the table.
+ * @param {String} what - What to delete. Can be:
+ * <ul>
+ *   <li>String   - The key of single row that should be deleted</li>
+ *   <li>Number   - The index of the row to delete</li>
+ *   <li>TableRow - The row to be deleted</li>
+ *   <li>Array    - Array of row keys to delete multiple rows</li>
+ * </ul>
+ * @param {Function} onSuccess
+ * @param {Function} onError
+ * @return {void}
+ */
+Table.prototype.deleteRows = function(rows, onComplete, onError)
+{
+	var table = this,
+		keys  = [];
+	
+	rows = makeArray(rows);
+
+	each(rows, function(row) {
+		keys.push(row.getStorageKey());
+	});
+
+	// Delete row from the storage
+	table.storage.unsetMany(keys, function() {
+		
+		// Delete row from memory
+		each(rows, function(row) {
+
+			for (var ki in table.keys) {
+				table.keys[ki].beforeDelete(row);
+			}
+
+			var i = binarySearch(table._row_seq, row.id, TableIndex.compare);
+			if (i >= 0)
+			{
+				delete table.rows[row.id];
+				table._row_seq.splice(i, 1);
+			}
+		});
+
+		keys = null;
+
+		table.save(function() {
+			if (onComplete) 
+				onComplete();
+		}, onError);
+	}, onError);
 };
 
 
@@ -6169,6 +6594,11 @@ function TableRow(table, id)
 TableRow.prototype = new Persistable();
 TableRow.prototype.constructor = TableRow;
 
+/**
+ * Overrides the Persistable.prototype.getStorageKey method. Generates and 
+ * returns the key to be used as storage key.
+ * @return {String}
+ */
 TableRow.prototype.getStorageKey = function()
 {
 	return [
@@ -6509,7 +6939,17 @@ TableIndex.prototype = {
 	 */
 	beforeDelete : function(row) 
 	{
-		// TODO
+		var value = [], i;
+
+		for ( i = 0; i < this.columns.length; i++ ) 
+			value.push( row.getCell(this.columns[i]) );
+
+		value = value.join("");
+
+		i = binarySearch(this._index, value, TableIndex.compare);
+		
+		if ( i >= 0 )
+			this._index.splice(i, 1);
 	},
 
 	/**

@@ -19,6 +19,7 @@ module.exports = function(grunt) {
 		'src/statements/drop_table.js',
 		'src/statements/insert.js',
 		'src/statements/select.js',
+		'src/statements/delete.js',
 		'src/parser.js',
 		'src/storage/StorageBase.js',
 		'src/storage/LocalStorage.js',
