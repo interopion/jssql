@@ -24,13 +24,14 @@ function Parser(onComplete, onError)
 				queryNum++;
 				start();
 			} else {
-				result.setData(_result);
+				result.setData(
+					queryNum > 1 ? 
+					queryNum + ' queries executed successfully.' :
+					_result
+				);
+
 				if (onComplete) 
-					onComplete(
-						queryNum > 1 ? 
-							queryNum + ' queries executed successfully.' :
-							result
-					);
+					onComplete(result);
 			}
 		};
 
@@ -62,7 +63,8 @@ function Parser(onComplete, onError)
 					});
 				},
 				"INSERT" : STATEMENTS.INSERT(walker),
-				"SELECT" : STATEMENTS.SELECT(walker)
+				"SELECT" : STATEMENTS.SELECT(walker),
+				"DELETE" : STATEMENTS.DELETE(walker)
 			});
 		}
 
