@@ -111,6 +111,12 @@ Table.prototype.toJSON = function()
 	return json;
 };
 
+/**
+ * Overrides the Persistable.prototype.getStorageKey method. Generates and 
+ * returns the key to be used as storage key. The key represents the full path
+ * to the table expressed as "{namespace}.{database name}.{table name}".
+ * @return {String}
+ */
 Table.prototype.getStorageKey = function() 
 {
 	return [NS, this._db.name, this.name].join(".");
@@ -174,11 +180,26 @@ Table.prototype.addColumn = function(props)
 	return col;
 };
 
+/**
+ * Overrides the Persistable.prototype.save method. Saves the table and when 
+ * done, also saves the database that this table belongs to.
+ * @param {Function} onSuccess
+ * @param {Function} onError
+ * @return {void}
+ * @emits savestart:table - Before the save procedure is started
+ * @emits save:table - If the save finishes successfully
+ */
 Table.prototype.save = function(onComplete, onError) 
 {
-	var db = this._db;
+	var db = this._db, table = this;
+	JSDB.events.dispatch("savestart:table", table);
 	Persistable.prototype.save.call(this, function() {
-		db.save(onComplete, onError);	
+		db.save(function() {
+			JSDB.events.dispatch("save:table", table);
+			if ( isFunction(onComplete) ) {
+				onComplete();
+			}
+		}, onError);	
 	}, onError);
 	return this;
 };
@@ -311,4 +332,127 @@ Table.prototype.drop = function(onComplete, onError)
 			}, onError);
 		}, onError);
 	}
+};
+
+/**
+ * Returns table rows (usually a filtered subset). This method is mostly used to 
+ * get a set of rows that are going to be updated with UPDATE query or deleted 
+ * with DELETE query.
+ * @param {String} filter - What to include. Can be:
+ * <ul>
+ *   <li>String "*" - Use "*" to get all the rows of the table</li>
+ *   <li>Number|numeric - The index of the row to include.</li>
+ *   <li>String   - The key of single row that should be included</li>
+ *   <li>Number   - The index of the row to include</li>
+ *   <li>TableRow - The row to be included</li>
+ *   <li>Array    - Array of row keys to include multiple rows</li>
+ * </ul>
+ * @return {Object} 
+ * @example
+ * // Get all rows of table
+ * table.getRows("*");
+ *
+ * // Get row at index
+ * table.getRows(2);
+ * table.getRows("3");
+ *
+ * // Single row by storage key
+ * table.getRows("JSDB.tests.City.16");
+ *
+ * // An array of any of the above
+ * table.getRows([2, "3", "JSDB.tests.City.16", 50]);
+ *//*
+Table.prototype.getRows = function(filter)
+{
+	var out = {}, row;
+
+	// All
+	if ( filter == "*" )
+	{
+		out = this.rows;
+	}
+
+	// The index of the row to delete
+	else if ( isNumeric(filter) )
+	{
+		filter = intVal(filter, -1);
+		if ( filter >= 0 && filter < this._row_seq.length )
+		{
+			row = this._row_seq[filter];
+			out[ row.id ] = row;
+		}
+	}
+
+	// Single row by storage key
+	else if ( typeof filter == "string" )
+	{
+		filter = filter.replace(/^.*?[^\.]$/, "");
+		row    = this.rows[ intVal(filter) + "" ];
+		if ( row )
+		{
+			out[ row.id ] = row;
+		}
+	}
+
+	// Array of the above
+	else if ( isArray(filter) )
+	{
+		for ( var i = 0, l = filter.length; i < l; i++ )
+		{
+			mixin(out, this.getRows( filter[i] ));
+		}
+	}
+
+	return out;
+};*/
+
+/**
+ * Deletes rows from the table.
+ * @param {String} what - What to delete. Can be:
+ * <ul>
+ *   <li>String   - The key of single row that should be deleted</li>
+ *   <li>Number   - The index of the row to delete</li>
+ *   <li>TableRow - The row to be deleted</li>
+ *   <li>Array    - Array of row keys to delete multiple rows</li>
+ * </ul>
+ * @param {Function} onSuccess
+ * @param {Function} onError
+ * @return {void}
+ */
+Table.prototype.deleteRows = function(rows, onComplete, onError)
+{
+	var table = this,
+		keys  = [];
+	
+	rows = makeArray(rows);
+
+	each(rows, function(row) {
+		keys.push(row.getStorageKey());
+	});
+
+	// Delete row from the storage
+	table.storage.unsetMany(keys, function() {
+		
+		// Delete row from memory
+		each(rows, function(row) {
+
+			for (var ki in table.keys) {
+				table.keys[ki].beforeDelete(row);
+			}
+
+			var i = binarySearch(table._row_seq, row.id, TableIndex.compare);
+			if (i >= 0)
+			{
+				delete table.rows[row.id];
+				table._row_seq.splice(i, 1);
+			}
+		});
+
+		keys = null;
+
+		table.save(function() {
+			if (onComplete) 
+				onComplete();
+		}, onError);
+	}, onError);
 };
