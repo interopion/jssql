@@ -233,8 +233,6 @@ function getTokens(sql, options)
 	return tokens;
 }
 
-
-
 function createTable(name, fields, ifNotExists, database)
 {
 	database = database || CURRENT_DATABASE;
@@ -270,9 +268,9 @@ function each(o, callback, scope)
 	}
 	
 	if (Object.prototype.toString.call(o) == "[object Array]") {
-		if ( typeof o.every == "function" ) {
-			return o.every(callback, scope);
-		}
+		//if ( typeof o.every == "function" ) {
+		//	return o.every(callback, scope);
+		//}
 		len = o.length;
 		for ( key = 0; key < len; key++ ) {
 			if ( argLen > 2 ) {
@@ -433,6 +431,11 @@ function isArray(x)
 	return Object.prototype.toString.call(x) == "[object Array]";
 }
 
+function isFunction(x)
+{
+	return Object.prototype.toString.call(x) == "[object Function]";
+}
+
 function isNumeric(x)
 {
 	var n = parseFloat(x);
@@ -570,6 +573,46 @@ function mixin()
 
 	return a;
 }
+/*
+function expr(input, scope)
+{
+	var operators = {
+		"."        : "",
+		"("        : "",
+		")"        : "",
+		"CAST"     : "",
+		"AS"       : "",
+		"COLLATE"  : "",
+		"LIKE"     : "",
+		"ESCAPE"   : "",
+		"GLOB"     : "",
+		"REGEXP"   : "",
+		"MATCH"    : "",
+		"ISNULL"   : "",
+		"NOTNULL"  : "",
+		"NOT"      : "",
+		"NULL"     : "",
+		"IS"       : "",
+		"BETWEEN"  : "",
+		"AND"      : "",
+		"IN"       : "",
+		"EXISTS"   : "",
+		"CASE"     : "",
+		"WHEN"     : "",
+		"THEN"     : "",
+		"ELSE"     : "",
+		"DISTINCT" : ""
+	};
+
+	// literal value
+	// Column ref
+	// "(" + expr + ")"
+	// unary operator (-, +, ~)
+	// CAST
+	// EXISTS|NOT EXISTS
+	// CASE
+	// FINCTION name
+}*/
 
 function executeInSandbox(options)
 {
@@ -603,7 +646,7 @@ function executeInSandbox(options)
 
 	body = body.replace(/^(\s*return\s+)?/, "return ");
 
-	console.log(body, args, values, context);
+	//console.log(body, args, values, context);
 	return (new Function( args.join(", "), body )).apply( context, values );
 }
 
