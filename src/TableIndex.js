@@ -163,7 +163,17 @@ TableIndex.prototype = {
 	 */
 	beforeDelete : function(row) 
 	{
-		// TODO
+		var value = [], i;
+
+		for ( i = 0; i < this.columns.length; i++ ) 
+			value.push( row.getCell(this.columns[i]) );
+
+		value = value.join("");
+
+		i = binarySearch(this._index, value, TableIndex.compare);
+		
+		if ( i >= 0 )
+			this._index.splice(i, 1);
 	},
 
 	/**
