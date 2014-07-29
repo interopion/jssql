@@ -9,8 +9,14 @@
  */
 function TableCell(column, row, value) 
 {
-	this.setColumn(column);
+	/**
+	 * Refers to the TableRow instance that this cell belongs to
+	 * @type {TableRow}
+	 */
 	this.row = row;
+
+	this.setColumn(column);
+	
 	if (value !== undefined) {
 		this.setValue(value);
 	} else {
@@ -26,7 +32,7 @@ TableCell.prototype = {
 
 	/**
 	 * The value of the cell.
-	 * @var {any} Initially null
+	 * @type {any} Initially null
 	 */
 	value : null,
 
@@ -62,6 +68,7 @@ TableCell.prototype = {
 	 * compared using < or > operators for example. Also, an array of such
 	 * objects can be sorted without passing a function to the sort method of
 	 * the array...
+	 * @return {String|Number|null}
 	 */
 	valueOf : function()
 	{
