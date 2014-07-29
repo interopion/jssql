@@ -8,11 +8,22 @@ function Persistable() {}
 
 Persistable.prototype = {
 	
+	/**
+	 * The storage engine instance used by this object.
+	 * @todo This should be configurable!
+	 */
 	storage : Storage.getEngine("LocalStorage"),
 	
+	/**
+	 * The method that should generate and return the plain (JSON) 
+	 * representation of the object. The subclasses must redefine it.
+	 * @return {Object}
+	 * @abstract
+	 */
 	toJSON : function() 
 	{
-		return {};
+		throw "Please implement the 'toJSON' method to return the JSON " + 
+			"representation of the instance";
 	},
 	
 	/**
@@ -46,6 +57,13 @@ Persistable.prototype = {
 		}, onError);
 	},
 	
+	/**
+	 * Saves the data in the storage.
+	 * @param {Object|Array} data - The data to store
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	write : function(data, onSuccess, onError)
 	{
 		this.storage.set(
@@ -56,16 +74,34 @@ Persistable.prototype = {
 		);
 	},
 	
+	/**
+	 * Deletes the corresponding data from the storage.
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	drop : function(onSuccess, onError)
 	{
 		this.storage.unset(this.getStorageKey(), onSuccess, onError);
 	},
 	
+	/**
+	 * Saves the instance (as JSON) in the storage.
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	save : function(onSuccess, onError) 
 	{
 		this.write( this.toJSON(), onSuccess, onError );
 	},
 	
+	/**
+	 * Reads the corresponding data from the storage.
+	 * @param {Function} onSuccess
+	 * @param {Function} onError
+	 * @return {void}
+	 */
 	load : function(onSuccess, onError)
 	{
 		this.read(onSuccess, onError);
