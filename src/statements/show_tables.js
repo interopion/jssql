@@ -5,21 +5,26 @@
  * @type {Function}
  * @param {Walker} walker - The walker instance used to parse the current 
  * statement
- * @return {void}
+ * @return {Function}
  * @throws {SQLRuntimeError} exception - If the databse cannot be resolved
  * @example
  * <pre style="font-family:Menlo, monospace">
  * 
  *     ┌──────┐ ┌──────────┐       
- *   ──┤ SHOW ├─┤  TABLES  ├──┬────────────────────────────────────┬────
- *     └──────┘ └──────────┘  │                                    │
- *                            │     ┌──────┐                       │
- *                            │  ┌──┤ FROM ├──┐                    │
- *                            │  │  └──────┘  │  ┌──────────────┐  │
- *                            └──┤            ├──┤ databse name ├──┘
- *                               │  ┌──────┐  │  └──────────────┘
- *                               └──┤  IN  ├──┘
- *                                  └──────┘
+ *  >──┤ SHOW ├─┤  TABLES  ├───┬──────────────────────────────────────┬────>
+ *     └──────┘ └──────────┘ ┌─│──────────────────────────────────────│─┐
+ *                           │ │     ┌──────┐                         │ │
+ *                           │ │  ┌──┤ FROM ├──┐                      │ │
+ *                           │ │  │  └──────┘  │  ┌────────────────┐  │ │
+ *                           │ └──┤            ├──┤ "databse name" ├──┘ │
+ *                           │    │  ┌──────┐  │  └────────────────┘    │
+ *                           │    └──┤  IN  ├──┘                        │
+ *                           │       └──────┘                           │
+ *                           └──────────────────────────────────────────┘
+ *                           // If this is omitted, then the query is
+ *                           // executed against the current database
+ *                           // (if any)
+ *                           
  * </pre>
  */
 STATEMENTS.SHOW_TABLES = function(walker) 

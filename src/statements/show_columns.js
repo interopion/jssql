@@ -3,27 +3,30 @@
  * @type {Function}
  * @param {Walker} walker - The walker instance used to parse the current 
  * statement
- * @return {void}
- @example
+ * @return {Function}
+ * @example
  * <pre style="font-family:Menlo, monospace">
  * 
  *                                  ┌──────┐
  *                               ┌──┤ FROM ├──┐
- *     ┌──────┐ ┌──────────┐     │  └──────┘  │  ┌────────────┐  
- *  >──┤ SHOW ├─┤  TABLES  ├─────┤            ├──┤ table name ├──┐
- *     └──────┘ └──────────┘     │  ┌──────┐  │  └────────────┘  │
- *                               └──┤  IN  ├──┘                  │
- *                                  └──────┘                     │
- *   ┌───────────────────────────────────────────────────────────┘  
+ *     ┌──────┐ ┌───────────┐    │  └──────┘  │  ┌──────────────┐  
+ *  >──┤ SHOW ├─┤  COLUMNS  ├────┤            ├──┤ "table name" ├──┐
+ *     └──────┘ └───────────┘    │  ┌──────┐  │  └──────────────┘  │
+ *                               └──┤  IN  ├──┘                    │
+ *                                  └──────┘                       │
+ *   ┌─────────────────────────────────────────────────────────────┘  
  *   │
  *   └─────┬───────────────────────────────────────┬──────────────────>
- *         │        ┌──────┐                       │
- *         │     ┌──┤ FROM ├──┐                    │
- *         │     │  └──────┘  │  ┌──────────────┐  │
- *         └─────┤            ├──┤ databse name ├──┘
- *               │  ┌──────┐  │  └──────────────┘
- *               └──┤  IN  ├──┘
- *                  └──────┘
+ *         │                                       │
+ *       ┌─│───────────────────────────────────────│─┐
+ *       │ │      ┌──────┐                         │ │
+ *       │ │   ┌──┤ FROM ├──┐                      │ │
+ *       │ │   │  └──────┘  │  ┌────────────────┐  │ │ // If this is omitted, then the query is
+ *       │ └───┤            ├──┤ "databse name" ├──┘ │ // executed against the current database
+ *       │     │  ┌──────┐  │  └────────────────┘    │ // (if any)
+ *       │     └──┤  IN  ├──┘                        │
+ *       │        └──────┘                           │
+ *       └───────────────────────────────────────────┘
  * </pre>
  */
 STATEMENTS.SHOW_COLUMNS = function(walker) {
@@ -55,8 +58,7 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 
 		if ( walker.is("FROM|IN") )
 		{
-			walker.forward();
-			walker.someType(WORD_OR_STRING, function(token) {
+			walker.forward().someType(WORD_OR_STRING, function(token) {
 				dbName = token[0];
 			});
 		}
