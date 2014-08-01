@@ -98,7 +98,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["(2 + 2)"],
 					rows : [
 						{ "(2 + 2)" : 4 }
@@ -164,7 +164,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a"],
 					rows : [
 						{ a : 'a1' },
@@ -187,7 +187,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["b"],
 					rows : [
 						{ b : 'b1' },
@@ -210,7 +210,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a1', b : 'b1' },
@@ -257,7 +257,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a2', b : 'b2' },
@@ -279,7 +279,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a1', b : 'b1' },
@@ -301,7 +301,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a3', b : 'b3' }
@@ -322,7 +322,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a2', b : 'b2' }
@@ -343,7 +343,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a1', b : 'b1' },
@@ -366,7 +366,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a1', b : 'b1' },
@@ -389,7 +389,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a3', b : 'b3' },
@@ -412,7 +412,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a3', b : 'b3' },
@@ -435,7 +435,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b", "sum"],
 					rows : [
 						{ a : 'a1', b : 'b1', sum : 'a1b15' },
@@ -458,7 +458,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["sum", "(Math.PI * 1)"],
 					rows : [
 						{ sum : 'a1b15', "(Math.PI * 1)" : Math.PI },
@@ -481,7 +481,7 @@
 		JSDB.query(
 			sql, 
 			function(result) {
-				assert.deepEqual(result, {
+				assert.deepEqual(result.data, {
 					cols : ["a", "b"],
 					rows : [
 						{ a : 'a2', b : 'b2' }
