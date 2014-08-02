@@ -64,7 +64,8 @@ function Parser(onComplete, onError)
 				},
 				"INSERT" : STATEMENTS.INSERT(walker),
 				"SELECT" : STATEMENTS.SELECT(walker),
-				"DELETE" : STATEMENTS.DELETE(walker)
+				"DELETE" : STATEMENTS.DELETE(walker),
+				"UPDATE" : STATEMENTS.UPDATE(walker)
 			});
 		}
 

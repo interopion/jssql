@@ -20,6 +20,7 @@ module.exports = function(grunt) {
 		'src/statements/insert.js',
 		'src/statements/select.js',
 		'src/statements/delete.js',
+		'src/statements/update.js',
 		'src/parser.js',
 		'src/storage/StorageBase.js',
 		'src/storage/LocalStorage.js',

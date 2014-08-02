@@ -3069,7 +3069,7 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			}
 		});
 		query.addConstraint(constraint);
-		console.log("constraint: ", constraint);
+		//console.log("constraint: ", constraint);
 
 		walker.optional({
 			"," : function() {
@@ -4291,6 +4291,226 @@ STATEMENTS.DELETE = function(walker) {
 };
 
 // -----------------------------------------------------------------------------
+// Starts file "src/statements/update.js"
+// -----------------------------------------------------------------------------
+/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {Function}
+ * @example
+ * <pre style="font-family:Menlo, monospace">
+ * 
+ *     ┌────────┐                             ┌──────────────┐  
+ *  >──┤ UPDATE ├──┬──────────────────────┬───┤ "table name" ├──┐
+ *     └────────┘  │ ┌────┐  ┌──────────┐ │   └──────────────┘  │
+ *                 ├─┤ OR ├──┤ ROLLBACK ├─┤                     │
+ *                 │ └────┘  └──────────┘ │                     │
+ *                 │ ┌────┐  ┌──────────┐ │                     │
+ *                 ├─┤ OR ├──┤  ABORT   ├─┤                     │
+ *                 │ └────┘  └──────────┘ │                     │
+ *                 │ ┌────┐  ┌──────────┐ │                     │
+ *                 ├─┤ OR ├──┤ REPLACE  ├─┤                     │
+ *                 │ └────┘  └──────────┘ │                     │
+ *                 │ ┌────┐  ┌──────────┐ │                     │
+ *                 ├─┤ OR ├──┤   FAIL   ├─┤                     │
+ *                 │ └────┘  └──────────┘ │                     │
+ *                 │ ┌────┐  ┌──────────┐ │                     │
+ *                 └─┤ OR ├──┤  IGNORE  ├─┘                     │
+ *                   └────┘  └──────────┘                       │
+ *   ┌──────────────────────────────────────────────────────────┘  
+ *   │ ┌─────┐     ┌───────────────┐ ┌───┐ ┌───────┐    ┌───────┐  ┌───────┐
+ *   └─┤ SET ├──┬──┤ "column name" ├─┤ = ├─┤ expr. ├──┬─┤ WHERE ├──┤ expr. ├──>
+ *     └─────┘  │  └───────────────┘ └───┘ └───────┘  │ └───────┘  └───────┘
+ *              │               ┌───┐                 │
+ *              └───────────────┤ , │<────────────────┘
+ *                              └───┘
+ *             
+ *
+ * </pre>
+ */
+STATEMENTS.UPDATE = function(walker) {
+
+	/**
+	 * This will match any string (in any quotes) or just a word as unquoted 
+	 * name.
+	 * @type {String}
+	 * @inner
+	 * @private
+	 */ 
+	var identifier = [
+		"@" + TOKEN_TYPE_WORD,
+		"@" + TOKEN_TYPE_SINGLE_QUOTE_STRING,
+		"@" + TOKEN_TYPE_DOUBLE_QUOTE_STRING,
+		"@" + TOKEN_TYPE_BACK_TICK_STRING
+	].join("|");
+
+	/**
+	 * Parses the OR part of the UPDATE statement.
+	 * @param {Walker} walker
+	 * @return {String} The name af the action to take on failure. One of 
+	 * ROLLBACK|ABORT|REPLACE|FAIL|IGNORE. Defaults to ABORT.
+	 */
+	function getAltBehavior(walker)
+	{
+		var or = "ABORT";
+
+		if ( walker.is("OR") )
+		{
+			walker.forward().require("ROLLBACK|ABORT|REPLACE|FAIL|IGNORE");
+			or = walker.get().toUpperCase();
+			walker.forward();
+		}
+
+		return or;
+	}
+
+	/**
+	 * Gets the table that is to be updated
+	 * @param {Walker} walker
+	 * @return {Table}
+	 */
+	function getTable(walker)
+	{
+		var tableName, dbName, db;
+
+		if ( !walker.is(identifier) )
+		{
+			throw new SQLParseError(
+				'Expecting a table identifier before "%s"',
+				walker.get()
+			);
+		}
+
+		tableName = walker.get();
+
+		if ( walker.forward().is(".") )
+		{
+			if ( !walker.forward().is(identifier) )
+			{
+				throw new SQLParseError(
+					'Expecting an identifier for table name after %s.',
+					tableName
+				);
+			}
+
+			dbName = tableName;
+			tableName = walker.get();
+			walker.forward();
+		}
+
+		db = dbName ?
+			SERVER.getDatabase(dbName) :
+			SERVER.getCurrentDatabase();
+
+		if ( !db )
+		{
+			if ( dbName )
+			{
+				throw new SQLRuntimeError("No such database '%s'", dbName);
+			}
+			else
+			{
+				throw new SQLRuntimeError("No database selected");
+			}
+		}
+
+		return db.getTable(tableName);
+	}
+
+	/**
+	 * Parses the WHERE part of the UPDATE statement.
+	 * @param {Walker} walker
+	 * @return {String} The WHERE expression.
+	 */
+	function getWhere(walker)
+	{
+		var where = "", start, end;
+
+		if ( walker.is("WHERE") ) 
+		{
+			walker.forward();
+			start = walker.current()[2];
+			end   = start;
+			walker.nextUntil(";");
+			end   = walker.current()[2];
+			where = walker._input.substring(start, end);
+		}
+
+		return where;
+	}
+
+	/**
+	 * Parses the SET part of the UPDATE statement and returns a map object
+	 * containing the column names as keys and value expressions as values that
+	 * should be applied.
+	 * @param {Walker} walker
+	 * @return {Object}
+	 */
+	function getUpdater(walker)
+	{
+		var updater = {};
+
+		function getPair()
+		{
+			var name, value, start, end;
+
+			if ( !walker.is(identifier) )
+			{
+				throw new SQLParseError(
+					'Expecting a column identifier before "%s"',
+					walker.get()
+				);
+			}
+
+			name = walker.get();
+
+			walker.forward();
+			walker.require("=");
+			start = walker.current()[3];
+			walker.forward();
+
+			
+			end   = start;
+			walker.nextUntil(",|WHERE|;");
+			end   = walker.current()[2];
+			value = trim(walker._input.substring(start, end));
+			//console.log(value);
+
+			updater[name] = value;
+
+			if (walker.is(",")) {
+				walker.forward();
+				getPair();
+			}
+		}
+
+		walker.require("SET");
+		walker.forward();
+		getPair();
+
+		return updater;
+	}
+
+	return function()
+	{
+		var or      = getAltBehavior(walker),
+			table   = getTable(walker),
+			updater = getUpdater(walker),
+			where   = getWhere(walker);
+
+		//console.log("or = ", or, "table: ", table, "updater: ", updater, "where: ", where);
+
+		walker.errorUntil(";").commit(function() {
+			table.update(updater, or, where);
+			walker.onComplete("DONE");
+		});
+	};
+};
+
+
+// -----------------------------------------------------------------------------
 // Starts file "src/parser.js"
 // -----------------------------------------------------------------------------
 ////////////////////////////////////////////////////////////////////////////////
@@ -4359,7 +4579,8 @@ function Parser(onComplete, onError)
 				},
 				"INSERT" : STATEMENTS.INSERT(walker),
 				"SELECT" : STATEMENTS.SELECT(walker),
-				"DELETE" : STATEMENTS.DELETE(walker)
+				"DELETE" : STATEMENTS.DELETE(walker),
+				"UPDATE" : STATEMENTS.UPDATE(walker)
 			});
 		}
 
@@ -4847,6 +5068,7 @@ Server.prototype.load = function(onSuccess, onError)
 					db.load(onDatabaseLoad(db), onError);
 				}
 			} else {
+				inst.loaded = true;
 				JSDB.events.dispatch("load:server", inst);
 				onSuccess.call(inst);
 			}
@@ -5395,6 +5617,39 @@ Table.prototype.insert = function(keys, values)
 	this.save();
 
 	//console.dir(this.toJSON());
+};
+
+Table.prototype.update = function(map, alt, where)
+{
+	var table = this;
+	each(table.rows, function(row, id) {
+		//debugger;
+		var scope = row.toJSON(), newRow, name;
+
+		if (where && !executeCondition( where, scope ))
+		{
+			return true;
+		}
+
+		newRow = row.toJSON();
+		for ( name in map )
+		{
+			newRow[name] = executeCondition(map[name], newRow);
+		}
+
+		for (var ki in table.keys) 
+		{
+			table.keys[ki].beforeUpdate(row, newRow);
+		}
+		
+		
+
+		for ( name in newRow )
+		{
+			//newRow[name] = {};
+			row.setCellValue( name, newRow[name], newRow );
+		}
+	});
 };
 
 Table.prototype.drop = function(onComplete, onError) 
@@ -6889,6 +7144,36 @@ TableIndex.prototype = {
 	},
 
 	/**
+	 * Gets the indexed value for the given row. For multicolumn indexes this 
+	 * is a concatenation of all the column values.
+	 * @param {TableRow} row
+	 * @return {String} 
+	 */
+	getValueForRow : function(row)
+	{
+		var value = "", l = this.columns.length, i;
+
+		if (l === 0)
+			return value;
+
+		if (l === 1)
+			return String(
+				row instanceof TableRow ? 
+				row.getCell(this.columns[0]) :
+				row[this.columns[0]]
+			);
+
+		for ( i = 0; i < l; i++ ) 
+			value.push( 
+				row instanceof TableRow ? 
+				row.getCell(this.columns[i]) :
+				row[this.columns[i]]
+			);
+
+		return value.join("");
+	},
+
+	/**
 	 * Updates the index state to reflect the table contents. The table calls 
 	 * this before INSERT.
 	 * @param {TableRow} row The row that is about to be inserted
@@ -6926,9 +7211,50 @@ TableIndex.prototype = {
 	 * @param {TableRow} row The row that is about to be updated
 	 * @return void
 	 */
-	beforeUpdate : function(row) 
+	beforeUpdate : function(oldRow, newRow) 
 	{
-		// TODO
+		var oldVal = this.getValueForRow(oldRow),
+			newVal = this.getValueForRow(newRow),
+			oldIdx,
+			newIdx;
+
+		// If there is no change - just exit
+		if ( oldVal === newVal )
+			return;
+
+		oldIdx = binarySearch(this._index, oldVal, TableIndex.compare);
+		newIdx = binarySearch(this._index, newVal, TableIndex.compare);
+
+		console.log(
+			"old ", oldVal, " -> ", oldIdx, "(", this._index, ")\n",
+			"new ", newVal, " -> ", newIdx, "(", this._index, ")"
+		);
+
+		// Even changed, the new value might still remain on it's current position
+		if (oldIdx === newIdx)
+			return;
+
+		newIdx = newIdx < 0 ? -newIdx - 1 : newIdx + 1;
+
+		this._index.splice(newIdx, 0, newVal); // insert the new key
+
+		// After the new key has been inserted make sure to correct the oldIdx
+		// if needed
+		oldIdx = oldIdx >= newIdx ? oldIdx + 1 : oldIdx;
+
+		this._index.splice(oldIdx, 1); // remove the old key
+		
+		//console.log("beforeUpdate: ", value, idx);
+		//if ( i >= 0 && this.isUnique() ) 
+		//{
+		//	throw new SQLRuntimeError(
+		//		'Duplicate entry for key "%s".',
+		//		this.name
+		//	);
+		//}
+
+		//i = i + 1;
+		//this._index.splice(i, 0, value);
 	},
 
 	/**
@@ -7351,6 +7677,7 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		Walker           : Walker,
 		parse            : parse,
 		Table            : Table,
+		TableIndex       : TableIndex,
 		SERVER           : SERVER,
 		Column           : Column,
 		TableRow         : TableRow,
