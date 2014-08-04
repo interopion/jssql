@@ -28,6 +28,7 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		Walker           : Walker,
 		parse            : parse,
 		Table            : Table,
+		TableIndex       : TableIndex,
 		SERVER           : SERVER,
 		Column           : Column,
 		TableRow         : TableRow,
