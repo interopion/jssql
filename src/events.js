@@ -13,8 +13,9 @@ var events = (function() {
 	function one(eType, handler) 
 	{
 		function fn(data) {
-			handler(data);
-			unbind(eType, handler);
+			var out = handler(data);
+			unbind(eType, fn);
+			return out;
 		} 
 		bind(eType, fn);
 		return fn;
