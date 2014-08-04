@@ -3,6 +3,7 @@ module.exports = function(grunt) {
 	var jsFiles = [
 		'src/constants.js',
 		'src/utils.js',
+		'src/errors.js',
 		'src/events.js',
 		'src/tokenizer.js',
 		'src/Walker.js',
