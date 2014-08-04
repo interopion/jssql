@@ -73,7 +73,7 @@ function strf(s)
 	var args = arguments, 
 		l = args.length, 
 		i = 0;
-	return s.replace(/(%s)/g, function(a, match) {
+	return String(s || "").replace(/(%s)/g, function(a, match) {
 		return ++i > l ? match : args[i];
 	});
 }
