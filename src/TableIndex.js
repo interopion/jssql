@@ -113,6 +113,36 @@ TableIndex.prototype = {
 	},
 
 	/**
+	 * Gets the indexed value for the given row. For multicolumn indexes this 
+	 * is a concatenation of all the column values.
+	 * @param {TableRow|Object} row
+	 * @return {String} 
+	 */
+	getValueForRow : function(row)
+	{
+		var value = "", l = this.columns.length, i;
+
+		if (l === 0)
+			return value;
+
+		if (l === 1)
+			return String(
+				row instanceof TableRow ? 
+				row.getCell(this.columns[0]) :
+				row[this.columns[0]]
+			);
+
+		for ( i = 0; i < l; i++ ) 
+			value.push( 
+				row instanceof TableRow ? 
+				row.getCell(this.columns[i]) :
+				row[this.columns[i]]
+			);
+
+		return value.join("");
+	},
+
+	/**
 	 * Updates the index state to reflect the table contents. The table calls 
 	 * this before INSERT.
 	 * @param {TableRow} row The row that is about to be inserted
@@ -150,9 +180,49 @@ TableIndex.prototype = {
 	 * @param {TableRow} row The row that is about to be updated
 	 * @return void
 	 */
-	beforeUpdate : function(row) 
+	beforeUpdate : function(oldRow, newRow) 
 	{
-		// TODO
+		var oldVal = this.getValueForRow(oldRow),
+			newVal = this.getValueForRow(newRow),
+			oldIdx,
+			newIdx;
+
+		// If there is no change - just exit
+		if ( oldVal === newVal )
+			return;
+
+		oldIdx = binarySearch(this._index, oldVal, TableIndex.compare);
+		newIdx = binarySearch(this._index, newVal, TableIndex.compare);
+
+		// Check for duplacting unique values
+		if (newIdx >= 0 && this.isUnique())
+		{
+			throw new SQLConstraintError(
+				'Constraint "%s" violated. The value must be unique and the ' +
+				'supplied value "%s" already exists.',
+				this.name,
+				newVal
+			);
+		}
+
+		//console.log(
+		//	"old ", oldVal, " -> ", oldIdx, "(", this._index, ")\n",
+		//	"new ", newVal, " -> ", newIdx, "(", this._index, ")"
+		//);
+
+		// Even changed, the new value might still remain on it's current position
+		if (oldIdx === newIdx)
+			return;
+
+		newIdx = newIdx < 0 ? -newIdx - 1 : newIdx + 1;
+
+		this._index.splice(newIdx, 0, newVal); // insert the new key
+
+		// After the new key has been inserted make sure to correct the oldIdx
+		// if needed
+		oldIdx = oldIdx >= newIdx ? oldIdx + 1 : oldIdx;
+
+		this._index.splice(oldIdx, 1); // remove the old key
 	},
 
 	/**
