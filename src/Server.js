@@ -81,6 +81,7 @@ Server.prototype.load = function(onSuccess, onError)
 					db.load(onDatabaseLoad(db), onError);
 				}
 			} else {
+				inst.loaded = true;
 				JSDB.events.dispatch("load:server", inst);
 				onSuccess.call(inst);
 			}
