@@ -128,11 +128,11 @@ Column.prototype = {
 
 	/**
 	 * Sets the key property of the column instance.
-	 * @param {String} key - The type of the key to set. Can be:
+	 * @param {String|Number} key - The type of the key to set. Can be:
 	 * <ul>
-	 *   <li><b>KEY</b> or <b>INDEX</b> to mark the column as indexed</li>
-	 *   <li><b>UNIQUE</b> to mark the column as unique</li>
-	 *   <li><b>PRIMARY</b> to mark the column as primary key</li>
+	 *   <li><b>KEY</b> or <b>INDEX</b> or TableIndex.TYPE_INDEX to mark the column as indexed</li>
+	 *   <li><b>UNIQUE</b> or TableIndex.TYPE_UNIQUE to mark the column as unique</li>
+	 *   <li><b>PRIMARY</b> or TableIndex.TYPE_PRIMARY to mark the column as primary key</li>
 	 * </ul>
 	 * If the argoment does not match any of the above, the key property will 
 	 * be reset back to undefined value.
@@ -140,10 +140,23 @@ Column.prototype = {
 	 */
 	setKey : function(key) 
 	{
-		key = String(key).toUpperCase();
-		if (key == "KEY" || key == "INDEX" || key == "UNIQUE" || key == "PRIMARY") 
+		var keyStr = String(key).toUpperCase();
+
+		if (key === TableIndex.TYPE_INDEX)
 		{
-			this.key = key;
+			this.key = "INDEX";
+		}
+		else if (keyStr == "INDEX" || keyStr == "KEY")
+		{
+			this.key = keyStr;
+		}
+		else if (key === TableIndex.TYPE_UNIQUE || keyStr == "UNIQUE")
+		{
+			this.key = "UNIQUE";
+		}
+		else if (key === TableIndex.TYPE_PRIMARY || keyStr == "PRIMARY") 
+		{
+			this.key = "PRIMARY";
 		} 
 		else 
 		{
