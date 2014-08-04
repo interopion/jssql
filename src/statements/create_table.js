@@ -125,7 +125,7 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			}
 		});
 		query.addConstraint(constraint);
-		console.log("constraint: ", constraint);
+		//console.log("constraint: ", constraint);
 
 		walker.optional({
 			"," : function() {
