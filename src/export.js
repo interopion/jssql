@@ -39,6 +39,11 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		crossJoin        : crossJoin,
 		innerJoin        : innerJoin,
 		crossJoin2       : crossJoin2,
-		executeCondition : executeCondition
+		executeCondition : executeCondition,
+
+		SQLConstraintError : SQLConstraintError,
+		SQLRuntimeError    : SQLRuntimeError,
+		SQLParseError      : SQLParseError
+
 	});
 }
