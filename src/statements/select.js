@@ -674,46 +674,46 @@ STATEMENTS.SELECT = function(walker) {
 		};
 	}
 
-	return function() {
-		
-		var query = {
-			fields : [],
-			tables : []
-		};
-
-		collectFieldRefs(query.fields);
-
-		
-		//console.log("current: ", walker.current()[0]);
-		walker.optional({
-			"FROM" : function() {//console.log("current: ", walker.current()[0]);
-				collectTableRefs(query.tables);
-			}
-		});
-
-		query.where   = walkWhere(); 
-		query.orderBy = walkOrderBy();
-		query.bounds  = walkLimitAndOffset();
-		//console.log("query: ", query);
-		
-		// table -------------------------------------------------------
-		//var //tbl   = tableRef(),
-		//	table = getTable(query.tables[0].table, query.tables[0].database);
-		
-		walker
-		.errorUntil(";")
-		.commit(function() {
-			//execute(query);
+	return new Task({
+		name : "SELECT query",
+		execute : function(done, fail) {//console.log("WALK SELECT");
 			
-			//console.warn(walker._input);
-			var result = execute(query);
-			
-			//console.log("query: ", query, "result: ", result);
+			var query = {
+				fields : [],
+				tables : []
+			};
+			//debugger;
+			collectFieldRefs(query.fields);
 
-			walker.onComplete({
-				cols : result.cols,
-				rows : result.rows
+			
+			//console.log("current: ", walker.current()[0]);
+			walker.optional({
+				"FROM" : function() {//console.log("current: ", walker.current()[0]);
+					collectTableRefs(query.tables);
+				}
 			});
-		});
-	};
+
+			query.where   = walkWhere(); 
+			query.orderBy = walkOrderBy();
+			query.bounds  = walkLimitAndOffset();
+			//console.log("query: ", query);
+			
+			// table -------------------------------------------------------
+			//var //tbl   = tableRef(),
+			//	table = getTable(query.tables[0].table, query.tables[0].database);
+			
+			walker
+			.errorUntil(";")
+			.commit(function() {//console.log("EXEC SELECT");
+				var result = execute(query);
+				done({
+					cols : result.cols,
+					rows : result.rows
+				});
+			});
+		},
+		undo : function(done, fail) {
+			done(); // There is nothing to undo after select
+		}
+	});
 };
