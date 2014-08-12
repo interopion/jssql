@@ -7,29 +7,23 @@
  */
 STATEMENTS.CREATE_TABLE = function(walker) {
 	
-	function walk_createTable()
+	// remember the table name here so that we can undo
+	var tableName;
+
+	function undo(done, fail) 
 	{
-	    var q = new CreateTableQuery();
-	    
-		q.temporary(walker.lookBack(2)[0].toUpperCase() == "TEMPORARY");
-		
-		walker
-		.optional("IF NOT EXISTS", function() {
-			q.ifNotExists(true);
-		})
-		.someType(WORD_OR_STRING, function(token) {
-			q.name(token[0]);
-		})
-		.optional("(", function() {
-			walk_createTableColumns(q);
-		})
-		.nextUntil(";")
-		.commit(function() {
-			//console.log("CreateTableQuery:");
-			//console.dir(q);
-			q.execute();
-			walker.onComplete('Table "' + q.name() + '" created.');
-		});
+		if (tableName) {
+			var db = SERVER.getCurrentDatabase();
+			if (db) {
+				var table = db.tables[tableName];
+				if (table) {
+					fail("Droping tables is not fully implemented yet!");
+				}
+			}
+			SERVER.dropDatabase(dbName, true, done, fail);
+		} else {
+			done();
+		}
 	}
 	
 	function walk_columnTypeParams(type)
@@ -231,5 +225,38 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 		});
 	}
 	
-	return walk_createTable;
+	return new Task({
+		name : "Create Table",
+		execute : function(done, fail) {
+			var q = new CreateTableQuery();
+
+			// Make sure to reset this in case it stores something from 
+			// previous query
+			tableName = null;
+
+			q.temporary(walker.lookBack(2)[0].toUpperCase() == "TEMPORARY");
+			
+			walker
+			.optional("IF NOT EXISTS", function() {
+				q.ifNotExists(true);
+			})
+			.someType(WORD_OR_STRING, function(token) {
+				q.name(token[0]);
+				tableName = q.name();
+			})
+			.optional("(", function() {
+				walk_createTableColumns(q);
+			})
+			.nextUntil(";")
+			.commit(function() {
+				//console.log("CreateTableQuery:");
+				//console.dir(q);
+				q.execute();
+				done('Table "' + q.name() + '" created.');
+			});
+		},
+		undo : function(done, fail) {
+			undo(done, fail);
+		}
+	});
 };
