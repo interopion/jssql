@@ -45,77 +45,79 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 		return out.join(", ");
 	}
 			
-	return function() {
-		var dbName, tableName;
+	return new Task({
+		name : "Show columns",
+		execute : function(done, fail) {
+			var dbName, tableName;
 
-		walker.pick({
-			"FROM|IN" : function() {
-				walker.someType(WORD_OR_STRING, function(token) {
-					tableName = token[0];
+			walker.pick({
+				"FROM|IN" : function() {
+					walker.someType(WORD_OR_STRING, function(token) {
+						tableName = token[0];
+					});
+				}
+			});
+
+			if ( walker.is("FROM|IN") )
+			{
+				walker.forward().someType(WORD_OR_STRING, function(token) {
+					dbName = token[0];
 				});
 			}
-		});
 
-		if ( walker.is("FROM|IN") )
-		{
-			walker.forward().someType(WORD_OR_STRING, function(token) {
-				dbName = token[0];
+			walker.nextUntil(";"); // TODO: Implement LIKE here
+			
+			walker.commit(function() {
+				var database = dbName ? 
+						SERVER.databases[dbName] : 
+						SERVER.getCurrentDatabase(), 
+					table;
+				
+				if (!database) {
+					if ( dbName ) {
+						return fail(new SQLRuntimeError('No such database "%s"', dbName));
+					} else {
+						return fail(new SQLRuntimeError('No database selected'));
+					}
+				}
+				
+				table = database.tables[tableName];
+
+				if (!table)
+				{
+					return fail(new SQLRuntimeError(
+						'No such table "%s" in databse "%s"',
+						tableName,
+						database.name
+					));
+				}
+				
+				var result = {
+					cols : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
+					rows : []
+				};
+				
+				each(table.cols, function(col) {
+					var meta = col.toJSON(); //console.log("meta: ", meta);
+					result.rows.push([
+						meta.name,
+						col.typeToSQL(),
+						meta.nullable ? "YES" : "NO",
+						meta.key,
+						typeof meta.defaultValue == "string" ? 
+							quote(meta.defaultValue, "'") : 
+							meta.defaultValue === undefined ?
+								'none' : 
+								meta.defaultValue,
+						getExtrasList(meta)
+					]);
+				});	
+
+				done(result);
 			});
+		},
+		undo : function(done, fail) {
+			done(); // Nothing to undo here....
 		}
-
-		walker.nextUntil(";"); // TODO: Implement LIKE here
-		
-		walker.commit(function() {
-			var database = dbName ? 
-					SERVER.databases[dbName] : 
-					SERVER.getCurrentDatabase(), 
-				table;
-			
-			if (!database) 
-			{
-				if ( dbName )
-				{
-					throw new SQLRuntimeError('No such database "%s"', dbName);
-				}
-				else 
-				{
-					throw new SQLRuntimeError('No database selected');
-				}
-			}
-			
-			table = database.tables[tableName];
-
-			if (!table)
-			{
-				throw new SQLRuntimeError(
-					'No such table "%s" in databse "%s"',
-					tableName,
-					database.name
-				);
-			}
-			
-			var result = {
-				cols : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
-				rows : []
-			};
-			
-			each(table.cols, function(col) {
-				var meta = col.toJSON(); //console.log("meta: ", meta);
-				result.rows.push([
-					meta.name,
-					col.typeToSQL(),
-					meta.nullable ? "YES" : "NO",
-					meta.key,
-					typeof meta.defaultValue == "string" ? 
-						quote(meta.defaultValue, "'") : 
-						meta.defaultValue === undefined ?
-							'none' : 
-							meta.defaultValue,
-					getExtrasList(meta)
-				]);
-			});	
-
-			walker.onComplete(result);
-		});
-	};
+	});
 };
