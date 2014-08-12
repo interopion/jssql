@@ -6,15 +6,35 @@
  * @return {void}
  */
 STATEMENTS.USE = function(walker) {
-	return function() {
-		var dbName;
-		walker.someType(WORD_OR_STRING, function(token) {
-			dbName = token[0];
-		})
-		.errorUntil(";")
-		.commit(function() {
-			SERVER.setCurrentDatabase(dbName);
-			walker.onComplete('Database "' + dbName + '" selected.');
-		});
-	};
+	
+	// Remember the last used DB here so that we can undo
+	var lastUsedDB = SERVER.getCurrentDatabase();
+
+	function undo(done, fail) {
+		if (lastUsedDB) 
+			SERVER.setCurrentDatabase(lastUsedDB.name);
+		done('Current database restored to "' + lastUsedDB.name + '".');
+	}
+	
+	return new Task({
+		name : "Use database",
+		execute : function(done, fail) {
+			var dbName;
+			walker.someType(WORD_OR_STRING, function(token) {
+				dbName = token[0];
+			})
+			.errorUntil(";")
+			.commit(function() {
+				try {
+					SERVER.setCurrentDatabase(dbName);
+					lastUsedDB = SERVER.getCurrentDatabase();
+					done('Database "' + dbName + '" selected.');
+				} catch (err) {
+					fail(err);
+					undo(done, fail);
+				}
+			});
+		},
+		undo : undo
+	});
 };
