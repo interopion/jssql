@@ -139,7 +139,7 @@
             table {
             	border : 1px solid #666;
             	border-spacing:0;
-            	margin: 1ex 0 1em;
+            	margin: 1em 0 1ex;
                 table-layout: fixed;
             }
             td, th {
@@ -192,42 +192,6 @@
                 historyPos = 0,
                 $in        = $("#in"),
                 $out       = $("#out");
-
-			function table(data) 
-            {
-                console.log(data);
-				var html = ['<table><thead><tr>'], 
-                    colLen = data.cols.length,
-                    i, y, c, x;
-
-				for (i = 0; i < colLen; i++) 
-                {
-					html.push('<th>', data.cols[i], '</th>');
-				}
-				
-                html.push('</tr></thead><tbody>');
-				
-                $.each(data.rows, function(key, row) {
-					
-                	html.push('<tr>');
-
-                    for ( i = 0; i < colLen; i++ ) 
-                    {
-                        v = row[data.cols[i]];
-                        html.push(
-                            '<td>', 
-                            v === undefined ? '' : String(v), 
-                            '</td>'
-                        );
-                    }
-					
-					html.push('</tr>');
-				});
-
-				html.push('</tbody></table>');
-				
-                return '<p>' + data.rows.length + " rows:</p>" + html.join("");
-			}
 			
             loadState();
 
@@ -314,10 +278,13 @@
                 setTimeout(resizeUI, 0);
             }
 
-            function showError(e) {
+            function showError(e, i) {
             	$out.append(
                     $('<div class="old-output error"/>')
-                    .html('<b style="color:#666">' + e.name + ':</b> ' + e.message)
+                    .html(
+                        'Query ' + ((i || 0) + 1) + ': ' + 
+                        '<b style="color:#666">' + e.name + ':</b> ' + e.message
+                    )
                 );
                 if (e.stack && e.name.indexOf("SQL") == -1) {
                     $out.append(
@@ -330,38 +297,49 @@
                 }
             }
 			
-			function onError(e) {
-            	//$out.append(
-            	//	$('<code class="prettyprint old-input lang-sql"/>')
-            	//		.text(input)
-            	//);
-                //PR.prettyPrint("out");
-                showError(e);
+			function onError(e, i) {
+                showError(e, i);
             	$in.removeClass("waiting").trigger("input").trigger("focus");
             }
             
-            function onSuccess(result) {
-                if (result.type === JSDB.Result.TYPE_ARRAY ||
-                    result.type === JSDB.Result.TYPE_SET) 
-                {
-                    $out.append(result.toHTML());
-                    /*$out.append('<br><br>');
-                    $out.append(result.toJSONString(4));
-                    $out.append('<br><br>');
-                    $out.append(result.toCSV());
-                    $out.append('<br><br>');
-                    $out.append(
-                        result.toXML("\t")
-                            .replace(/&/g, "&amp;")
-                            .replace(/</g, "&lt;")
-                            .replace(/>/g, "&gt;")
-                            .replace(/"/g, "&quot;")
-                    );*/
-                }
+            function onSuccess(result, queryIndex) {console.log("result: ", result);
+                //if (results.length === 1) {
+                //    var result = results[0];
+                
+                    if (result.type === JSDB.Result.TYPE_ARRAY ||
+                        result.type === JSDB.Result.TYPE_SET) 
+                    {
+                        $out.append(result.toHTML());
+                        /*$out.append('<br><br>');
+                        $out.append(result.toJSONString(4));
+                        $out.append('<br><br>');
+                        $out.append(result.toCSV());
+                        $out.append('<br><br>');
+                        $out.append(
+                            result.toXML("\t")
+                                .replace(/&/g, "&amp;")
+                                .replace(/</g, "&lt;")
+                                .replace(/>/g, "&gt;")
+                                .replace(/"/g, "&quot;")
+                        );*/
+                    }
 
-                $out.append('<br>');
-                $out.append(result.getMessage());
-                $out.append('<br><br>');
+                    $out.append(
+                        '<div>Query ' + (queryIndex + 1) + ": " +
+                        result.getMessage() + '</div>'
+                    );
+                //} else {
+                //    var time = 0;
+                //    $.each(results, function(i, r) {
+                //        time += r.time;
+                //    });
+                //    $out.append(
+                //        '<br>' + results.length + ' queries executed in ' + 
+                //        time + 'ms (total time).'
+                //    );
+                //}
+                //$out.append('<br><br>');
+                //$out.append('<br>');
                 PR.prettyPrint("out");
                 $in.removeClass("waiting").trigger("input").trigger("focus");
             }
