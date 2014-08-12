@@ -29,39 +29,37 @@
  */
 STATEMENTS.SHOW_TABLES = function(walker) 
 {
-	return function() 
-	{
-		var db = SERVER.getCurrentDatabase(), dbName;
+	return new Task({
+		name : "Show tables",
+		execute : function(done, fail) {
+			var db = SERVER.getCurrentDatabase(), dbName;
 
-		if ( walker.is("FROM|IN") ) 
-		{
-			walker.forward();
-			walker.someType(WORD_OR_STRING, function(token) {
-				dbName = token[0];
-				db = SERVER.databases[dbName];
-			});
-		}
-		
-		walker.nextUntil(";").commit(function() {
-			if (!db) 
+			if ( walker.is("FROM|IN") ) 
 			{
-				if (dbName)
-				{
-					throw new SQLRuntimeError(
-						'No such database "%s"',
-						dbName
-					);
-				}
-				else
-				{
-					throw new SQLRuntimeError('No database selected');
-				}
+				walker.forward();
+				walker.someType(WORD_OR_STRING, function(token) {
+					dbName = token[0];
+					db = SERVER.databases[dbName];
+				});
 			}
-
-			walker.onComplete({
-				cols : ['Tables in database "' + db.name + '"'],
-				rows : keys(db.tables).map(makeArray)
+			
+			walker.nextUntil(";").commit(function() {
+				if (!db) {
+					if (dbName) {
+						fail(new SQLRuntimeError('No such database "%s"', dbName));
+					} else {
+						fail(new SQLRuntimeError('No database selected'));
+					}
+				} else {
+					done({
+						cols : ['Tables in database "' + db.name + '"'],
+						rows : keys(db.tables).map(makeArray)
+					});
+				}
 			});
-		});
-	};
+		},
+		undo : function(done, fail) {
+			done();// Nothing to undo here...
+		}
+	});
 };
