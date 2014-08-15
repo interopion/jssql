@@ -313,7 +313,7 @@ NumericColumn.prototype.init = function(options)
 	
 	if ( isArray(options.type.params) && options.type.params.length > 0 ) {
 		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];	
+		this.typeParams = [this.length];
 	}
 	
 	this.setAutoIncrement(options.autoIncrement);

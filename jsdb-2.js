@@ -247,7 +247,7 @@ function strf(s)
 	var args = arguments, 
 		l = args.length, 
 		i = 0;
-	return s.replace(/(%s)/g, function(a, match) {
+	return String(s || "").replace(/(%s)/g, function(a, match) {
 		return ++i > l ? match : args[i];
 	});
 }
@@ -722,13 +722,13 @@ function mixin()
 			{
 				tmp = b[key];
 				if ( tmp && typeof tmp == "object" ) {
-					a[key] = mixin(isArray(tmp) ? [] : {}, tmp);
+					a[key] = mixin(isArray(tmp) ? [] : {}, a[key], tmp);
 				} else {
 					a[key] = tmp;
 				}
 			}
 		} 
-		else 
+		else if (b && typeof b == "object")
 		{
 			for ( key in b ) 
 			{
@@ -736,7 +736,7 @@ function mixin()
 				{
 					tmp = b[key];
 					if ( tmp && typeof tmp == "object" ) {
-						a[key] = mixin(isArray(tmp) ? [] : {}, tmp);
+						a[key] = mixin(isArray(tmp) ? [] : {}, a[key], tmp);
 					} else {
 						a[key] = tmp;
 					}
@@ -1295,32 +1295,143 @@ function innerJoin(tables, filter)
 
 
 // -----------------------------------------------------------------------------
+// Starts file "src/errors.js"
+// -----------------------------------------------------------------------------
+/**
+ * Factory function for creating custom error classes
+ */
+function createErrorClass(name, defaultsMessage)
+{
+	var F = function()
+	{
+		this.name    = name;
+		this.message = strf.apply(
+			this, 
+			arguments.length ? arguments : [defaultsMessage || "Unknown error"]
+		);
+	};
+
+	F.prototype = new Error();
+	F.prototype.constructor = F;
+	return F;
+}
+
+/**
+ * The base class for custom errors.
+ * @constructor
+ * @extends {Error}
+ * @param {String} message - The error message. Defaults to "Unknown error". 
+ * The message, along with any other following arguments will be 
+ * passed to the {@link strf strf function}
+ */
+var CustomError = createErrorClass("CustomError");
+
+/**
+ * @constructor
+ * @extends {Error}
+ * @param {String} message - The error message. Defaults to "Error while parsing
+ * sql query". The message, along with any other following arguments will be 
+ * passed to the {@link strf strf function}
+ */
+var SQLParseError = createErrorClass("SQLParseError", "Error while parsing sql query");
+
+/**
+ * @constructor
+ * @extends {Error}
+ * @param {String} message - The error message. Defaults to "Error while parsing
+ * sql query". The message, along with any other following arguments will be 
+ * passed to the {@link strf strf function}
+ */
+var SQLRuntimeError = createErrorClass("SQLRuntimeError", "Error while executing sql query");
+
+/**
+ * @constructor
+ * @extends {Error}
+ * @param {String} message - The error message. Defaults to "SQL constraint 
+ * violation". The message, along with any other following arguments will be 
+ * passed to the {@link strf strf function}
+ */
+var SQLConstraintError = createErrorClass("SQLConstraintError", "SQL constraint violation");
+
+
+
+// -----------------------------------------------------------------------------
 // Starts file "src/events.js"
 // -----------------------------------------------------------------------------
-var events = (function() {
+/**
+ * The event system
+ * @namespace events
+ * @type {Object}
+ */
+function Observer() {
 	
 	var listeners = {};
 
+	function returnFalse()
+	{
+		return false;
+	}
+
+	/**
+	 * Adds an event listener
+	 * @param {String} eType The event type to listen for
+	 * @param {Function|Boolean} handler The function to be invoked. Can also be 
+	 * a falsy value which will be internally converted to a function that 
+	 * returns false.
+	 * @return {Function} The bound event handler
+	 */
 	function bind(eType, handler) 
 	{
+		if (handler === false)
+			handler = returnFalse;
+
 		if (!listeners[eType])
 			listeners[eType] = [];
+		
 		listeners[eType].push(handler);
 		return handler;
 	}
 
+	/**
+	 * Adds an event listener that removes itself after the first call to it
+	 * @param {String} eType The event type to listen for
+	 * @param {Function|Boolean} handler The function to be invoked. Can also be 
+	 * a falsy value which will be internally converted to a function that 
+	 * returns false.
+	 * @return {Function} The bound event handler
+	 */
 	function one(eType, handler) 
 	{
+		if (handler === false)
+			handler = returnFalse;
+
 		function fn(data) {
-			handler(data);
-			unbind(eType, handler);
-		} 
+			var out = handler(data);
+			unbind(eType, fn);
+			return out;
+		}
+
 		bind(eType, fn);
 		return fn;
 	}
 
+	/**
+	 * Removes event listener(s)
+	 * 1. If the method is called with no arguments removes everything.
+	 * 2. If the method is called with one argument removes everything for that
+	 *    event type.
+	 * 3. If the method is called with two arguments removes the specified 
+	 *    handler from the specified event type.
+	 * @param {String} eType The event type
+	 * @param {Function|Boolean} handler The function to be removed. Can also be 
+	 * a false to remove the generic "returnFalse" listeners.
+	 * @return {void}
+	 */
 	function unbind(eType, handler) 
 	{
+		if (handler === false)
+			handler = returnFalse;
+
 		if (!eType) {
 			listeners = {};
 		} else if (!handler) {
@@ -1335,33 +1446,35 @@ var events = (function() {
 		}
 	}
 
-	function dispatch(e, data) 
+	this.dispatch = function(e, data) 
 	{
 		var handlers = listeners[e] || [], 
 			l = handlers.length, 
 			i, 
-			canceled = false;
+			canceled = false,
+			args = Array.prototype.slice.call(arguments, 1);
 
 		//console.info("dispatch: ", e, data);
 
 		for (i = 0; i < l; i++) {
-			if (handlers[i](data) === false) {
+			if (handlers[i].apply(this, args) === false) {
 				canceled = true; 
 				break;
 			}
 		}
 
 		return !canceled;
-	}
-
-	return {
-		dispatch : dispatch,
-		bind     : bind,
-		unbind   : unbind,
-		one      : one
 	};
 
-})();
+	this.bind     = bind;
+	this.unbind   = unbind;
+	this.one      = one;
+	this.on       = bind;
+	this.off      = unbind;
+
+}
+
+var events = new Observer();
 
 // -----------------------------------------------------------------------------
 // Starts file "src/tokenizer.js"
@@ -1509,15 +1622,16 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 				}
 				else 
 				{
-					// Should we close a multi-line comment or jus append to it?
+					// Should we close a multi-line comment or just append to it?
 					if (state === TOKEN_TYPE_MULTI_COMMENT) 
 					{
 						buf += cur;
-						if (sql[pos - 1] == "*") 
+						pos++;
+						if (sql[pos - 2] == "*") 
 						{
 							if (buf) commit(); // close
 						}
-						pos++;
+						
 					}
 					else
 					{
@@ -1918,29 +2032,45 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 function Walker(tokens, input)
 {
 	/**
-	 * The current position in the tokens array
-	 * @type {Number}
-	 * @private
-	 */
-	this._pos = 0;
-	
-	/**
 	 * The tokens array
 	 * @type {Array}
 	 * @private
 	 */
-	this._tokens = tokens;
+	this._tokens = [];
+
+	this.init(tokens, input);
+}
+
+Walker.prototype = {
+	
+	/**
+	 * The current position in the tokens array
+	 * @type {Number}
+	 * @private
+	 */
+	_pos : 0,
 
 	/**
 	 * The input string that has been used to produce the tokens array
 	 * @type {String}
 	 * @private
 	 */
-	this._input = input;
-}
+	_input : "",
 
-Walker.prototype = {
-	
+	/**
+	 * (Re)sets the instance to it's initial state. This allows single instance
+	 * to be reused for different inputs.
+	 * @param {Array} tokens
+ 	 * @param {String} input
+ 	 * @return {Walker} Returns the instance
+	 */
+	init : function(tokens, input)
+	{
+		this._pos = 0;
+		this._tokens = tokens || [];
+		this._input = input || "";
+	},
+
 	/**
 	 * Moves the position pointer n steps back.
 	 * @param {Number} n Optional, defaults to 1.
@@ -2103,9 +2233,10 @@ Walker.prototype = {
 			}
 			
 			throw new SQLParseError(
-				'You have an error after %s. Expecting %s.', 
+				'You have an error after %s. Expecting %s. The query was %s', 
 				prev,
-				arg
+				arg,
+				this._input
 			);
 		}
 	},
@@ -2168,9 +2299,10 @@ Walker.prototype = {
 			}
 			
 			throw new SQLParseError(
-				'Expecting: %s after "%s"', 
+				'Expecting: %s after "%s". The query was %s', 
 				prettyList(keys),
-				prev
+				prev,
+				this._input
 			);
 		}
 		return this;
@@ -2198,7 +2330,7 @@ Walker.prototype = {
 		if (onError)
 			onError(token);
 		
-		throw new SQLParseError( 'Expecting: %s', prettyList(options) );
+		throw new SQLParseError( 'Expecting: %s. The query was %s', prettyList(options), this._input );
 	},
 	
 	pick : function(options) 
@@ -2235,7 +2367,7 @@ Walker.prototype = {
 				}
 				if (i > 0) {
 					throw new SQLParseError(
-						'Expecting "%s" after "%s".', search[i], ahead[i - 1]
+						'Expecting "%s" after "%s". The query was %s', search[i], ahead[i - 1], inst._input
 					);
 				}
 			}
@@ -2296,9 +2428,10 @@ Walker.prototype = {
 				}
 			}
 			throw new SQLParseError(
-				'Expecting: %s %s',
+				'Expecting: %s %s. The query was %s',
 				prettyList(keys),
-				expectation || ""
+				expectation || "",
+				this._input
 			);
 		}
 		return this;
@@ -2365,7 +2498,7 @@ Walker.prototype = {
 		while ( !this.is(value) ) 
 		{
 			if ( callback )
-				callback( this.current() );
+				callback.call( this, this.current() );
 			if ( !this.next() )
 				break;
 		}
@@ -2376,9 +2509,10 @@ Walker.prototype = {
 	errorUntil : function(value) { 
 		return this.nextUntil(value, function(token) {
 			throw new SQLParseError(
-				'Unexpected %s "%s".', 
+				'Unexpected %s "%s". The query was %s', 
 				TOKEN_TYPE_MAP[token[1]],
-				token[0]
+				token[0],
+				this._input
 			);
 		}); 
 	},
@@ -2435,10 +2569,11 @@ Walker.prototype = {
 		}
 		
 		throw new SQLParseError(
-			'Unexpected %s "%s". Expecting %s.',
+			'Unexpected %s "%s". Expecting %s. The query was %s',
 			TOKEN_TYPE_MAP[token[1]],
 			token[0],
-			prettyList(expecting)
+			prettyList(expecting),
+			this._input
 		);
 	},
 
@@ -2448,7 +2583,7 @@ Walker.prototype = {
 			walker = this;
 		
 		if (token[0] == ",") {
-			throw new SQLParseError('Unexpected ","');
+			throw new SQLParseError('Unexpected ",". The query was %s', this._input);
 		}
 		
 		this._pos++;
@@ -2472,7 +2607,7 @@ Walker.prototype = {
 			"(" : function() {
 				var token = walker._tokens[walker._pos];
 				if (token[0] == ",") {
-					throw new SQLParseError('Unexpected ","');
+					throw new SQLParseError('Unexpected ",". The query was %s', walker._input);
 				}
 
 				walker.commaSeparatedList(onItem);
@@ -2489,8 +2624,9 @@ Walker.prototype = {
 						prev = prev.replace(/\n/, "");
 					}
 					throw new SQLParseError(
-						prev ? 'Expecting ")" after %s' : 'Expecting ")"',
-						prev
+						'Expecting ")" after %s. The query was %s',
+						prev || "the start of the query",
+						walker._input
 					);
 				}
 
@@ -2595,6 +2731,604 @@ BinaryTreeNode.prototype = {
 };
 
 // -----------------------------------------------------------------------------
+// Starts file "src/Transaction.js"
+// -----------------------------------------------------------------------------
+/**
+ * Class Transaction
+ * @classdesc Creates transaction objects which can be started, stopped and 
+ * rolled back (undone). All the tasks inside the transaction queue are executed
+ * asynchronously. There is a rich set of event callbacks available, as well as 
+ * ability to observe the execution progress.
+ * @param {Object}   options Optional configuration options.
+ * @param {Function} options.onComplete Optional. The callback function to be
+ *		invoked when the transaction is complete. The function will be called
+ * 		with no arguments.
+ * @param {Function} options.onRollback Optional. The callback function to be
+ *		invoked when the transaction has been rolled back. The function will be
+ *		called with the last error message as argument.
+ * @param {Function} options.onError Optional. The callback function to be
+ *		invoked when there is an error. The function will be
+ *		called with the last error message as argument.
+ * @param {Function} options.beforeTask Optional. 
+ * @param {Function} options.afterTask Optional. 
+ * @param {Function} options.beforeUndo Optional. 
+ * @param {Function} options.afterUndo Optional. 
+ * @param {Function} options.onProgress Optional. 
+ * @param {Number} options.delay Optional. The number of milliseconds to wait 
+ * 		before calling the next task in the queue. Defaults to 0.
+ * @param {Number} options.timeout Optional. The number of milliseconds to wait 
+ * 		for the current task to complete. If this time is exceeded the 
+ *		transaction is aborted. Defaults to 1000 (one second).
+ * @param {String} options.name Optional. The name of the transaction (to be 
+ *		used for logging to identify the current transaction in case it is 
+ * 		nested in another one...)
+ * @param {Boolean} options.autoRollback Optional.
+ * @param {Boolean} options.reqursiveRollback Optional. By default rolling back
+ *		a nested transaction will also rollback it's parent transaction. Set 
+ *		this to false to turn off this behavior.
+ * 
+ * The instance emits the following events:
+ * <ul>
+ *   <li>reset                    - after the instance has been reset</li>
+ *   <li>error(error)             - on error</li>
+ *   <li>before:task([task, pos]) - before a task is executed</li>
+ *   <li>after:task([task, pos])  - after a task has been executed</li>
+ *   <li>progress([q, task, pos]) - after a task has been executed or undone</li>
+ *   <li>complete</li>
+ *   <li>rollback(error)</li>
+ *   <li>before:undo([task, pos])</li>
+ *   <li>after:undo([task, pos])</li>
+ * </ul>
+ * @constructor
+ */
+function Transaction(options) 
+{
+	var 
+
+	config = mixin({
+		//onComplete   : noop,
+		//onRollback   : noop, // args: lastError
+		//onError      : noop, // args: Error error|String error message
+		//beforeTask   : noop, // args: task, pos
+		//afterTask    : noop, // args: task, pos
+		beforeUndo   : noop, // args: task, pos
+		afterUndo    : noop, // args: task, pos
+		onProgress   : noop, // args: q, task, pos
+		timeout      : 1000, // For any single task
+		delay        : 0,
+		name         : "Anonymous transaction",
+		autoRollback : true
+	}, options),
+
+	/**
+	 * Local reference to the instance
+	 * @type {Transaction}
+	 */
+	inst = this,
+
+	/**
+	 * The task queue
+	 * @type {Array}
+	 * @private
+	 */
+	tasks = [],
+
+	/**
+	 * The length of the task queue
+	 * @type {Number}
+	 * @private
+	 */
+	length = 0,
+
+	/**
+	 * The current position within the task queue. The initial value is -1 which
+	 * means that the transaction has not been started.
+	 * @type {Number}
+	 * @private
+	 */
+	position = -1,
+	
+	/**
+	 * The timeout that executes the current task
+	 * @private
+	 */
+	timer = null,
+	
+	/**
+	 * The delay timeout
+	 * @private
+	 */
+	delay = null,
+
+	/**
+	 * The total weight of the transaction. This is computed as the sum of the
+	 * weights of all the tasks. Each task might define it's own weight. 
+	 * Otherwise 1 is used for the task.
+	 * @type {Number}
+	 * @private
+	 */ 
+	weight = 0,
+	
+	/**
+	 * Contains the last error message (if any). Defaults to an empty string.
+	 * @type {String}
+	 * @private
+	 */
+	lastError = "",
+
+	/**
+	 * The transaction observer
+	 * @type {Object}
+	 * @private
+	 */
+	events = new Observer();
+
+	if (isFunction(config.onComplete))
+		events.on("complete", config.onComplete);
+	if (isFunction(config.onRollback))
+		events.on("rollback", config.onRollback);
+	if (isFunction(config.onError))
+		events.on("error", config.onError);
+	if (isFunction(config.beforeTask))
+		events.on("before:task", config.beforeTask);
+	if (isFunction(config.afterTask))
+		events.on("after:task", config.afterTask);
+
+	function destroy()
+	{
+		reset(true);
+		events.off();
+	}
+
+	/**
+	 * Resets the transaction
+	 * @throws {Error} if the transaction is currently running
+	 * @return {void}
+	 */
+	function reset(silent) 
+	{
+		if (isStarted() && !isComplete()) 
+			throw new Error("Cannot reset a transacion while it is runing");
+		
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
+		
+		tasks     = [];
+		length    = 0;
+		position  = -1;
+		timer     = null;
+		weight    = 0;
+		lastError = "";
+
+		if (!silent)
+			events.dispatch("reset");
+	}
+
+	/**
+	 * Calculates and returns the current position as a floating point number.
+	 * This tipically represents ho many of the available tasks are complete,
+	 * but can also be more complicated because each task can have it's own 
+	 * weight defined which affects this number.
+	 * @return {Number}
+	 */
+	function getProgress() 
+	{
+		var cur = 0, i;
+		for (i = 0; i <= position; i++) {
+			cur += tasks[i].weight || 1;
+		}
+		return cur / weight;
+	}
+
+	/**
+	 * Checks if the transaction has been started
+	 * @return {Boolean}
+	 */
+	function isStarted() 
+	{
+		return position > -1;
+	}
+
+	/**
+	 * Checks if the transaction is empty
+	 * @return {Boolean}
+	 */
+	function isEmpty() 
+	{
+		return length === 0;
+	}
+
+	/**
+	 * Checks if the transaction is complete
+	 * @return {Boolean}
+	 */
+	function isComplete() 
+	{
+		return !isEmpty() && position === length - 1;
+	}
+	
+	/**
+	 * Appends new task to the transaction queue.
+	 * @param {Task|Transaction} task The task or sub-transaction to 
+	 * 		add to the queue
+	 * @throws {Error} If the transaction has already been started
+	 * @return {void}
+	 * @todo Allow for adding Transaction objects to create nested transactions
+	 */
+	function add(task) 
+	{
+		//if (isStarted()) 
+		//	throw "The transaction has already ran";
+
+		// Add nested transaction. In this case create new generic task that 
+		// wraps the entire nested transaction
+		if (task && task instanceof Transaction)
+		{
+			var tx = task;
+			
+			task = Transaction.createTask({
+				name : "Nested transaction",
+				execute : function(done, fail) 
+				{
+					tx.on("complete", done);
+					tx.on("error", fail);
+					tx.start();
+				},
+				undo : function(done) 
+				{
+					tx.on("rollback", done);
+					tx.rollback();
+				}
+			});
+
+			tx.parentTransaction = inst;
+
+			weight += tx.getWeight();
+		}
+		else
+		{
+			weight += task.weight || 1;
+			if (inst.parentTransaction) {
+				inst.parentTransaction.setWeight(
+					inst.parentTransaction.getWeight() + (task.weight || 1)
+				);
+			}
+		}
+
+		task.transaction = inst;
+		length = tasks.push(task);
+		task.name += " (at position " + length + ")";
+	}
+
+	/**
+	 * The function that attempts to invoke the next task in the queue
+	 */
+	function next(callerPosition) 
+	{
+		// clear times if needed
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
+
+		// Such a call might come from within a task that has already been 
+		// "outdated" due to timeout
+		if (callerPosition !== undefined && callerPosition !== position) {
+			return;
+		}
+
+		if (!isComplete() && !isEmpty()) {
+			(function worker(task, pos) {
+				var _timeout = "timeout" in task ? task.timeout : config.timeout;
+				
+				if ( _timeout > 0 ) {
+					timer = setTimeout(function() {
+						lastError = "Task '" + task.name + "' timed out!.";
+						events.dispatch("error", lastError);
+						if (config.autoRollback) 
+							undo(pos);
+					}, _timeout + config.delay);
+				}
+
+				try {
+					events.dispatch("before:task", task, pos);
+					task.execute(
+						function() {
+							if (pos === position) {
+								events.dispatch("progress", getProgress(), task, pos);
+								config.onProgress(getProgress(), task, pos);
+								events.dispatch("after:task", task, pos);
+								delay = setTimeout(next, config.delay);
+								//next();
+							} 
+						}, 
+						function(e) {
+							if (pos === position) {
+								lastError = e || "Task '" + task.name + "' failed.";
+								events.dispatch("error", lastError);
+								if (config.autoRollback) 
+									undo(pos);
+							}
+						}
+					);
+				} catch (ex) {
+					events.dispatch("error", ex);
+					if (config.autoRollback) 
+						undo(pos);
+				}
+			})(tasks[++position], position);
+		} else {
+			events.dispatch("complete");
+		}
+	}
+
+	/**
+	 * Undoes all the completed actions on failure.
+	 * @return {void}
+	 */
+	function undo(callerPosition) {
+		if (timer) 
+			clearTimeout(timer);
+
+		if (delay) 
+			clearTimeout(delay);
+		
+		// Such a call might come from within a task that has already been 
+		// "outdated" due to timeout
+		if (callerPosition !== undefined && callerPosition !== position) {
+			return;
+		}
+
+		if (position < 0) {
+			events.dispatch("rollback", lastError);
+		} else {
+			try {
+				var task = tasks[position--];
+				events.dispatch("before:undo", task, position + 1);
+				config.beforeUndo(task, position + 1);
+				task.undo(function() {
+					events.dispatch("progress", getProgress(), task, position + 1);
+					config.onProgress(getProgress(), task, position + 1);
+					events.dispatch("after:undo", task, position + 1);
+					config.afterUndo(task, position + 1);
+					undo();
+				}, function(error) {
+					events.dispatch("progress", getProgress(), task, position + 1);
+					config.onProgress(getProgress(), task, position + 1);
+					events.dispatch("after:undo", task, position + 1);
+					config.afterUndo(task, position + 1);
+					events.dispatch("error", error || "Task '" + task.name + "' failed to undo");
+					undo();
+				});
+			} catch (ex) {
+				events.dispatch("error", ex);
+				undo();
+			}
+		}
+	}
+
+	// Instance methods --------------------------------------------------------
+	
+	this.bind   = events.bind;
+	this.on     = events.on;
+	this.one    = events.one;
+	this.unbind = events.unbind;
+	this.off    = events.off;
+
+	/**
+	 * Returns the length of the task queue
+	 * @return {Number}
+	 */
+	this.getLength = function()
+	{
+		return length;
+	};
+
+	/**
+	 * Returns the weight of the transaction which is the sum of all task weights
+	 * @return {Number}
+	 */
+	this.getWeight = function()
+	{
+		return weight;
+	};
+
+	this.setWeight = function(w)
+	{
+		weight = w;
+	};
+
+	/**
+	 * Starts the transaction. Only non-empty, not started and not running 
+	 * transaction can be started. Otherwise an Exception is thrown.
+	 * @throws {Error}
+	 * @return {void}
+	 */
+	this.start = function() 
+	{
+		//if (isEmpty()) 
+		//	throw new Error("The transaction has no tasks");
+		if (isComplete()) 
+			throw new Error("The transaction is already complete");
+		if (isStarted()) 
+			throw new Error("The transaction is already running");
+		
+		events.dispatch("start");
+		next();
+	};
+
+	/**
+	 * Resets the transaction
+	 * @throws {Error} if the transaction is currently running
+	 * @return {void}
+	 * @method reset
+	 * @memberof Transaction.prototype
+	 */
+	this.reset = reset;
+
+	this.destroy = destroy;
+
+	/**
+	 * Appends new task to the transaction queue.
+	 * @param {Task} task The task to add
+	 * @throws {Error} If the transaction has already been started
+	 * @return {void}
+	 * @method add
+	 * @memberof Transaction.prototype
+	 */
+	this.add = add;
+
+	/**
+	 * Undoes all the completed actions on failure.
+	 * @return {void}
+	 * @method rollback
+	 * @memberof Transaction.prototype
+	 */
+	this.rollback = undo;
+
+	/**
+	 * Checks if the transaction has been started
+	 * @return {Boolean}
+	 * @method isStarted
+	 * @memberof Transaction.prototype
+	 */
+	this.isStarted = isStarted;
+
+	/**
+	 * Checks if the transaction is complete
+	 * @return {Boolean}
+	 * @method isComplete
+	 * @memberof Transaction.prototype
+	 */
+	this.isComplete = isComplete;
+	
+	/**
+	 * Checks if the transaction is empty
+	 * @return {Boolean}
+	 * @method isEmpty
+	 * @memberof Transaction.prototype
+	 */
+	this.isEmpty = isEmpty;
+
+	/**
+	 * Calculates and returns the current position as a floating point 
+	 * number. This tipically represents ho many of the available tasks are 
+	 * complete, but can also be more complicated because each task can have 
+	 * it's own weight defined which affects this number.
+	 * @return {Number}
+	 * @method getProgress
+	 * @memberof Transaction.prototype
+	 */
+	this.getProgress = getProgress;
+
+	/**
+	 * Set the value of the configuration option identified by name
+	 * @param {String} name The name of the option
+	 * @param {*} value The new value for the option
+	 * @return {Transaction} Returns the instance.
+	 */
+	this.setOption = function(name, value)
+	{
+		config[name] = value;
+		return this;
+	};
+
+	/**
+	 * Get the value of the configuration option identified by name
+	 * @param {String} name The name of the option
+	 * @return {*} Returns the option value or undefined if the option does not
+	 *		exist.
+	 */
+	this.getOption = function(name)
+	{
+		return config[name];
+	};
+
+	this.next = next;
+
+	this.setTaskProgress = function(q) {
+		if (position > -1) {
+			var task = tasks[position];
+			config.onProgress(
+				getProgress() - (1 - q) * (task.weight || 1) / weight, 
+				task, 
+				position
+			);
+		}
+	};
+}
+
+/**
+ * Creates new transaction tasks
+ * @see Task
+ * @static
+ */
+Transaction.createTask = function(options) {
+	return new Task(options);
+};
+
+/**
+ * @classdesc The Task class can be used to create Tasks suitable for
+ * adding into transactions. The user is only required to provide "execute" and
+ * and "undo" implementations. However additional properties might be defined:
+ * @param {Object} options
+ * @param {String} options.name Optional. The name of the task. Defaults to 
+ *		"Anonymous task".
+ * @param {Number} options.timeout Optional. The timeout for the task. If not
+ *		provided, the global timeout option of the transaction will be used.
+ * @param {Function} options.execute The function that will be invoked as the 
+ * 		task worker. If this is not provided, an empty function is used and a 
+ * 		warning is generated to the console.
+ * @constructor
+ */
+function Task(options) 
+{
+	mixin(this, options);
+}
+
+Task.prototype = {
+	
+	/**
+	 * The name of the task. Defaults to "Anonymous task"
+	 * @type {String}
+	 */
+	name : "Anonymous task",
+
+	/**
+	 * The actual worker of the task.
+	 * @param {Function} done The implementation MUST call this after the job is
+	 *		successfully completed
+	 * @param {Function} fail The implementation MUST call this if the job has
+	 *		failed
+	 * @return {void}
+	 */
+	execute : function(done, fail) {
+		console.warn(
+			"The 'execute' method for task '" + this.name + 
+			"' is not implemented!"
+		);
+		done();
+	},
+
+	/**
+	 * The function that undoes the task
+	 * @param {Function} done The implementation MUST call this after the job is
+	 *		successfully completed
+	 * @param {Function} fail The implementation MUST call this if the job has
+	 *		failed
+	 * @return {void}
+	 */
+	undo : function(done, fail) {
+		console.warn(
+			"The 'undo' method for task '" + this.name + 
+			"' is not implemented!"
+		);
+		done();
+	}
+};
+
+
+
+
+// -----------------------------------------------------------------------------
 // Starts file "src/statements/conflict-clause.js"
 // -----------------------------------------------------------------------------
 /**
@@ -2681,17 +3415,39 @@ Walker.prototype.walkIndexedColumn = function(callback)
  * @return {void}
  */
 STATEMENTS.USE = function(walker) {
-	return function() {
-		var dbName;
-		walker.someType(WORD_OR_STRING, function(token) {
-			dbName = token[0];
-		})
-		.errorUntil(";")
-		.commit(function() {
-			SERVER.setCurrentDatabase(dbName);
-			walker.onComplete('Database "' + dbName + '" selected.');
-		});
-	};
+	
+	// Remember the last used DB here so that we can undo
+	var lastUsedDB = SERVER.getCurrentDatabase();
+
+	function undo(done, fail) {
+		if (lastUsedDB) {
+			SERVER.setCurrentDatabase(lastUsedDB.name);
+			done('Current database restored to "' + lastUsedDB.name + '".');
+		} else {
+			done();
+		}
+	}
+	
+	return new Task({
+		name : "Use Database",
+		execute : function(done, fail) {
+			var dbName;
+			walker.someType(WORD_OR_STRING, function(token) {
+				dbName = token[0];
+			})
+			.errorUntil(";")
+			.commit(function() {
+				try {
+					SERVER.setCurrentDatabase(dbName);
+					lastUsedDB = SERVER.getCurrentDatabase();
+					done('Database "' + dbName + '" selected.');
+				} catch (err) {
+					fail(err);
+				}
+			});
+		},
+		undo : undo
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -2705,14 +3461,20 @@ STATEMENTS.USE = function(walker) {
  * @return {void}
  */
 STATEMENTS.SHOW_DATABASES = function(walker) {
-	return function() {
-		walker.errorUntil(";").commit(function() {
-			walker.onComplete({
-				cols : ["Databases"],
-				rows : keys(SERVER.databases).map(makeArray)
+	return new Task({
+		name : "Show databases",
+		execute : function(done, fail) {
+			walker.errorUntil(";").commit(function() {
+				done({
+					cols : ["Databases"],
+					rows : keys(SERVER.databases).map(makeArray)
+				});
 			});
-		});
-	};
+		},
+		undo : function(done, fail) {
+			done(); // Nothing to undo here...
+		}
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -2749,41 +3511,39 @@ STATEMENTS.SHOW_DATABASES = function(walker) {
  */
 STATEMENTS.SHOW_TABLES = function(walker) 
 {
-	return function() 
-	{
-		var db = SERVER.getCurrentDatabase(), dbName;
+	return new Task({
+		name : "Show tables",
+		execute : function(done, fail) {
+			var db = SERVER.getCurrentDatabase(), dbName;
 
-		if ( walker.is("FROM|IN") ) 
-		{
-			walker.forward();
-			walker.someType(WORD_OR_STRING, function(token) {
-				dbName = token[0];
-				db = SERVER.databases[dbName];
-			});
-		}
-		
-		walker.nextUntil(";").commit(function() {
-			if (!db) 
+			if ( walker.is("FROM|IN") ) 
 			{
-				if (dbName)
-				{
-					throw new SQLRuntimeError(
-						'No such database "%s"',
-						dbName
-					);
-				}
-				else
-				{
-					throw new SQLRuntimeError('No database selected');
-				}
+				walker.forward();
+				walker.someType(WORD_OR_STRING, function(token) {
+					dbName = token[0];
+					db = SERVER.databases[dbName];
+				});
 			}
-
-			walker.onComplete({
-				cols : ['Tables in database "' + db.name + '"'],
-				rows : keys(db.tables).map(makeArray)
+			
+			walker.nextUntil(";").commit(function() {
+				if (!db) {
+					if (dbName) {
+						fail(new SQLRuntimeError('No such database "%s"', dbName));
+					} else {
+						fail(new SQLRuntimeError('No database selected'));
+					}
+				} else {
+					done({
+						cols : ['Tables in database "' + db.name + '"'],
+						rows : keys(db.tables).map(makeArray)
+					});
+				}
 			});
-		});
-	};
+		},
+		undo : function(done, fail) {
+			done();// Nothing to undo here...
+		}
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -2836,79 +3596,81 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 		return out.join(", ");
 	}
 			
-	return function() {
-		var dbName, tableName;
+	return new Task({
+		name : "Show columns",
+		execute : function(done, fail) {
+			var dbName, tableName;
 
-		walker.pick({
-			"FROM|IN" : function() {
-				walker.someType(WORD_OR_STRING, function(token) {
-					tableName = token[0];
+			walker.pick({
+				"FROM|IN" : function() {
+					walker.someType(WORD_OR_STRING, function(token) {
+						tableName = token[0];
+					});
+				}
+			});
+
+			if ( walker.is("FROM|IN") )
+			{
+				walker.forward().someType(WORD_OR_STRING, function(token) {
+					dbName = token[0];
 				});
 			}
-		});
 
-		if ( walker.is("FROM|IN") )
-		{
-			walker.forward().someType(WORD_OR_STRING, function(token) {
-				dbName = token[0];
+			walker.nextUntil(";"); // TODO: Implement LIKE here
+			
+			walker.commit(function() {
+				var database = dbName ? 
+						SERVER.databases[dbName] : 
+						SERVER.getCurrentDatabase(), 
+					table;
+				
+				if (!database) {
+					if ( dbName ) {
+						return fail(new SQLRuntimeError('No such database "%s"', dbName));
+					} else {
+						return fail(new SQLRuntimeError('No database selected'));
+					}
+				}
+				
+				table = database.tables[tableName];
+
+				if (!table)
+				{
+					return fail(new SQLRuntimeError(
+						'No such table "%s" in databse "%s"',
+						tableName,
+						database.name
+					));
+				}
+				
+				var result = {
+					cols : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
+					rows : []
+				};
+				
+				each(table.cols, function(col) {
+					var meta = col.toJSON(); //console.log("meta: ", meta);
+					result.rows.push([
+						meta.name,
+						col.typeToSQL(),
+						meta.nullable ? "YES" : "NO",
+						meta.key,
+						typeof meta.defaultValue == "string" ? 
+							quote(meta.defaultValue, "'") : 
+							meta.defaultValue === undefined ?
+								'none' : 
+								meta.defaultValue,
+						getExtrasList(meta)
+					]);
+				});	
+
+				done(result);
 			});
+		},
+		undo : function(done, fail) {
+			done(); // Nothing to undo here....
 		}
-
-		walker.nextUntil(";"); // TODO: Implement LIKE here
-		
-		walker.commit(function() {
-			var database = dbName ? 
-					SERVER.databases[dbName] : 
-					SERVER.getCurrentDatabase(), 
-				table;
-			
-			if (!database) 
-			{
-				if ( dbName )
-				{
-					throw new SQLRuntimeError('No such database "%s"', dbName);
-				}
-				else 
-				{
-					throw new SQLRuntimeError('No database selected');
-				}
-			}
-			
-			table = database.tables[tableName];
-
-			if (!table)
-			{
-				throw new SQLRuntimeError(
-					'No such table "%s" in databse "%s"',
-					tableName,
-					database.name
-				);
-			}
-			
-			var result = {
-				cols : ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'],
-				rows : []
-			};
-			
-			each(table.cols, function(col) {
-				var meta = col.toJSON(); //console.log("meta: ", meta);
-				result.rows.push([
-					meta.name,
-					col.typeToSQL(),
-					meta.nullable ? "YES" : "NO",
-					meta.key,
-					typeof meta.defaultValue == "string" ? 
-						quote(meta.defaultValue, "'") : 
-						meta.defaultValue === undefined ?
-							'none' : 
-							meta.defaultValue,
-					getExtrasList(meta)
-				]);
-			});	
-
-			walker.onComplete(result);
-		});
-	};
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -2922,21 +3684,45 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
  * @return {void}
  */
 STATEMENTS.CREATE_DATABASE = function(walker) {
-	return function() {
-		var q = new CreateDatabaseQuery();
-		walker
-		.optional("IF NOT EXISTS", function() {
-			q.ifNotExists(true);
-		})
-		.someType(WORD_OR_STRING, function(token) {
-			q.name(token[0]);
-		})
-		.nextUntil(";")
-		.commit(function() {
-			q.execute();
-			walker.onComplete('Database "' + q.name() + '" created.');
-		});
-	};
+
+	// remember the databse name here so that we can undo
+	var dbName;
+
+	function undo(done, fail) {
+		if (dbName) {
+			SERVER.dropDatabase(dbName, true, done, fail);
+		} else {
+			done();
+		}
+	}
+
+	return new Task({
+		name : "Create Database",
+		execute : function(done, fail) {
+			var q = new CreateDatabaseQuery();
+
+			// Make sure to reset this in case it stores something from 
+			// previous query
+			dbName = null;
+
+			walker
+			.optional("IF NOT EXISTS", function() {
+				q.ifNotExists(true);
+			})
+			.someType(WORD_OR_STRING, function(token) {
+				q.name(token[0]);
+			})
+			.nextUntil(";")
+			.commit(function() {
+				dbName = q.name();
+				q.execute();
+				done('Database "' + q.name() + '" created.');
+			});
+		},
+		undo : function(done, fail) {
+			undo(done, fail);
+		}
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -2951,29 +3737,24 @@ STATEMENTS.CREATE_DATABASE = function(walker) {
  */
 STATEMENTS.CREATE_TABLE = function(walker) {
 	
-	function walk_createTable()
+	// remember the table name here so that we can undo
+	var tableName;
+
+	function undo(done, fail) 
 	{
-	    var q = new CreateTableQuery();
-	    
-		q.temporary(walker.lookBack(2)[0].toUpperCase() == "TEMPORARY");
-		
-		walker
-		.optional("IF NOT EXISTS", function() {
-			q.ifNotExists(true);
-		})
-		.someType(WORD_OR_STRING, function(token) {
-			q.name(token[0]);
-		})
-		.optional("(", function() {
-			walk_createTableColumns(q);
-		})
-		.nextUntil(";")
-		.commit(function() {
-			//console.log("CreateTableQuery:");
-			//console.dir(q);
-			q.execute();
-			walker.onComplete('Table "' + q.name() + '" created.');
-		});
+		if (tableName) {
+			var db = SERVER.getCurrentDatabase();
+			if (db) {
+				var table = db.tables[tableName];
+				if (table) {
+					fail("Droping tables is not fully implemented yet!");
+				}
+			}
+			//SERVER.dropDatabase(dbName, true, done, fail);
+			done();
+		} else {
+			done();
+		}
 	}
 	
 	function walk_columnTypeParams(type)
@@ -3175,7 +3956,44 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 		});
 	}
 	
-	return walk_createTable;
+	return new Task({
+		name : "Create Table",
+		execute : function(done, fail) {
+			var q = new CreateTableQuery();
+
+			// Make sure to reset this in case it stores something from 
+			// previous query
+			tableName = null;
+
+			q.temporary(walker.lookBack(2)[0].toUpperCase() == "TEMPORARY");
+			
+			walker
+			.optional("IF NOT EXISTS", function() {
+				q.ifNotExists(true);
+			})
+			.someType(WORD_OR_STRING, function(token) {
+				q.name(token[0]);
+				tableName = q.name();
+			})
+			.optional("(", function() {
+				walk_createTableColumns(q);
+			})
+			.nextUntil(";")
+			.commit(function() {
+				//console.log("CreateTableQuery:");
+				//console.dir(q);
+				try {
+					q.execute();
+					done('Table "' + q.name() + '" created.');
+				} catch (err) {
+					fail(err);
+				}
+			});
+		},
+		undo : function(done, fail) {
+			undo(done, fail);
+		}
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -3189,20 +4007,26 @@ STATEMENTS.CREATE_TABLE = function(walker) {
  * @return {void}
  */
 STATEMENTS.DROP_DATABASE = function(walker) {
-	return function() {
-		var q = {};
-		walker.optional("IF EXISTS", function() {
-			q.ifExists = true;
-		})
-		.someType(WORD_OR_STRING, function(token) {
-			q.name = token[0];
-		}, "for the database name")
-		.errorUntil(";")
-		.commit(function() {
-			SERVER.dropDatabase(q.name, q.ifExists);
-			walker.onComplete('Database "' + q.name + '" deleted.');
-		});
-	};
+	return new Task({
+		name : "Drop Database",
+		execute : function(done, fail) {
+			var q = {};
+			walker.optional("IF EXISTS", function() {
+				q.ifExists = true;
+			})
+			.someType(WORD_OR_STRING, function(token) {
+				q.name = token[0];
+			}, "for the database name")
+			.errorUntil(";")
+			.commit(function() {
+				SERVER.dropDatabase(q.name, q.ifExists);
+				done('Database "' + q.name + '" deleted.');
+			});
+		},
+		undo : function(done, fail) {
+			fail ("undo is not implemented for the DROP DATABASE queries");
+		}
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -3220,64 +4044,70 @@ STATEMENTS.DROP_TABLE = function(walker) {
 		tableName,
 		dbName;
 	
-	return function() {
-		
-		walker.optional("IF EXISTS", function() {
-			ifExists = true;
-		})
-		.someType(WORD_OR_STRING, function(token) {
-			tableName = token[0];
-		})
-		.optional(".", function() {
-			walker.someType(WORD_OR_STRING, function(token) {
-				dbName = tableName;
+	return new Task({
+		name : "Drop Table",
+		execute : function(done, fail) {
+			
+			walker.optional("IF EXISTS", function() {
+				ifExists = true;
+			})
+			.someType(WORD_OR_STRING, function(token) {
 				tableName = token[0];
-			});
-		})
-		.optional("RESTRICT|CASCADE", function() {
-			// TODO
-		})
-		.errorUntil(";")
-		.commit(function() {
-			var database, table;
-			
-			if (!dbName) {
-				database = CURRENT_DATABASE;
-				if (!database) {
-					throw new SQLRuntimeError('No database selected.');
+			})
+			.optional(".", function() {
+				walker.someType(WORD_OR_STRING, function(token) {
+					dbName = tableName;
+					tableName = token[0];
+				});
+			})
+			.optional("RESTRICT|CASCADE", function() {
+				// TODO
+			})
+			.errorUntil(";")
+			.commit(function() {
+				var database, table;
+				
+				if (!dbName) {
+					database = CURRENT_DATABASE;
+					if (!database) {
+						throw new SQLRuntimeError('No database selected.');
+					}
+				} else {
+					database = SERVER.databases[dbName];
+					if (!database) {
+						throw new SQLRuntimeError(
+							'No such database "%s"',
+							dbName
+						);
+					}
 				}
-			} else {
-				database = SERVER.databases[dbName];
-				if (!database) {
+				
+				table = database.tables[tableName];
+				if (!table) {
+					if (ifExists) {
+						return done(
+							'Table "' + database.name + '.' + tableName + '" does not exist.'
+						);
+					}
+					
 					throw new SQLRuntimeError(
-						'No such database "%s"',
-						dbName
-					);
-				}
-			}
-			
-			table = database.tables[tableName];
-			if (!table) {
-				if (ifExists) {
-					return walker.onComplete(
-						'Table "' + database.name + '.' + tableName + '" does not exist.'
+						'No such table "%s" in databse "%s"',
+						tableName,
+						database.name
 					);
 				}
 				
-				throw new SQLRuntimeError(
-					'No such table "%s" in databse "%s"',
-					tableName,
-					database.name
-				);
-			}
-			
-			table.drop(function() {
-				walker.onComplete(
-					'Table "' + database.name + '.' + table.name + '" deleted.'
-				);
-			}, walker.onError);
-		});
-	};
+				table.drop(function() {
+					done(
+						'Table "' + database.name + '.' + table.name + '" deleted.'
+					);
+				}, fail);
+			});
+		},
+		undo : function(done, fail) {
+			fail("undo is not implemented for the DROP TABLE queries");
+		}
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -3359,68 +4189,72 @@ STATEMENTS.INSERT = function(walker) {
 		});
 	}
 	
-	return function() {
-		
-		
-		walker
-		// TODO: with-clause
-		
-		// Type of insert ------------------------------------------------------
-		.optional({ 
-			"OR" : function() {
-				walker.pick({
-					"REPLACE"  : function() { or = "REPLACE" ; },
-					"ROLLBACK" : function() { or = "ROLLBACK"; },
-					"ABORT"    : function() { or = "ABORT"   ; },
-					"FAIL"     : function() { or = "FAIL"    ; },
-					"IGNORE"   : function() { or = "IGNORE"  ; },
-				});
-			}
-		})
-		
-		.pick({ "INTO" : noop })
-		
-		// table ---------------------------------------------------------------
-		.someType(WORD_OR_STRING, function(token) {
-			tableName = token[0];
-		})
-		.optional(".", function() {
-			walker.someType(WORD_OR_STRING, function(token) {
-				dbName = tableName;
+	return new Task({
+		name : "Insert Query",
+		execute : function(done, fail) {
+			walker
+			// TODO: with-clause
+			
+			// Type of insert ------------------------------------------------------
+			.optional({ 
+				"OR" : function() {
+					walker.pick({
+						"REPLACE"  : function() { or = "REPLACE" ; },
+						"ROLLBACK" : function() { or = "ROLLBACK"; },
+						"ABORT"    : function() { or = "ABORT"   ; },
+						"FAIL"     : function() { or = "FAIL"    ; },
+						"IGNORE"   : function() { or = "IGNORE"  ; },
+					});
+				}
+			})
+			
+			.pick({ "INTO" : noop })
+			
+			// table ---------------------------------------------------------------
+			.someType(WORD_OR_STRING, function(token) {
 				tableName = token[0];
+			})
+			.optional(".", function() {
+				walker.someType(WORD_OR_STRING, function(token) {
+					dbName = tableName;
+					tableName = token[0];
+				});
 			});
-		});
-		
-		table = getTable(tableName, dbName);
-		columns = keys(table.cols);
-		
-		// Columns to be used --------------------------------------------------
-		walker.optional({ "(" : columnsList })
-		
-		// Values to insert ----------------------------------------------------
-		.pick({
-			// TODO: Support for select statements here
-			//"DEFAULT VALUES" : function() {
-				// TODO
-			//},
-			"VALUES" : valueSet
-		})
-		
-		// Finalize ------------------------------------------------------------
-		.errorUntil(";")
-		.commit(function() {
-			/*console.dir({
-				dbName    : dbName, 
-				tableName : tableName, 
-				table     : table,
-				or        : or, 
-				valueSets : valueSets,
-				columns   : columns
-			});*/
-			table.insert(columns, valueSets);
-			walker.onComplete(valueSets.length + ' rows inserted.');
-		});
-	};
+			
+			table = getTable(tableName, dbName);
+			columns = keys(table.cols);
+			
+			// Columns to be used --------------------------------------------------
+			walker.optional({ "(" : columnsList })
+			
+			// Values to insert ----------------------------------------------------
+			.pick({
+				// TODO: Support for select statements here
+				//"DEFAULT VALUES" : function() {
+					// TODO
+				//},
+				"VALUES" : valueSet
+			})
+			
+			// Finalize ------------------------------------------------------------
+			.errorUntil(";")
+			.commit(function() {
+				/*console.dir({
+					dbName    : dbName, 
+					tableName : tableName, 
+					table     : table,
+					or        : or, 
+					valueSets : valueSets,
+					columns   : columns
+				});*/
+				table.insert(columns, valueSets);
+				done(valueSets.length + ' rows inserted.');
+			});
+		},
+		undo : function(done, fail) {
+			fail("undo not implemented for INSERT queries!");
+		}
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -4102,48 +4936,49 @@ STATEMENTS.SELECT = function(walker) {
 		};
 	}
 
-	return function() {
-		
-		var query = {
-			fields : [],
-			tables : []
-		};
+	return new Task({
+		name : "SELECT Query",
+		execute : function(done, fail) {//console.log("WALK SELECT");
+			//debugger;
+			var query = {
+				fields : [],
+				tables : []
+			};
+			//debugger;
+			collectFieldRefs(query.fields);
 
-		collectFieldRefs(query.fields);
-
-		
-		//console.log("current: ", walker.current()[0]);
-		walker.optional({
-			"FROM" : function() {//console.log("current: ", walker.current()[0]);
-				collectTableRefs(query.tables);
-			}
-		});
-
-		query.where   = walkWhere(); 
-		query.orderBy = walkOrderBy();
-		query.bounds  = walkLimitAndOffset();
-		//console.log("query: ", query);
-		
-		// table -------------------------------------------------------
-		//var //tbl   = tableRef(),
-		//	table = getTable(query.tables[0].table, query.tables[0].database);
-		
-		walker
-		.errorUntil(";")
-		.commit(function() {
-			//execute(query);
 			
-			//console.warn(walker._input);
-			var result = execute(query);
-			
-			//console.log("query: ", query, "result: ", result);
-
-			walker.onComplete({
-				cols : result.cols,
-				rows : result.rows
+			//console.log("current: ", walker.current()[0]);
+			walker.optional({
+				"FROM" : function() {//console.log("current: ", walker.current()[0]);
+					collectTableRefs(query.tables);
+				}
 			});
-		});
-	};
+
+			query.where   = walkWhere(); 
+			query.orderBy = walkOrderBy();
+			query.bounds  = walkLimitAndOffset();
+			//console.log("query: ", query);
+			
+			// table -------------------------------------------------------
+			//var //tbl   = tableRef(),
+			//	table = getTable(query.tables[0].table, query.tables[0].database);
+			
+			walker
+			.errorUntil(";")
+			.commit(function() {//console.log("EXEC SELECT");
+				console.dir(query);
+				var result = execute(query);
+				done({
+					cols : result.cols,
+					rows : result.rows
+				});
+			});
+		},
+		undo : function(done, fail) {
+			done(); // There is nothing to undo after select
+		}
+	});
 };
 
 // -----------------------------------------------------------------------------
@@ -4175,120 +5010,127 @@ STATEMENTS.SELECT = function(walker) {
  */
 STATEMENTS.DELETE = function(walker) {
 
-	return function()
-	{
-		var tableName, dbName, start = 0, end = 0, where = "";
-
-		/**
-		 * This will match any string (in any quotes) or just a word as unquoted 
-		 * name.
-		 * @type {String}
-		 * @inner
-		 * @private
-		 */ 
-		var identifier = [
-			"@" + TOKEN_TYPE_WORD,
-			"@" + TOKEN_TYPE_SINGLE_QUOTE_STRING,
-			"@" + TOKEN_TYPE_DOUBLE_QUOTE_STRING,
-			"@" + TOKEN_TYPE_BACK_TICK_STRING
-		].join("|");
-
-		walker.require("FROM");
-		
-		if ( !walker.forward().is(identifier) )
+	return new Task({
+		name : "Delete Query",
+		execute : function(done, fail)
 		{
-			throw new SQLParseError(
-				'Expecting an identifier for table name before "%s"',
-				walker.get()
-			);
-		}
+			var tableName, dbName, start = 0, end = 0, where = "";
 
-		tableName = walker.get();
+			/**
+			 * This will match any string (in any quotes) or just a word as unquoted 
+			 * name.
+			 * @type {String}
+			 * @inner
+			 * @private
+			 */ 
+			var identifier = [
+				"@" + TOKEN_TYPE_WORD,
+				"@" + TOKEN_TYPE_SINGLE_QUOTE_STRING,
+				"@" + TOKEN_TYPE_DOUBLE_QUOTE_STRING,
+				"@" + TOKEN_TYPE_BACK_TICK_STRING
+			].join("|");
 
-		if ( walker.forward().is(".") )
-		{
+			walker.require("FROM");
+			
 			if ( !walker.forward().is(identifier) )
 			{
 				throw new SQLParseError(
-					'Expecting an identifier for table name after %s.',
-					tableName
+					'Expecting an identifier for table name before "%s"',
+					walker.get()
 				);
 			}
 
-			dbName = tableName;
 			tableName = walker.get();
-			walker.forward();
-		}
 
-
-
-		if ( walker.is("WHERE") ) 
-		{
-			walker.forward();
-			start = walker.current()[2];
-			end   = start;
-			walker.nextUntil(";");
-			end   = walker.current()[2];
-			where = walker._input.substring(start, end);
-		}
-		else 
-		{
-			walker.errorUntil(";");
-		}	
-
-		walker.commit(function() {
-
-			var db = dbName ?
-					SERVER.getDatabase(dbName) :
-					SERVER.getCurrentDatabase(),
-				table,
-				rows,
-				rowIds = [],
-				len = 0;
-
-			if ( !db )
+			if ( walker.forward().is(".") )
 			{
-				if ( dbName )
+				if ( !walker.forward().is(identifier) )
 				{
-					throw new SQLRuntimeError("No such database '%s'", dbName);
+					throw new SQLParseError(
+						'Expecting an identifier for table name after %s.',
+						tableName
+					);
+				}
+
+				dbName = tableName;
+				tableName = walker.get();
+				walker.forward();
+			}
+
+
+
+			if ( walker.is("WHERE") ) 
+			{
+				walker.forward();
+				start = walker.current()[2];
+				end   = start;
+				walker.nextUntil(";");
+				end   = walker.current()[2];
+				where = walker._input.substring(start, end);
+			}
+			else 
+			{
+				walker.errorUntil(";");
+			}	
+
+			walker.commit(function() {
+
+				var db = dbName ?
+						SERVER.getDatabase(dbName) :
+						SERVER.getCurrentDatabase(),
+					table,
+					rows,
+					rowIds = [],
+					len = 0;
+
+				if ( !db )
+				{
+					if ( dbName )
+					{
+						throw new SQLRuntimeError("No such database '%s'", dbName);
+					}
+					else
+					{
+						throw new SQLRuntimeError("No database selected");
+					}
+				}
+
+				table = db.getTable(tableName);
+				rows  = table.rows;
+
+				//console.log(
+				//	" dbName   : ", db.name   , "\n",
+				//	"tableName: ", table.name, "\n",
+				//	"where    : ", where, "\n",
+				//	"rows     : ", rows
+				//);
+
+				each(rows, function(row, rowId, allRows) {
+					if ( !where || executeCondition( where, row.toJSON(true) ) )
+					{
+						len = rowIds.push(row);
+					}
+				});
+
+				if ( len ) 
+				{
+					
+					table.deleteRows(rowIds, function() {
+						done(len + " rows deleted");
+					}, fail);
 				}
 				else
 				{
-					throw new SQLRuntimeError("No database selected");
-				}
-			}
-
-			table = db.getTable(tableName);
-			rows  = table.rows;
-
-			//console.log(
-			//	" dbName   : ", db.name   , "\n",
-			//	"tableName: ", table.name, "\n",
-			//	"where    : ", where, "\n",
-			//	"rows     : ", rows
-			//);
-
-			each(rows, function(row, rowId, allRows) {
-				if ( !where || executeCondition( where, row.toJSON(true) ) )
-				{
-					len = rowIds.push(row);
+					done(len + " rows deleted");
 				}
 			});
-
-			if ( len ) 
-			{
-				
-				table.deleteRows(rowIds, function() {
-					walker.onComplete(len + " rows deleted");
-				}, walker.onError);
-			}
-			else
-			{
-				walker.onComplete(len + " rows deleted");
-			}
-		});
-	};
+		},
+		undo : function(done, fail) {
+			fail("undo not implemented for DELETE queries!");
+		}
+	});
 };
+
 
 // -----------------------------------------------------------------------------
 // Starts file "src/statements/update.js"
@@ -4493,118 +5335,591 @@ STATEMENTS.UPDATE = function(walker) {
 		return updater;
 	}
 
-	return function()
-	{
-		var or      = getAltBehavior(walker),
-			table   = getTable(walker),
-			updater = getUpdater(walker),
-			where   = getWhere(walker);
+	return new Task({
+		name : "Update Table",
+		execute : function(done, fail)
+		{
+			var or      = getAltBehavior(walker),
+				table   = getTable(walker),
+				updater = getUpdater(walker),
+				where   = getWhere(walker);
 
-		//console.log("or = ", or, "table: ", table, "updater: ", updater, "where: ", where);
+			//console.log("or = ", or, "table: ", table, "updater: ", updater, "where: ", where);
 
-		walker.errorUntil(";").commit(function() {
-			table.update(updater, or, where);
-			walker.onComplete("DONE");
-		});
-	};
+			walker.errorUntil(";").commit(function() {
+				table.update(
+					updater, 
+					or, 
+					where, 
+					function() {
+						done("DONE");
+					}, 
+					function(e) {
+						fail(e);
+					}
+				);
+			});
+		},
+		undo : function(done, fail) {
+			fail("undo is not implemented for UPDATE queries yet!");
+		}
+	});
 };
 
 
 // -----------------------------------------------------------------------------
+// Starts file "src/statements/begin.js"
+// -----------------------------------------------------------------------------
+/** 
+ * No changes can be made to the database except within a transaction. Any
+ * command that changes the database (basically, any SQL command other than
+ * SELECT) will automatically start a transaction if one is not already in
+ * effect. Automatically started transactions are committed when the last query
+ * finishes.
+ * 
+ * Transactions can be started manually using the BEGIN command. Such
+ * transactions usually persist until the next COMMIT or ROLLBACK command. But a
+ * transaction will also ROLLBACK if the database is closed or if an error occurs
+ * and the ROLLBACK conflict resolution algorithm is specified. See the
+ * documentation on the ON CONFLICT clause for additional information about the
+ * ROLLBACK conflict resolution algorithm.
+ * 
+ * END TRANSACTION is an alias for COMMIT.
+ * 
+ * Transactions created using BEGIN...COMMIT do not nest. For nested
+ * transactions, use the SAVEPOINT and RELEASE commands. The "TO SAVEPOINT name"
+ * clause of the ROLLBACK command shown in the syntax diagram above is only
+ * applicable to SAVEPOINT transactions. An attempt to invoke the BEGIN command
+ * within a transaction will fail with an error, regardless of whether the
+ * transaction was started by SAVEPOINT or a prior BEGIN. The COMMIT command and
+ * the ROLLBACK command without the TO clause work the same on SAVEPOINT
+ * transactions as they do with transactions started by BEGIN.
+ * 
+ * 
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {Function}
+ * @example  * <pre style="font-family:Menlo, monospace">
+ *
+ *    ┌───────┐                        ┌─────────────┐  
+ * >──┤ BEGIN ├──┬───────────────┬───┬─┤ TRANSACTION ├─┬──>
+ *    └───────┘  │ ┌───────────┐ │   │ └─────────────┘ │
+ *               ├─┤ DEFERRED  ├─┤   │                 │
+ *               │ └───────────┘ │   └─────────────────┘
+ *               │ ┌───────────┐ │
+ *               ├─┤ IMEDDIATE ├─┤
+ *               │ └───────────┘ │
+ *               │ ┌───────────┐ │
+ *               └─┤ EXCLUSIVE ├─┘
+ *                 └───────────┘
+ * </pre>
+ */ 
+STATEMENTS.BEGIN = function(walker) {
+	return new Task({
+		name : "Begin transaction",
+		execute : function(done, fail) {
+			
+			var type = "DEFERRED";
+
+			if ( walker.is("DEFERRED|IMEDDIATE|EXCLUSIVE") )
+			{
+				type = walker.get().toUpperCase();
+				walker.forward();
+			}
+
+			if (walker.is("TRANSACTION"))
+				walker.forward();
+			
+			walker.errorUntil(";");
+
+			walker.commit(function() {
+				SERVER.beginTransaction({ type : type });
+				done("Transaction created");
+			});
+		},
+		undo : function(done, fail) {
+			SERVER.rollbackTransaction(done, fail);
+		}
+	});
+};
+
+
+// -----------------------------------------------------------------------------
+// Starts file "src/statements/commit.js"
+// -----------------------------------------------------------------------------
+/** 
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {Function}
+ * @example  * <pre style="font-family:Menlo, monospace">
+ *
+ *       ┌────────┐         ┌─────────────┐  
+ * >──┬──┤ COMMIT ├──┬───┬──┤ TRANSACTION ├──┬──>
+ *    │  └────────┘  │   │  └─────────────┘  │
+ *    │  ┌────────┐  │   │                   │
+ *    └──┤  END   ├──┘   └───────────────────┘
+ *       └────────┘
+ * </pre>
+ */ 
+STATEMENTS.COMMIT = function(walker) {
+	return new Task({
+		name : "Commit transaction",
+		execute : function(done, fail) {
+			if (walker.is("TRANSACTION"))
+				walker.forward();
+			
+			walker.errorUntil(";");
+
+			walker.commit(function() {
+				SERVER.commitTransaction();
+				done();
+			});
+		},
+		undo : function(done, fail) {
+			SERVER.rollbackTransaction(done, fail);
+		}
+	});
+};
+
+
+// -----------------------------------------------------------------------------
+// Starts file "src/statements/rollback.js"
+// -----------------------------------------------------------------------------
+/** 
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {Function}
+ * @example  * <pre style="font-family:Menlo, monospace">
+ *
+ *       ┌──────────┐         ┌─────────────┐  
+ * >─────┤ ROLLBACK ├──────┬──┤ TRANSACTION ├──┬────────>
+ *       └──────────┘      │  └─────────────┘  │
+ *                         │                   │
+ *                         └───────────────────┘
+ * 
+ * </pre>
+ */ 
+STATEMENTS.ROLLBACK = function(walker) {
+	return new Task({
+		name : "Rollback transaction",
+		execute : function(done, fail) {
+			if (walker.is("TRANSACTION"))
+				walker.forward();
+			
+			walker.errorUntil(";");
+
+			walker.commit(function() {
+				SERVER.rollbackTransaction();
+				done();
+			});
+		},
+		undo : function() {
+			SERVER.commitTransaction();
+			done();
+		}
+	});
+};
+
+
+// -----------------------------------------------------------------------------
+// Starts file "src/statements/source.js"
+// -----------------------------------------------------------------------------
+
+STATEMENTS.SOURCE = function(walker) {
+	return new Task({
+		name : "SOURCE Command",
+		execute : function(done, fail) {
+			var start = walker.current()[2],
+				xhr,
+				end,
+				url;
+
+			var string = [
+				"@" + TOKEN_TYPE_SINGLE_QUOTE_STRING,
+				"@" + TOKEN_TYPE_DOUBLE_QUOTE_STRING,
+				"@" + TOKEN_TYPE_BACK_TICK_STRING
+			].join("|");
+
+			if (walker.is(string)) {
+				url = walker.get().trim();
+				walker.forward().errorUntil(";");
+			} else {
+				start = walker.current()[2];
+				walker.nextUntil(";");
+				end = walker.current()[2];
+				url = walker._input.substring(start, end).trim();
+			}
+			
+			walker.commit(function() {
+				
+				if (url) {
+					xhr = new XMLHttpRequest();
+					xhr.open("GET", url, true);
+					xhr.onreadystatechange = function() {
+						if (xhr.readyState == 4) {
+							if (xhr.status == 200 || xhr.status == 304) {
+								var queries = getQueries(xhr.responseText),
+									len = queries.length;
+								query(queries, function(result, idx) {
+									if (idx === len - 1) {
+										done(strf(
+											'%s queries executed successfuly from file "%s"',
+											len,
+											url
+										));
+									}
+								}, function(e, idx) {
+									fail(e + " (query: " + queries[idx].sql + ")");
+								});
+							} else {
+								fail(xhr.statusText);
+							}
+						}
+					};
+					xhr.send(null);
+				}
+			});
+		},
+		undo : function(done, fail) {
+			console.warn("The SOURCE command cannot be undone!");
+			done();
+		}
+	});
+};
+
+// -----------------------------------------------------------------------------
 // Starts file "src/parser.js"
 // -----------------------------------------------------------------------------
-////////////////////////////////////////////////////////////////////////////////
-//                                                                            //
-//                               SQL Parser                                   //
-//                                                                            //
-////////////////////////////////////////////////////////////////////////////////
+/**
+ * Simple wrapper for query lists. Its an array but its instanceof QueryList
+ * so it is useful for argument polymorphism... For example the 
+ * normalizeQueryList can work with strings and arrays but if the input array is
+ * a QueryList, then it is considered complete and not processed...
+ */
+function QueryList() {}
+QueryList.prototype = [];
 
-
-
-
-
-function Parser(onComplete, onError)
+/**
+ * Parses the string and returns a list of queries
+ */
+function getQueries(sql)
 {
-	var parser = this,
-		env    = {},
-		result = new Result(),
-		tokens;
-
-	function parse2(tokens, input) {
-		var walker = new Walker(tokens, input),
-			queryNum = 1;
-
-		walker.onComplete = function(_result) {
-			if (walker.current()) {
-				queryNum++;
-				start();
-			} else {
-				result.setData(
-					queryNum > 1 ? 
-					queryNum + ' queries executed successfully.' :
-					_result
-				);
-
-				if (onComplete) 
-					onComplete(result);
-			}
-		};
-
-		walker.onError = onError || defaultErrorHandler;
-
-		function start() 
-		{
-			walker.pick({
-				"USE" : STATEMENTS.USE(walker),
-				"SHOW" : function() {
-					walker.pick({
-						"DATABASES|SCHEMAS" : STATEMENTS.SHOW_DATABASES(walker),
-						"TABLES"            : STATEMENTS.SHOW_TABLES(walker),
-						"COLUMNS"           : STATEMENTS.SHOW_COLUMNS(walker)
-					});
-				},
-				"CREATE" : function() {
-					walker.pick({
-						"DATABASE|SCHEMA" : STATEMENTS.CREATE_DATABASE(walker),
-						"TABLE"           : STATEMENTS.CREATE_TABLE(walker),
-						"TEMPORARY TABLE" : STATEMENTS.CREATE_TABLE(walker),
-					});
-				},
-				"DROP" : function() {
-					walker.pick({
-						"DATABASE|SCHEMA" : STATEMENTS.DROP_DATABASE(walker),
-						"TABLE"           : STATEMENTS.DROP_TABLE(walker),
-						"TEMPORARY TABLE" : STATEMENTS.DROP_TABLE(walker)
-					});
-				},
-				"INSERT" : STATEMENTS.INSERT(walker),
-				"SELECT" : STATEMENTS.SELECT(walker),
-				"DELETE" : STATEMENTS.DELETE(walker),
-				"UPDATE" : STATEMENTS.UPDATE(walker)
-			});
-		}
-
-		start();
-	}
-
-	this.parse = function(input) {
-		tokens = getTokens(input,
-		{
+	var queries = new QueryList(),
+		tokens  = getTokens(normalizeQueryList(sql), {
 			skipComments : true,
 			skipSpace    : true,
 			skipEol      : true,
-			//addEOF       : true,
 			skipStrQuots : true
-		});
-		return parse2(tokens, input);
-	};
+		}),
+		walker = new Walker(tokens, sql),
+		start, end, tokLen = tokens.length, offset = 0, q, tok;
+
+	function onToken(tok) {
+		tok[2] += offset;
+		tok[3] += offset;
+		end = tok[3];
+		q.tokens.push(tok);
+	}
+
+	while (walker._pos < tokLen - 1) {
+		
+		q = { sql : "", tokens : [] };
+
+		// Set both markers to the start of the first token
+		start = end = walker.current()[2];
+
+		walker.nextUntil(";", onToken);
+
+		// If the ";" is missing at the end of the last query consider it 
+		// incomplete and abort the procedure
+		if (!walker.is(";"))
+			break;
+
+		tok = walker.current();
+		tok[2] += offset;
+		end = tok[3];
+		tok[3] += offset;
+		q.tokens.push(tok);
+		q.sql = sql.substring(start, end);
+		if (q.sql && q.sql != ";")
+			queries.push(q);
+		offset = -end-1;
+
+		if ( !walker.next() )
+			break;
+	}
+
+	return queries;
 }
 
-function parse( sql )
-{
-	var parser = new Parser();
-	return parser.parse(sql);
+/**
+ * Converts the input to normalized SQL string. Appends missing semicolons at 
+ * the end, trims, joins multiple queries etc. 
+ * @param {String|Array} Can also be an array with nested arrays in which case
+ * it will be recursive and produce a flat query list string
+ * @return {Array}
+ */
+function normalizeQueryList(input) {
+	return isArray(input) ? 
+			input instanceof QueryList ?
+				input : 
+				input.map(normalizeQueryList).join("").trim() : 
+			String(input).trim().replace(/(.*?);*?$/, "$1;");
 }
+
+/**
+ * Executes the given SQL query and invokes the callback function which has the
+ * "error-first" signature "function(error, result, queryIndex)".
+ * @param {String} sql The SQL query (or multiple queries as string or as array)
+ */
+function query2(sql, callback) 
+{
+	query(sql, function(result, idx) {
+		callback(null, result, idx);
+	}, function(err, idx) {
+		var error = error && error instanceof Error ?
+			err : 
+			new Error(String(err || "Unknown error"));
+		callback(error, null, idx);
+	});
+}
+
+function query(sql, onSuccess, onError) 
+{
+	var 
+
+	// First we need to split the SQL into queries because the behavior is
+	// very different for single vs multiple queries
+	queries = sql instanceof QueryList ? sql : getQueries(sql),
+
+	// The number of SQL queries
+	len = queries.length,
+
+	// The current query (inside iteration)
+	currentQuery = null,
+
+	// Just an iterator variable
+	i = 0;
+
+	//console.log("queries:");console.dir(queries);
+
+	function onResult(result, queryIndex)
+	{
+		if (result !== undefined) {
+			onSuccess(result, queryIndex || i);
+		}
+	}
+
+	function onFailure(e, i)
+	{
+		(onError || defaultErrorHandler)(
+			e && e instanceof Error ? 
+				e : 
+				new Error(String(e || "Unknown error")),
+			i
+		);
+	}
+
+	function q(name, walker, queryIndex, next)
+	{
+		return function() {
+			var fn = STATEMENTS[name],
+				tx = SERVER.getTransaction(),
+				result = new Result(),
+				task;
+			
+			if (tx) 
+			{
+				tx.add(Transaction.createTask({
+					name : name,
+					execute : function(done, fail) {
+						var _result = new Result(), _task;
+						try {
+							_task = fn(walker);
+							_task.execute(
+								function(r) { 
+									_result.setData(r);
+									onResult(_result, queryIndex);
+									done();
+								}, 
+								function(err) {
+									_task.undo(noop, fail);
+									fail(err);
+								}
+							);
+						} catch (ex) {
+							//_result = null;
+							if (_task) {
+								_task.undo(noop, fail);
+							}
+							fail(ex);
+						}
+					},
+					undo : function(done, fail) {
+						done();
+					}
+				}));
+				result.setData(name + " query added to the transaction");
+				onResult(result, queryIndex);
+				next();
+			}
+			else
+			{
+				try {
+					task = fn(walker);
+					task.execute(
+						function(r) {
+							result.setData(r);
+							onResult(result, queryIndex);
+							next();
+						}, 
+						function(e) {
+							//result = null;
+							onFailure(e, queryIndex);
+							task.undo(noop, function(err) {
+								onFailure("Undo failed: " + err, queryIndex);
+							});
+						}
+					);
+				} catch (err) {
+					onFailure(err, queryIndex);
+				}
+			}
+		};
+	}
+
+	// Iterate over the queries
+	// -------------------------------------------------------------------------
+	function handleQueryAt(index) 
+	{
+		var currentQuery = queries[index];
+
+		// All done already
+		if (!currentQuery) 
+			return;
+
+		var next = function() {
+			handleQueryAt(index + 1);
+		};
+
+		// Each query has it's own walker
+		var walker = new Walker(currentQuery.tokens, currentQuery.sql);
+
+		walker.pick({
+				
+			// The transaction control statements ------------------------------
+			"BEGIN" : q("BEGIN", walker, index, next),
+
+			"COMMIT|END" : function() {
+				var tx = SERVER.getTransaction(), result;
+
+				if (!tx) {
+					onFailure("There is no transaction to commit", index);
+					return;
+				}
+
+				result = new Result();
+
+				if (tx.isEmpty()) {
+					STATEMENTS.COMMIT(walker).execute(noop, onFailure);
+					result.setData("Empty transaction committed");
+					onResult(result, index);
+					next();
+				} else {
+					result.setData("Transaction committed");
+					onResult(result, index);
+					tx.one("complete", function() {
+						result.setData("Transaction complete");
+						onResult(result, index);
+						setTimeout(next, 0);
+					});
+					tx.one("rollback", function(err) {
+						onFailure(
+							"Transaction rolled back!" + 
+							(err ? "\n" + err : ""), 
+							index
+						);
+						setTimeout(next, 0);
+					});
+					STATEMENTS.COMMIT(walker).execute(noop, onFailure);
+				}
+			},
+
+			"ROLLBACK" : function() {
+				var tx = SERVER.getTransaction(), result;
+
+				if (!tx) {
+					onFailure("There is no transaction to rollback", index);
+					return;
+				}
+
+				result = new Result();
+
+				if (tx.isEmpty()) {
+					STATEMENTS.ROLLBACK(walker).execute(noop, onFailure);
+					result.setData("Empty transaction rolled back");
+					onResult(result, index);
+					next();
+				} else {
+					tx.one("rollback", function() {
+						result.setData("Transaction rolled back!");
+						onResult(result, index);
+						setTimeout(next, 0);
+					});
+					STATEMENTS.ROLLBACK(walker).execute(noop, onFailure);
+				}
+			},
+
+			// All the others --------------------------------------------------
+			"SHOW" : function() {
+				walker.pick({
+					"DATABASES|SCHEMAS" : q("SHOW_DATABASES", walker, index, next),
+					"TABLES"            : q("SHOW_TABLES"   , walker, index, next),
+					"COLUMNS"           : q("SHOW_COLUMNS"  , walker, index, next)
+				});
+			},
+			"CREATE" : function() {
+				walker.pick({
+					"DATABASE|SCHEMA" : q("CREATE_DATABASE", walker, index, next),
+					"TABLE"           : q("CREATE_TABLE"   , walker, index, next),
+					"TEMPORARY TABLE" : q("CREATE_TABLE"   , walker, index, next)
+				});
+			},
+			"DROP" : function() {
+				walker.pick({
+					"DATABASE|SCHEMA" : q("DROP_DATABASE", walker, index, next),
+					"TABLE"           : q("DROP_TABLE"   , walker, index, next),
+					"TEMPORARY TABLE" : q("DROP_TABLE"   , walker, index, next)
+				});
+			},
+			
+			"SELECT"     : q("SELECT", walker, index, next),
+			"USE"        : q("USE"   , walker, index, next),
+			"UPDATE"     : q("UPDATE", walker, index, next),
+			"INSERT"     : q("INSERT", walker, index, next),
+			"DELETE"     : q("DELETE", walker, index, next),
+			"SOURCE"     : q("SOURCE", walker, index, next)
+		});
+	}
+
+	if (len) {
+		try {
+			handleQueryAt(0);
+		} catch (err) {
+			onFailure(err);	
+		}
+	} else {
+		onSuccess(new Result("No queries executed"));
+	}
+}
+
+
 
 // -----------------------------------------------------------------------------
 // Starts file "src/storage/StorageBase.js"
@@ -4993,17 +6308,110 @@ Persistable.prototype = {
  */
 function Server()
 {
+	var transaction = null;
+
 	/**
 	 * The databases currently in this server
 	 * @type {Object}
 	 * @private
 	 */
 	this.databases = {};
+
+	// Transaction management methods ------------------------------------------
+
+	/**
+	 * Checks whether there is a pending transaction
+	 * @return {Boolean}
+	 */
+	this.isInTransaction = function()
+	{
+		return !!transaction;
+	};
+
+	/**
+	 * Gets the current transaction (if any)
+	 * @return {Transaction|null}
+	 */
+	this.getTransaction = function()
+	{
+		return transaction || null;
+	};
+
+	/**
+	 * Starts new transaction
+	 */
+	this.beginTransaction = function(options)
+	{
+		if (transaction)
+			throw new SQLRuntimeError(
+				"There is a current transaction already started"
+			);
+
+		transaction = new Transaction(options);
+
+		function removeTransaction() {
+			transaction.destroy();
+			transaction = null;
+		}
+		
+			
+		transaction.on("rollback", function(error) {
+			console.log("Transaction rolled back with error ", error);
+			removeTransaction();
+		});
+
+		transaction.on("complete", function() {
+			console.log("Transaction complete");
+			removeTransaction();
+		});
+
+		transaction.on("before:task", function(task, pos) {
+			console.log("Starting task ", task.name);
+		});
+		
+		transaction.on("after:task", function(task, pos) {
+			console.log("Ended task ", task.name);
+		});
+
+		return transaction;
+	};
+
+	this.commitTransaction = function()
+	{
+		if (!transaction)
+			throw new SQLRuntimeError("There is no current transaction");
+
+		transaction.start();
+
+	};
+
+	this.rollbackTransaction = function(done, fail)
+	{
+		if (!transaction) {
+			var err = new SQLRuntimeError("There is no current transaction");
+			if (fail)
+				fail(err);
+			else
+				throw err;
+		}
+
+		if (done)
+			transaction.one("rollback", done);
+		if (fail)
+			transaction.one("error", fail);
+
+		transaction.rollback();
+	};
 }
 
 Server.prototype = new Persistable();
 Server.prototype.constructor = Server;
 
+/**
+ * Return the storage key for the server object. This is used to identify it
+ * inside a key-value based storage.
+ * @return {String}
+ */
 Server.prototype.getStorageKey = function()
 {
 	return NS;
@@ -5128,18 +6536,24 @@ Server.prototype.createDatabase = function(name, ifNotExists)
  * database does not exists and this is not set to true.
  * @return {void}
  */
-Server.prototype.dropDatabase = function(name, ifExists) 
+Server.prototype.dropDatabase = function(name, ifExists, done, fail) 
 {
 	if (this.databases.hasOwnProperty(name)) {
 		if (this.currentDatabase === this.databases[name])
 			this.currentDatabase = null;
 		this.databases[name].drop();
 		delete this.databases[name];
-		this.save();
+		this.save(done, fail);
 	} else {
 		if (!ifExists) {
-			throw new SQLRuntimeError('Database "' + name + '" does not exist');
+			var err = new SQLRuntimeError('Database "' + name + '" does not exist');
+			if (fail)
+				return fail(err);
+			else 
+				throw err;
 		}
+		if (done)
+			done();
 	}
 };
 
@@ -5150,9 +6564,16 @@ Server.prototype.dropDatabase = function(name, ifExists)
  */
 Server.prototype.getDatabase = function(name)
 {
-	return this.databases[trim(name)];
+	return this.databases[
+		trim(name)
+	];
 };
 
+/**
+ * Selects the specified database as the currently used one.
+ * @throws {SQLRuntimeError} error If the databse does not exist
+ * @return {Server} Returns the Server instance
+ */
 Server.prototype.setCurrentDatabase = function(name)
 {
 	var db = trim(name);
@@ -5160,8 +6581,13 @@ Server.prototype.setCurrentDatabase = function(name)
 		throw new SQLRuntimeError('No such database "%s".', db);
 	}
 	CURRENT_DATABASE = this.currentDatabase = this.databases[db];
+	return this;
 };
 
+/**
+ * Returns the currently used database (if any).
+ * @return {Database|undefined}
+ */
 Server.prototype.getCurrentDatabase = function()
 {
 	return this.currentDatabase;
@@ -5385,6 +6811,7 @@ function Table(tableName, db)
 Table.prototype = new Persistable();
 Table.prototype.constructor = Table;
 
+/*
 Table.prototype.createIndex = function(options) 
 {
 	var name;
@@ -5400,7 +6827,14 @@ Table.prototype.createIndex = function(options)
 		onConflict : null
 	};
 };
+*/
 
+/**
+ * Generates and returns the JSON representation of the table object. This is 
+ * mostly used by the "save procedure".
+ * @todo The rows property might contain only the IDs instead of full keys
+ * @return {Object}
+ */
 Table.prototype.toJSON = function() 
 {
 	var json = {
@@ -5433,14 +6867,24 @@ Table.prototype.getStorageKey = function()
 	return [NS, this._db.name, this.name].join(".");
 };
 
+/**
+ * Add constraint to the table. This can be used if the columns are already
+ * known and created. Creates an index and updates the Column object(s) to refer
+ * to it...
+ */
 Table.prototype.addConstraint = function(props)
 {
-	if (props.type == TableIndex.TYPE_INDEX ||
+	if (props.type == TableIndex.TYPE_INDEX  ||
 		props.type == TableIndex.TYPE_UNIQUE ||
 		props.type == TableIndex.TYPE_PRIMARY) 
 	{
 		var key = TableIndex.fromJSON(props, this);
 		this.keys[key.name] = key;
+		
+		for (var i = 0, l = props.columns.length; i < l; i++)
+		{
+			this.cols[props.columns[i]].setKey(props.type);
+		}
 	}
 };
 
@@ -5619,38 +7063,206 @@ Table.prototype.insert = function(keys, values)
 	//console.dir(this.toJSON());
 };
 
-Table.prototype.update = function(map, alt, where)
+/**
+ * Updates table row(s)
+ */
+Table.prototype.update = function(map, alt, where, onSuccess, onError)
 {
-	var table = this;
+	// The UPDATE can be canceled if a "before_update:table" listener returns false 
+	if (!JSDB.events.dispatch("before_update:table", this)) {
+		onError(new SQLRuntimeError(
+			'The UPDATE procedure of table "%s" was canceled by a "before_update:table" event listener',
+			this.getStorageKey()
+		));
+		return;
+	}
+	
+	var table = this, 
+		trx = new Transaction({
+			name         : "Update " + table.name + " transaction",
+			autoRollback : false,
+			onError      : handleConflict,
+			onComplete   : onSuccess
+		});
+
+	// ROLLBACK|ABORT|REPLACE|FAIL|IGNORE
+	function handleConflict(error)
+	{
+		if (error && error instanceof SQLConstraintError) 
+		{
+			switch (alt) {
+
+				// When an applicable constraint violation occurs, the ROLLBACK 
+				// resolution algorithm aborts the current SQL statement with an 
+				// SQLConstraintError and rolls back the current transaction. 
+				// If no transaction is active (other than the implied 
+				// transaction that is created on every command) then the 
+				// ROLLBACK resolution algorithm works the same as the ABORT 
+				// algorithm.
+				case "ROLLBACK":
+					trx.setOption("reqursiveRollback", true);
+					trx.one("rollback", function() {
+						if (onError) onError(error);
+						console.info("Update lolled back!");
+					});
+					trx.rollback();
+				break;
+
+				// When an applicable constraint violation occurs, the FAIL 
+				// resolution algorithm aborts the current SQL statement with an 
+				// SQLConstraintError. But the FAIL resolution does not back out 
+				// prior changes of the SQL statement that failed nor does it 
+				// end the transaction. For example, if an UPDATE statement 
+				// encountered a constraint violation on the 100th row that it 
+				// attempts to update, then the first 99 row changes are 
+				// preserved but changes to rows 100 and beyond never occur.
+				case "FAIL":
+					if (onError) 
+						onError(error);
+				break;
+
+				// When an applicable constraint violation occurs, the IGNORE 
+				// resolution algorithm skips the one row that contains the 
+				// constraint violation and continues processing subsequent rows 
+				// of the SQL statement as if nothing went wrong. Other rows 
+				// before and after the row that contained the constraint 
+				// violation are inserted or updated normally. No error is 
+				// returned when the IGNORE conflict resolution algorithm is used.
+				case "IGNORE":
+					trx.next();
+				break;
+
+				// 
+				case "REPLACE":
+				break;
+
+				// When an applicable constraint violation occurs, the ABORT 
+				// resolution algorithm aborts the current SQL statement with an 
+				// SQLConstraintError error and backs out any changes made by 
+				// the current SQL statement; but changes caused by prior SQL 
+				// statements within the same transaction are preserved and the 
+				// transaction remains active. This is the default behavior and 
+				// the behavior specified by the SQL standard.
+				default: // ABORT
+					trx.setOption("reqursiveRollback", false);
+					trx.one("rollback", function() {
+						if (onError) onError(error);
+						console.info("Update lolled back!");
+					});
+					trx.rollback();
+				break;				
+			}
+		}
+		else
+		{
+			if (onError) 
+				onError(error);
+		}
+	}
+
 	each(table.rows, function(row, id) {
 		//debugger;
-		var scope = row.toJSON(), newRow, name;
+		var newRow = row.toJSON(), name;
 
-		if (where && !executeCondition( where, scope ))
+		// Skip rows that don't match the WHERE condition if any
+		if (where && !executeCondition( where, newRow ))
 		{
 			return true;
 		}
 
-		newRow = row.toJSON();
-		for ( name in map )
-		{
-			newRow[name] = executeCondition(map[name], newRow);
-		}
+		// Create the updated version of the row
+		//for ( name in map )
+		//{
+		//	newRow[name] = executeCondition(map[name], newRow);
+		//}
 
-		for (var ki in table.keys) 
-		{
-			table.keys[ki].beforeUpdate(row, newRow);
-		}
-		
-		
+		// The UPDATE can be canceled on row level if a "before_update:row" 
+		// listener returns false 
+		//if (!JSDB.events.dispatch("before_update:row", row))
+		//{
+		//	return true;
+		//}
 
-		for ( name in newRow )
-		{
-			//newRow[name] = {};
-			row.setCellValue( name, newRow[name], newRow );
-		}
+		// Update table indexes
+		//for (var ki in table.keys) 
+		//{
+		//	table.keys[ki].beforeUpdate(row, newRow);
+		//}
+		
+		// Update the actual row
+		//for ( name in map )
+		//{
+		//	row.setCellValue( name, newRow[name] );
+		//}
+
+		(function(row, newRow) {
+
+			var rowBackUp = row.toJSON();
+			
+			var task = Transaction.createTask({
+				name : "Update row " + row.getStorageKey(),
+				execute : function(done, fail)
+				{
+					var name;
+
+					// Create the updated version of the row
+					for ( name in map )
+					{
+						newRow[name] = executeCondition(map[name], newRow);
+					}
+
+					// The UPDATE can be canceled on row level if a 
+					// "before_update:row" listener returns false 
+					if (!JSDB.events.dispatch("before_update:row", row))
+					{
+						done();
+						return true;
+					}
+
+					// Update table indexes
+					for (var ki in table.keys) 
+					{
+						table.keys[ki].beforeUpdate(row, newRow);
+					}
+
+					// Update the actual row
+					for ( name in map )
+					{
+						row.setCellValue( name, newRow[name] );
+					}
+
+					done();
+				},
+				undo : function(done)
+				{
+					for ( var name in rowBackUp )
+						row.setCellValue( name, rowBackUp[name] );
+					done();
+				}
+			});
+
+			trx.add(task);
+
+		})(row, newRow);
 	});
+	
+	trx.start();
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Table.prototype.drop = function(onComplete, onError) 
 {
@@ -5935,11 +7547,11 @@ Column.prototype = {
 
 	/**
 	 * Sets the key property of the column instance.
-	 * @param {String} key - The type of the key to set. Can be:
+	 * @param {String|Number} key - The type of the key to set. Can be:
 	 * <ul>
-	 *   <li><b>KEY</b> or <b>INDEX</b> to mark the column as indexed</li>
-	 *   <li><b>UNIQUE</b> to mark the column as unique</li>
-	 *   <li><b>PRIMARY</b> to mark the column as primary key</li>
+	 *   <li><b>KEY</b> or <b>INDEX</b> or TableIndex.TYPE_INDEX to mark the column as indexed</li>
+	 *   <li><b>UNIQUE</b> or TableIndex.TYPE_UNIQUE to mark the column as unique</li>
+	 *   <li><b>PRIMARY</b> or TableIndex.TYPE_PRIMARY to mark the column as primary key</li>
 	 * </ul>
 	 * If the argoment does not match any of the above, the key property will 
 	 * be reset back to undefined value.
@@ -5947,10 +7559,23 @@ Column.prototype = {
 	 */
 	setKey : function(key) 
 	{
-		key = String(key).toUpperCase();
-		if (key == "KEY" || key == "INDEX" || key == "UNIQUE" || key == "PRIMARY") 
+		var keyStr = String(key).toUpperCase();
+
+		if (key === TableIndex.TYPE_INDEX)
 		{
-			this.key = key;
+			this.key = "INDEX";
+		}
+		else if (keyStr == "INDEX" || keyStr == "KEY")
+		{
+			this.key = keyStr;
+		}
+		else if (key === TableIndex.TYPE_UNIQUE || keyStr == "UNIQUE")
+		{
+			this.key = "UNIQUE";
+		}
+		else if (key === TableIndex.TYPE_PRIMARY || keyStr == "PRIMARY") 
+		{
+			this.key = "PRIMARY";
 		} 
 		else 
 		{
@@ -6107,7 +7732,7 @@ NumericColumn.prototype.init = function(options)
 	
 	if ( isArray(options.type.params) && options.type.params.length > 0 ) {
 		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];	
+		this.typeParams = [this.length];
 	}
 	
 	this.setAutoIncrement(options.autoIncrement);
@@ -7146,7 +8771,7 @@ TableIndex.prototype = {
 	/**
 	 * Gets the indexed value for the given row. For multicolumn indexes this 
 	 * is a concatenation of all the column values.
-	 * @param {TableRow} row
+	 * @param {TableRow|Object} row
 	 * @return {String} 
 	 */
 	getValueForRow : function(row)
@@ -7225,10 +8850,21 @@ TableIndex.prototype = {
 		oldIdx = binarySearch(this._index, oldVal, TableIndex.compare);
 		newIdx = binarySearch(this._index, newVal, TableIndex.compare);
 
-		console.log(
-			"old ", oldVal, " -> ", oldIdx, "(", this._index, ")\n",
-			"new ", newVal, " -> ", newIdx, "(", this._index, ")"
-		);
+		// Check for duplacting unique values
+		if (newIdx >= 0 && this.isUnique())
+		{
+			throw new SQLConstraintError(
+				'Constraint "%s" violated. The value must be unique and the ' +
+				'supplied value "%s" already exists.',
+				this.name,
+				newVal
+			);
+		}
+
+		//console.log(
+		//	"old ", oldVal, " -> ", oldIdx, "(", this._index, ")\n",
+		//	"new ", newVal, " -> ", newIdx, "(", this._index, ")"
+		//);
 
 		// Even changed, the new value might still remain on it's current position
 		if (oldIdx === newIdx)
@@ -7243,18 +8879,6 @@ TableIndex.prototype = {
 		oldIdx = oldIdx >= newIdx ? oldIdx + 1 : oldIdx;
 
 		this._index.splice(oldIdx, 1); // remove the old key
-		
-		//console.log("beforeUpdate: ", value, idx);
-		//if ( i >= 0 && this.isUnique() ) 
-		//{
-		//	throw new SQLRuntimeError(
-		//		'Duplicate entry for key "%s".',
-		//		this.name
-		//	);
-		//}
-
-		//i = i + 1;
-		//this._index.splice(i, 0, value);
 	},
 
 	/**
@@ -7420,20 +9044,7 @@ CreateQuery.prototype.toString = function() {
 	return this.generateSQL();
 };
 
-/**
- * @memberof JSDB
- * @type {Function}
- * @param {String} sql
- * @param {Function} onSuccess
- * @param {Function} onError
- */
-function query(sql, onSuccess, onError) {
-	try {
-		(new Parser(onSuccess, onError)).parse(sql);
-	} catch (ex) {
-		(onError || defaultErrorHandler)(ex);
-	}
-}
+
 
 // CreateDatabaseQuery ---------------------------------------------------------
 
@@ -7651,6 +9262,7 @@ GLOBAL[NS] = JSDB;
 
 JSDB.query  = query;
 JSDB.Result = Result;
+JSDB.query2 = query2;
 
 if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 	mixin(GLOBAL.JSDB, {
@@ -7675,7 +9287,7 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		tokenize         : tokenize,
 		getTokens        : getTokens,
 		Walker           : Walker,
-		parse            : parse,
+		//parse            : parse,
 		Table            : Table,
 		TableIndex       : TableIndex,
 		SERVER           : SERVER,
@@ -7688,7 +9300,13 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		crossJoin        : crossJoin,
 		innerJoin        : innerJoin,
 		crossJoin2       : crossJoin2,
-		executeCondition : executeCondition
+		executeCondition : executeCondition,
+		Transaction      : Transaction,
+
+		SQLConstraintError : SQLConstraintError,
+		SQLRuntimeError    : SQLRuntimeError,
+		SQLParseError      : SQLParseError
+
 	});
 }
 
@@ -7708,7 +9326,7 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
  * @example new Result()
  * @return Result
  */
-function Result()
+function Result(data)
 {
 	/**
 	 * The data that the result represents. Initially this is null.
@@ -7785,6 +9403,10 @@ function Result()
 	 * @default 0
 	 */
 	this.rowLength = 0;
+
+	if (arguments.length) {
+		this.setData(data);
+	}
 }
 
 /**
@@ -7901,15 +9523,6 @@ Result.prototype = {
 			this.type = Result.TYPE_ARRAY;
 		}
 
-		// String (just a result message)
-		else if ( typeof data == "string" )
-		{
-			this.data = data || "";
-			this.cols = [];
-			this.rows = [];
-			this.type = Result.TYPE_MESSAGE;
-		}
-
 		// Boolean
 		else if ( data === true || data === false )
 		{
@@ -7922,7 +9535,10 @@ Result.prototype = {
 		// Invalid argument
 		else
 		{
-			throw new TypeError("Invalid argument");
+			this.data = String(data || "");
+			this.cols = [];
+			this.rows = [];
+			this.type = Result.TYPE_MESSAGE;
 		}
 
 		this.colLength = this.cols.length;
@@ -8238,44 +9854,6 @@ Result.prototype = {
 // -----------------------------------------------------------------------------
 // Starts file "src/init.js"
 // -----------------------------------------------------------------------------
-/**
- * @constructor
- * @extends {Error}
- * @param {String} message - The error message. Defaults to "Error while parsing
- * sql query". The message, along with any other following arguments will be 
- * passed to the {@link strf strf function}
- */
-function SQLParseError(message)
-{
-	this.name    = "SQLParseError";
-	this.message = strf.apply(
-		this, 
-		arguments.length ? arguments : ["Error while parsing sql query"]
-	);
-}
-
-SQLParseError.prototype = new Error();
-SQLParseError.prototype.constructor = SQLParseError;
-
-/**
- * @constructor
- * @extends {Error}
- * @param {String} message - The error message. Defaults to "Error while parsing
- * sql query". The message, along with any other following arguments will be 
- * passed to the {@link strf strf function}
- */
-function SQLRuntimeError(message)
-{
-	this.name    = "SQLRuntimeError";
-	this.message = strf.apply(
-		this, 
-		arguments.length ? arguments : ["Error while executing sql query"]
-	);
-}
-
-SQLParseError.prototype = new Error();
-SQLParseError.prototype.constructor = SQLParseError;
-
 (function() {
 	JSDB.events = events;
 	JSDB.SERVER = SERVER = new Server();
