@@ -74,66 +74,70 @@ STATEMENTS.INSERT = function(walker) {
 		});
 	}
 	
-	return function() {
-		
-		
-		walker
-		// TODO: with-clause
-		
-		// Type of insert ------------------------------------------------------
-		.optional({ 
-			"OR" : function() {
-				walker.pick({
-					"REPLACE"  : function() { or = "REPLACE" ; },
-					"ROLLBACK" : function() { or = "ROLLBACK"; },
-					"ABORT"    : function() { or = "ABORT"   ; },
-					"FAIL"     : function() { or = "FAIL"    ; },
-					"IGNORE"   : function() { or = "IGNORE"  ; },
-				});
-			}
-		})
-		
-		.pick({ "INTO" : noop })
-		
-		// table ---------------------------------------------------------------
-		.someType(WORD_OR_STRING, function(token) {
-			tableName = token[0];
-		})
-		.optional(".", function() {
-			walker.someType(WORD_OR_STRING, function(token) {
-				dbName = tableName;
+	return new Task({
+		name : "Insert Query",
+		execute : function(done, fail) {
+			walker
+			// TODO: with-clause
+			
+			// Type of insert ------------------------------------------------------
+			.optional({ 
+				"OR" : function() {
+					walker.pick({
+						"REPLACE"  : function() { or = "REPLACE" ; },
+						"ROLLBACK" : function() { or = "ROLLBACK"; },
+						"ABORT"    : function() { or = "ABORT"   ; },
+						"FAIL"     : function() { or = "FAIL"    ; },
+						"IGNORE"   : function() { or = "IGNORE"  ; },
+					});
+				}
+			})
+			
+			.pick({ "INTO" : noop })
+			
+			// table ---------------------------------------------------------------
+			.someType(WORD_OR_STRING, function(token) {
 				tableName = token[0];
+			})
+			.optional(".", function() {
+				walker.someType(WORD_OR_STRING, function(token) {
+					dbName = tableName;
+					tableName = token[0];
+				});
 			});
-		});
-		
-		table = getTable(tableName, dbName);
-		columns = keys(table.cols);
-		
-		// Columns to be used --------------------------------------------------
-		walker.optional({ "(" : columnsList })
-		
-		// Values to insert ----------------------------------------------------
-		.pick({
-			// TODO: Support for select statements here
-			//"DEFAULT VALUES" : function() {
-				// TODO
-			//},
-			"VALUES" : valueSet
-		})
-		
-		// Finalize ------------------------------------------------------------
-		.errorUntil(";")
-		.commit(function() {
-			/*console.dir({
-				dbName    : dbName, 
-				tableName : tableName, 
-				table     : table,
-				or        : or, 
-				valueSets : valueSets,
-				columns   : columns
-			});*/
-			table.insert(columns, valueSets);
-			walker.onComplete(valueSets.length + ' rows inserted.');
-		});
-	};
+			
+			table = getTable(tableName, dbName);
+			columns = keys(table.cols);
+			
+			// Columns to be used --------------------------------------------------
+			walker.optional({ "(" : columnsList })
+			
+			// Values to insert ----------------------------------------------------
+			.pick({
+				// TODO: Support for select statements here
+				//"DEFAULT VALUES" : function() {
+					// TODO
+				//},
+				"VALUES" : valueSet
+			})
+			
+			// Finalize ------------------------------------------------------------
+			.errorUntil(";")
+			.commit(function() {
+				/*console.dir({
+					dbName    : dbName, 
+					tableName : tableName, 
+					table     : table,
+					or        : or, 
+					valueSets : valueSets,
+					columns   : columns
+				});*/
+				table.insert(columns, valueSets);
+				done(valueSets.length + ' rows inserted.');
+			});
+		},
+		undo : function(done, fail) {
+			fail("undo not implemented for INSERT queries!");
+		}
+	});
 };

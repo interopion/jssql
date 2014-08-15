@@ -23,8 +23,7 @@ STATEMENTS.SOURCE = function(walker) {
 				end = walker.current()[2];
 				url = walker._input.substring(start, end).trim();
 			}
-			console.log(url);
-
+			
 			walker.commit(function() {
 				
 				if (url) {

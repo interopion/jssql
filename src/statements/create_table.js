@@ -20,7 +20,8 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 					fail("Droping tables is not fully implemented yet!");
 				}
 			}
-			SERVER.dropDatabase(dbName, true, done, fail);
+			//SERVER.dropDatabase(dbName, true, done, fail);
+			done();
 		} else {
 			done();
 		}
@@ -251,8 +252,12 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			.commit(function() {
 				//console.log("CreateTableQuery:");
 				//console.dir(q);
-				q.execute();
-				done('Table "' + q.name() + '" created.');
+				try {
+					q.execute();
+					done('Table "' + q.name() + '" created.');
+				} catch (err) {
+					fail(err);
+				}
 			});
 		},
 		undo : function(done, fail) {

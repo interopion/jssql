@@ -675,9 +675,9 @@ STATEMENTS.SELECT = function(walker) {
 	}
 
 	return new Task({
-		name : "SELECT query",
+		name : "SELECT Query",
 		execute : function(done, fail) {//console.log("WALK SELECT");
-			
+			//debugger;
 			var query = {
 				fields : [],
 				tables : []
@@ -705,6 +705,7 @@ STATEMENTS.SELECT = function(walker) {
 			walker
 			.errorUntil(";")
 			.commit(function() {//console.log("EXEC SELECT");
+				console.dir(query);
 				var result = execute(query);
 				done({
 					cols : result.cols,

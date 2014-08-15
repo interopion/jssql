@@ -6,18 +6,24 @@
  * @return {void}
  */
 STATEMENTS.DROP_DATABASE = function(walker) {
-	return function() {
-		var q = {};
-		walker.optional("IF EXISTS", function() {
-			q.ifExists = true;
-		})
-		.someType(WORD_OR_STRING, function(token) {
-			q.name = token[0];
-		}, "for the database name")
-		.errorUntil(";")
-		.commit(function() {
-			SERVER.dropDatabase(q.name, q.ifExists);
-			walker.onComplete('Database "' + q.name + '" deleted.');
-		});
-	};
+	return new Task({
+		name : "Drop Database",
+		execute : function(done, fail) {
+			var q = {};
+			walker.optional("IF EXISTS", function() {
+				q.ifExists = true;
+			})
+			.someType(WORD_OR_STRING, function(token) {
+				q.name = token[0];
+			}, "for the database name")
+			.errorUntil(";")
+			.commit(function() {
+				SERVER.dropDatabase(q.name, q.ifExists);
+				done('Database "' + q.name + '" deleted.');
+			});
+		},
+		undo : function(done, fail) {
+			fail ("undo is not implemented for the DROP DATABASE queries");
+		}
+	});
 };

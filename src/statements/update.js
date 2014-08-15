@@ -198,18 +198,33 @@ STATEMENTS.UPDATE = function(walker) {
 		return updater;
 	}
 
-	return function()
-	{
-		var or      = getAltBehavior(walker),
-			table   = getTable(walker),
-			updater = getUpdater(walker),
-			where   = getWhere(walker);
+	return new Task({
+		name : "Update Table",
+		execute : function(done, fail)
+		{
+			var or      = getAltBehavior(walker),
+				table   = getTable(walker),
+				updater = getUpdater(walker),
+				where   = getWhere(walker);
 
-		//console.log("or = ", or, "table: ", table, "updater: ", updater, "where: ", where);
+			//console.log("or = ", or, "table: ", table, "updater: ", updater, "where: ", where);
 
-		walker.errorUntil(";").commit(function() {
-			table.update(updater, or, where);
-			walker.onComplete("DONE");
-		});
-	};
+			walker.errorUntil(";").commit(function() {
+				table.update(
+					updater, 
+					or, 
+					where, 
+					function() {
+						done("DONE");
+					}, 
+					function(e) {
+						fail(e);
+					}
+				);
+			});
+		},
+		undo : function(done, fail) {
+			fail("undo is not implemented for UPDATE queries yet!");
+		}
+	});
 };
