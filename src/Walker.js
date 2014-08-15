@@ -6,29 +6,45 @@
 function Walker(tokens, input)
 {
 	/**
-	 * The current position in the tokens array
-	 * @type {Number}
-	 * @private
-	 */
-	this._pos = 0;
-	
-	/**
 	 * The tokens array
 	 * @type {Array}
 	 * @private
 	 */
-	this._tokens = tokens;
+	this._tokens = [];
+
+	this.init(tokens, input);
+}
+
+Walker.prototype = {
+	
+	/**
+	 * The current position in the tokens array
+	 * @type {Number}
+	 * @private
+	 */
+	_pos : 0,
 
 	/**
 	 * The input string that has been used to produce the tokens array
 	 * @type {String}
 	 * @private
 	 */
-	this._input = input;
-}
+	_input : "",
 
-Walker.prototype = {
-	
+	/**
+	 * (Re)sets the instance to it's initial state. This allows single instance
+	 * to be reused for different inputs.
+	 * @param {Array} tokens
+ 	 * @param {String} input
+ 	 * @return {Walker} Returns the instance
+	 */
+	init : function(tokens, input)
+	{
+		this._pos = 0;
+		this._tokens = tokens || [];
+		this._input = input || "";
+	},
+
 	/**
 	 * Moves the position pointer n steps back.
 	 * @param {Number} n Optional, defaults to 1.
@@ -191,9 +207,10 @@ Walker.prototype = {
 			}
 			
 			throw new SQLParseError(
-				'You have an error after %s. Expecting %s.', 
+				'You have an error after %s. Expecting %s. The query was %s', 
 				prev,
-				arg
+				arg,
+				this._input
 			);
 		}
 	},
@@ -256,9 +273,10 @@ Walker.prototype = {
 			}
 			
 			throw new SQLParseError(
-				'Expecting: %s after "%s"', 
+				'Expecting: %s after "%s". The query was %s', 
 				prettyList(keys),
-				prev
+				prev,
+				this._input
 			);
 		}
 		return this;
@@ -286,7 +304,7 @@ Walker.prototype = {
 		if (onError)
 			onError(token);
 		
-		throw new SQLParseError( 'Expecting: %s', prettyList(options) );
+		throw new SQLParseError( 'Expecting: %s. The query was %s', prettyList(options), this._input );
 	},
 	
 	pick : function(options) 
@@ -323,7 +341,7 @@ Walker.prototype = {
 				}
 				if (i > 0) {
 					throw new SQLParseError(
-						'Expecting "%s" after "%s".', search[i], ahead[i - 1]
+						'Expecting "%s" after "%s". The query was %s', search[i], ahead[i - 1], inst._input
 					);
 				}
 			}
@@ -384,9 +402,10 @@ Walker.prototype = {
 				}
 			}
 			throw new SQLParseError(
-				'Expecting: %s %s',
+				'Expecting: %s %s. The query was %s',
 				prettyList(keys),
-				expectation || ""
+				expectation || "",
+				this._input
 			);
 		}
 		return this;
@@ -453,7 +472,7 @@ Walker.prototype = {
 		while ( !this.is(value) ) 
 		{
 			if ( callback )
-				callback( this.current() );
+				callback.call( this, this.current() );
 			if ( !this.next() )
 				break;
 		}
@@ -464,9 +483,10 @@ Walker.prototype = {
 	errorUntil : function(value) { 
 		return this.nextUntil(value, function(token) {
 			throw new SQLParseError(
-				'Unexpected %s "%s".', 
+				'Unexpected %s "%s". The query was %s', 
 				TOKEN_TYPE_MAP[token[1]],
-				token[0]
+				token[0],
+				this._input
 			);
 		}); 
 	},
@@ -523,10 +543,11 @@ Walker.prototype = {
 		}
 		
 		throw new SQLParseError(
-			'Unexpected %s "%s". Expecting %s.',
+			'Unexpected %s "%s". Expecting %s. The query was %s',
 			TOKEN_TYPE_MAP[token[1]],
 			token[0],
-			prettyList(expecting)
+			prettyList(expecting),
+			this._input
 		);
 	},
 
@@ -536,7 +557,7 @@ Walker.prototype = {
 			walker = this;
 		
 		if (token[0] == ",") {
-			throw new SQLParseError('Unexpected ","');
+			throw new SQLParseError('Unexpected ",". The query was %s', this._input);
 		}
 		
 		this._pos++;
@@ -560,7 +581,7 @@ Walker.prototype = {
 			"(" : function() {
 				var token = walker._tokens[walker._pos];
 				if (token[0] == ",") {
-					throw new SQLParseError('Unexpected ","');
+					throw new SQLParseError('Unexpected ",". The query was %s', walker._input);
 				}
 
 				walker.commaSeparatedList(onItem);
@@ -577,8 +598,9 @@ Walker.prototype = {
 						prev = prev.replace(/\n/, "");
 					}
 					throw new SQLParseError(
-						prev ? 'Expecting ")" after %s' : 'Expecting ")"',
-						prev
+						'Expecting ")" after %s. The query was %s',
+						prev || "the start of the query",
+						walker._input
 					);
 				}
 
