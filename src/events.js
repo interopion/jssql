@@ -3,7 +3,7 @@
  * @namespace events
  * @type {Object}
  */
-var events = (function() {
+function Observer() {
 	
 	var listeners = {};
 
@@ -86,32 +86,32 @@ var events = (function() {
 		}
 	}
 
-	function dispatch(e, data) 
+	this.dispatch = function(e, data) 
 	{
 		var handlers = listeners[e] || [], 
 			l = handlers.length, 
 			i, 
-			canceled = false;
+			canceled = false,
+			args = Array.prototype.slice.call(arguments, 1);
 
 		//console.info("dispatch: ", e, data);
 
 		for (i = 0; i < l; i++) {
-			if (handlers[i](data) === false) {
+			if (handlers[i].apply(this, args) === false) {
 				canceled = true; 
 				break;
 			}
 		}
 
 		return !canceled;
-	}
-
-	return {
-		dispatch : dispatch,
-		bind     : bind,
-		unbind   : unbind,
-		one      : one,
-		on       : bind,
-		off      : unbind
 	};
 
-})();
+	this.bind     = bind;
+	this.unbind   = unbind;
+	this.one      = one;
+	this.on       = bind;
+	this.off      = unbind;
+
+}
+
+var events = new Observer();
