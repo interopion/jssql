@@ -26,6 +26,7 @@ module.exports = function(grunt) {
 		'src/statements/begin.js',
 		'src/statements/commit.js',
 		'src/statements/rollback.js',
+		'src/statements/source.js',
 		'src/parser.js',
 		'src/storage/StorageBase.js',
 		'src/storage/LocalStorage.js',
