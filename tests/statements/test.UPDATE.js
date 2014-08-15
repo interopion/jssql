@@ -292,52 +292,6 @@
 		}
 	);
 
-	// Make sure that "before_update:table" and "before_update:row" events are cancelable
-	QUnit.asyncTest(
-		'Make sure that "before_update:table" and "before_update:row" events are cancelable', 
-		function(assert) {
-			var table = JSDB.SERVER.databases.unitTestingDB.tables.t1,
-				sql   = "UPDATE t1 SET val = 'd';";
-
-			JSDB.events.one("before_update:table", false);
-
-			JSDB.query(
-				sql,
-				function() {
-					assert.deepEqual(
-						table.rows['2'].toJSON(), 
-						{ id : 2, val : 'b' },
-						"The table is NOT updated."
-					);
-
-					JSDB.events.on("before_update:row", false);
-
-					JSDB.query(
-						sql,
-						function() {
-							assert.deepEqual(
-								table.rows['2'].toJSON(), 
-								{ id : 2, val : 'b' },
-								"The table is NOT updated."
-							);
-							JSDB.events.off("before_update:row");
-							QUnit.start();
-						},
-						function(error) {
-							QUnit.pushFailure(error.message || "Failed", sql);
-							JSDB.events.off("before_update:row");
-							QUnit.start();
-						}
-					);
-				}, 
-				function(error) {
-					QUnit.pushFailure(error.message || "Failed", sql);
-					QUnit.start();
-				}
-			);
-		}
-	);
-
 	// Make sure that an unique column cannot be updated to existing value
 	QUnit.asyncTest(
 		"Make sure that an unique column cannot be updated to existing value",
@@ -352,25 +306,57 @@
 						"Trying to duplicate a primary key must throw SQLConstraintError exception.", 
 						sql
 					);
+					
+					if (QUnit.config.semaphore)
+						QUnit.start();
+				},
+				function(error) {
+					QUnit.push(1,1,1,"Failed as expected");
 					assert.deepEqual(
 						table.rows['1'].toJSON(), 
 						{ id : 1, val : 'a' },
-						"The table is NOT updated."
+						"The first row of the table is NOT updated."
 					);
 					assert.deepEqual(
 						table.rows['2'].toJSON(), 
 						{ id : 2, val : 'b' },
-						"The table is NOT updated."
+						"The second row of the table is NOT updated."
 					);
-					QUnit.start();
-				},
-				function(error) {
-					assert.ok(error instanceof JSDB.SQLConstraintError);
+					//assert.ok(error instanceof JSDB.SQLConstraintError);
 					console.error(error);
-					QUnit.start();
+					if (QUnit.config.semaphore)
+						QUnit.start();
 				}
 			);
 		}
 	);
+
+	// Make sure that "before_update:table" and "before_update:row" events are cancelable
+	QUnit.asyncTest(
+		'Make sure that "before_update:table" and "before_update:row" events are cancelable', 
+		function(assert) {
+			var table = JSDB.SERVER.databases.unitTestingDB.tables.t1,
+				sql   = "UPDATE t1 SET val = 'd';";
+
+			JSDB.events.one("before_update:table", false);
+
+			JSDB.query(
+				sql,
+				function() {
+					QUnit.pushFailure("Must not succeed!", sql);
+					if (QUnit.config.semaphore)
+						QUnit.start();
+				}, 
+				function(error) {
+					QUnit.push(error.message, 1, 1, "Must fail: " + error.message || "Failed", sql);
+					if (QUnit.config.semaphore) 
+						QUnit.start();
+				}
+			);
+			//QUnit.start();
+		}
+	);
+
+	
 
 })();

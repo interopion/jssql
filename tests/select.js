@@ -119,11 +119,13 @@
 		JSDB.query(
 			sql, 
 			function() {
-				QUnit.start();
+				if (QUnit.config.semaphore) 
+					QUnit.start();
 			}, 
 			function(error) {
 				QUnit.pushFailure(error.message || "Failed", sql);
-				QUnit.start();
+				if (QUnit.config.semaphore) 
+					QUnit.start();
 			}
 		);
 	});

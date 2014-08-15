@@ -24,32 +24,48 @@
 	});
 
 	QUnit.asyncTest("USE unitTestingDB", function(assert) {
-		var sql = "USE unitTestingDB;USE \"unitTestingDB\";USE 'unitTestingDB';USE `unitTestingDB`;";
+		var queries = [
+				"USE unitTestingDB;",
+				"USE \"unitTestingDB\";",
+				"USE 'unitTestingDB';",
+				"USE `unitTestingDB`;"
+			],
+			len = queries.length,
+			sql = queries.join("");
+
 		JSDB.query(
 			sql, 
-			function() {
+			function(result, queryIndex) {
 				var db = JSDB.SERVER.getCurrentDatabase();
-				assert.ok(db && db.name == "unitTestingDB");
-				QUnit.start();
+				assert.ok(
+					db && db.name == "unitTestingDB", 
+					'Query ' + queries[queryIndex] + ' selects a database named "unitTestingDB"'
+				);
+				if (queryIndex == len - 1)
+					QUnit.start();
 			}, 
-			function(error) {
+			function(error, queryIndex) {
 				QUnit.pushFailure(error.message || "Failed", sql);
-				QUnit.start();
+				if (queryIndex == len - 1)
+					QUnit.start();
 			}
 		);
 	});
 
 	QUnit.asyncTest("USE NonExistingDB", function(assert) {
 		var sql = "USE NonExistingDB;";
-		expect(0);
+		//expect(0);
 		JSDB.query(
 			sql, 
 			function() {
-				QUnit.pushFailure(error.message || "Failed", sql);
-				QUnit.start();
+				QUnit.pushFailure("Failed (called onSuccess callback while the DB does not exist)", sql);
+				if (QUnit.config.semaphore)
+					QUnit.start();
 			}, 
 			function(error) {
-				QUnit.start();
+				QUnit.push(true, error, error, "Must fail: " + error);
+				if (QUnit.config.semaphore)
+					QUnit.start();
 			}
 		);
 	});

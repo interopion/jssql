@@ -5,10 +5,14 @@
 			QUnit.stop();
 			if (!JSDB.SERVER.loaded) {
 				JSDB.events.one("load:server", function() {
-					QUnit.start();
+					JSDB.query("DROP DATABASE IF EXISTS unitTestingDB;", function() {
+						QUnit.start();
+					});
 				});
 			} else {
-				QUnit.start();
+				JSDB.query("DROP DATABASE IF EXISTS unitTestingDB;", function() {
+					QUnit.start();
+				});
 			}
 		},
 		teardown: function() {
@@ -35,16 +39,23 @@
 	});
 
 	QUnit.asyncTest("CREATE DATABASE unitTestingDB (must throw an exception when executed more than once)", function(assert) {
-		var sql = "CREATE DATABASE unitTestingDB;";
-		expect(0);
+		var sql = "CREATE DATABASE unitTestingDB;CREATE DATABASE unitTestingDB;";
+		expect(1);
 		JSDB.query(
 			sql, 
-			function() {
-				QUnit.pushFailure(error.message || "Failed", sql);
-				QUnit.start();
+			function(result, qIndex) {
+				if (qIndex === 1) {
+					QUnit.pushFailure("Not Failed but had to", sql);
+					if (QUnit.config.semaphore) 
+						QUnit.start();
+				}
 			}, 
-			function(error) {
-				QUnit.start();
+			function(error, qIndex) {
+				if (qIndex === 1) {
+					QUnit.push(1,1,1,"Failed as expected: " + error, sql);
+					if (QUnit.config.semaphore) 
+						QUnit.start();
+				}
 			}
 		);
 	});
@@ -70,12 +81,14 @@
 		expect(0);
 		JSDB.query(
 			sql, 
-			function() {
-				QUnit.start();
+			function(result, queryIndex) {
+				if (queryIndex === 1)
+					QUnit.start();
 			}, 
-			function(error) {
+			function(error, queryIndex) {
 				QUnit.pushFailure(error.message || "Failed", sql);
-				QUnit.start();
+				if (queryIndex === 1)
+					QUnit.start();
 			}
 		);
 	});

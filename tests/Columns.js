@@ -14,7 +14,14 @@
 
 			equal(col.name, "columnName", "Column name");
 			equal(col.toJSON().name, "columnName", "toJSON()");
-			equal(col.toSQL(), "\"columnName\" " + type.toUpperCase() + " NOT NULL", "toSQL()");
+			equal(
+				col.toSQL(), 
+				'"columnName" ' + type.toUpperCase() + 
+				(col.typeParams && col.typeParams.length ? 
+					"(" + col.typeParams.join(", ") + ")" :
+					""
+				) + 
+				" NOT NULL", "toSQL()");
 		});
 	}
 
@@ -61,7 +68,12 @@
 
 			strictEqual(col.nullable, true, "NULL / NOT NULL");
 			strictEqual(col.toJSON().nullable, true, "toJSON()");
-			equal(col.toSQL(), "\"columnName\" " + type.toUpperCase() + " NULL", "toSQL()");
+			equal(col.toSQL(), "\"columnName\" " + type.toUpperCase() + 
+				(col.typeParams && col.typeParams.length ? 
+					"(" + col.typeParams.join(", ") + ")" :
+					""
+				) + " NULL", "toSQL()"
+			);
 		});
 
 		test(type + " column - set zerofill", function() {
@@ -75,7 +87,11 @@
 
 			strictEqual(col.zerofill, true, "ZEROFILL");
 			strictEqual(col.toJSON().zerofill, true, "toJSON()");
-			equal(col.toSQL(), "\"columnName\" " + type.toUpperCase() + " NOT NULL ZEROFILL", "toSQL()");
+			equal(col.toSQL(), "\"columnName\" " + type.toUpperCase() + 
+				(col.typeParams && col.typeParams.length ? 
+					"(" + col.typeParams.join(", ") + ")" :
+					""
+				) + " NOT NULL ZEROFILL", "toSQL()");
 		});
 
 		test(type + " column - set unsigned", function() {
@@ -89,7 +105,11 @@
 
 			strictEqual(col.unsigned, true, "UNSIGNED");
 			strictEqual(col.toJSON().unsigned, true, "toJSON()");
-			equal(col.toSQL(), "\"columnName\" " + type.toUpperCase() + " NOT NULL UNSIGNED", "toSQL()");
+			equal(col.toSQL(), "\"columnName\" " + type.toUpperCase() + 
+				(col.typeParams && col.typeParams.length ? 
+					"(" + col.typeParams.join(", ") + ")" :
+					""
+				) + " NOT NULL UNSIGNED", "toSQL()");
 		});
 
 		test(type + " column - set autoIncrement", function() {
@@ -100,7 +120,11 @@
 			});
 			strictEqual(col.autoIncrement, true, "AUTO_INCREMENT");
 			strictEqual(col.toJSON().autoIncrement, true, "toJSON()");
-			equal(col.toSQL(), "\"columnName\" " + type.toUpperCase() + " NOT NULL AUTO_INCREMENT", "toSQL()");
+			equal(col.toSQL(), "\"columnName\" " + type.toUpperCase() + 
+				(col.typeParams && col.typeParams.length ? 
+					"(" + col.typeParams.join(", ") + ")" :
+					""
+				) + " NOT NULL AUTO_INCREMENT", "toSQL()");
 		});
 
 		test(type + " column - toJSON()", function() {

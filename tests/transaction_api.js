@@ -8,16 +8,22 @@
 		return {
 			name : transactionName,
 			onComplete : function onTransactionComplete() {
-				ok(true, 'Transaction "' + transactionName + '" complete');
-				if (QUnit.config.semaphore) QUnit.start();
+				if (QUnit.config.semaphore) {
+					ok(true, 'Transaction "' + transactionName + '" complete');
+					QUnit.start();
+				}
 			},
 			onRollback : function onTransactionRollback() {
-				ok(true, 'Transaction "' + transactionName + '" was undone');
-				if (QUnit.config.semaphore) QUnit.start();
+				if (QUnit.config.semaphore) {
+					ok(true, 'Transaction "' + transactionName + '" was undone');
+					QUnit.start();
+				}
 			},
 			onError : function onTransactionError(e) {
-				ok(true, 'Transaction "' + transactionName + '" error: ' + e);
-				if (QUnit.config.semaphore) QUnit.start();
+				if (QUnit.config.semaphore) {
+					ok(true, 'Transaction "' + transactionName + '" error: ' + e);
+					QUnit.start();
+				}
 			}
 		};
 	}
@@ -118,16 +124,18 @@
 	});
 
 	QUnit.asyncTest("Global timeout", function() {
-		var tx = new Transaction(txOptions("tx1"));
+		var tx = new Transaction(txOptions("tx1")),
+			timer;
 
 		tx.add(Transaction.createTask({
 			name : "Task 1",
 			execute : function(done, fail) {
 				ok(true, "Running " + this.name);
-				setTimeout(done, 1500);
+				timer = setTimeout((function(done) { done(); })(done), 2500);
 			},
 			undo : function(done) {
 				ok(true, "Undoing " + this.name);
+				if (timer) clearTimeout(timer);
 				done();
 			}
 		}));
@@ -136,14 +144,16 @@
 	});
 
 	QUnit.asyncTest("Local task timeout", function() {
-		var tx = new Transaction(txOptions("tx1"));
+		var tx = new Transaction(txOptions("tx1")),
+			timer1,
+			timer2;
 
 		tx.add(Transaction.createTask({
 			name : "Task 1",
 			timeout : 1600, // <- Big enough to succeed
 			execute : function(done, fail) {
 				ok(true, "Running " + this.name);
-				setTimeout(done, 1500);
+				timer1 = setTimeout((function(done) { done(); })(done), 1500);
 			},
 			undo : function(done) {
 				ok(true, "Undoing " + this.name);
@@ -155,7 +165,7 @@
 			name : "Task 2",
 			execute : function(done, fail) {
 				ok(true, "Running " + this.name);
-				setTimeout(done, 1500);
+				timer2 = setTimeout((function(done) { done(); })(done), 1500);
 			},
 			undo : function(done) {
 				ok(true, "Undoing " + this.name);
