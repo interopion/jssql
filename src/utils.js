@@ -548,13 +548,13 @@ function mixin()
 			{
 				tmp = b[key];
 				if ( tmp && typeof tmp == "object" ) {
-					a[key] = mixin(isArray(tmp) ? [] : {}, tmp);
+					a[key] = mixin(isArray(tmp) ? [] : {}, a[key], tmp);
 				} else {
 					a[key] = tmp;
 				}
 			}
 		} 
-		else 
+		else if (b && typeof b == "object")
 		{
 			for ( key in b ) 
 			{
@@ -562,7 +562,7 @@ function mixin()
 				{
 					tmp = b[key];
 					if ( tmp && typeof tmp == "object" ) {
-						a[key] = mixin(isArray(tmp) ? [] : {}, tmp);
+						a[key] = mixin(isArray(tmp) ? [] : {}, a[key], tmp);
 					} else {
 						a[key] = tmp;
 					}
