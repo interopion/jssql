@@ -6,17 +6,110 @@
  */
 function Server()
 {
+	var transaction = null;
+
 	/**
 	 * The databases currently in this server
 	 * @type {Object}
 	 * @private
 	 */
 	this.databases = {};
+
+	// Transaction management methods ------------------------------------------
+
+	/**
+	 * Checks whether there is a pending transaction
+	 * @return {Boolean}
+	 */
+	this.isInTransaction = function()
+	{
+		return !!transaction;
+	};
+
+	/**
+	 * Gets the current transaction (if any)
+	 * @return {Transaction|null}
+	 */
+	this.getTransaction = function()
+	{
+		return transaction || null;
+	};
+
+	/**
+	 * Starts new transaction
+	 */
+	this.beginTransaction = function(options)
+	{
+		if (transaction)
+			throw new SQLRuntimeError(
+				"There is a current transaction already started"
+			);
+
+		transaction = new Transaction(options);
+
+		function removeTransaction() {
+			transaction.destroy();
+			transaction = null;
+		}
+		
+			
+		transaction.on("rollback", function(error) {
+			console.log("Transaction rolled back with error ", error);
+			removeTransaction();
+		});
+
+		transaction.on("complete", function() {
+			console.log("Transaction complete");
+			removeTransaction();
+		});
+
+		transaction.on("before:task", function(task, pos) {
+			console.log("Starting task ", task.name);
+		});
+		
+		transaction.on("after:task", function(task, pos) {
+			console.log("Ended task ", task.name);
+		});
+
+		return transaction;
+	};
+
+	this.commitTransaction = function()
+	{
+		if (!transaction)
+			throw new SQLRuntimeError("There is no current transaction");
+
+		transaction.start();
+
+	};
+
+	this.rollbackTransaction = function(done, fail)
+	{
+		if (!transaction) {
+			var err = new SQLRuntimeError("There is no current transaction");
+			if (fail)
+				fail(err);
+			else
+				throw err;
+		}
+
+		if (done)
+			transaction.one("rollback", done);
+		if (fail)
+			transaction.one("error", fail);
+
+		transaction.rollback();
+	};
 }
 
 Server.prototype = new Persistable();
 Server.prototype.constructor = Server;
 
+/**
+ * Return the storage key for the server object. This is used to identify it
+ * inside a key-value based storage.
+ * @return {String}
+ */
 Server.prototype.getStorageKey = function()
 {
 	return NS;
@@ -141,18 +234,24 @@ Server.prototype.createDatabase = function(name, ifNotExists)
  * database does not exists and this is not set to true.
  * @return {void}
  */
-Server.prototype.dropDatabase = function(name, ifExists) 
+Server.prototype.dropDatabase = function(name, ifExists, done, fail) 
 {
 	if (this.databases.hasOwnProperty(name)) {
 		if (this.currentDatabase === this.databases[name])
 			this.currentDatabase = null;
 		this.databases[name].drop();
 		delete this.databases[name];
-		this.save();
+		this.save(done, fail);
 	} else {
 		if (!ifExists) {
-			throw new SQLRuntimeError('Database "' + name + '" does not exist');
+			var err = new SQLRuntimeError('Database "' + name + '" does not exist');
+			if (fail)
+				return fail(err);
+			else 
+				throw err;
 		}
+		if (done)
+			done();
 	}
 };
 
@@ -163,9 +262,16 @@ Server.prototype.dropDatabase = function(name, ifExists)
  */
 Server.prototype.getDatabase = function(name)
 {
-	return this.databases[trim(name)];
+	return this.databases[
+		trim(name)
+	];
 };
 
+/**
+ * Selects the specified database as the currently used one.
+ * @throws {SQLRuntimeError} error If the databse does not exist
+ * @return {Server} Returns the Server instance
+ */
 Server.prototype.setCurrentDatabase = function(name)
 {
 	var db = trim(name);
@@ -173,8 +279,13 @@ Server.prototype.setCurrentDatabase = function(name)
 		throw new SQLRuntimeError('No such database "%s".', db);
 	}
 	CURRENT_DATABASE = this.currentDatabase = this.databases[db];
+	return this;
 };
 
+/**
+ * Returns the currently used database (if any).
+ * @return {Database|undefined}
+ */
 Server.prototype.getCurrentDatabase = function()
 {
 	return this.currentDatabase;
