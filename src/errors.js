@@ -1,21 +1,31 @@
 /**
- * @constructor
- * @extends {Error}
- * @param {String} message - The error message. Defaults to "Error while parsing
- * sql query". The message, along with any other following arguments will be 
- * passed to the {@link strf strf function}
+ * Factory function for creating custom error classes
  */
-function SQLParseError(message)
+function createErrorClass(name, defaultsMessage)
 {
-	this.name    = "SQLParseError";
-	this.message = strf.apply(
-		this, 
-		arguments.length ? arguments : ["Error while parsing sql query"]
-	);
+	var F = function()
+	{
+		this.name    = name;
+		this.message = strf.apply(
+			this, 
+			arguments.length ? arguments : [defaultsMessage || "Unknown error"]
+		);
+	};
+
+	F.prototype = new Error();
+	F.prototype.constructor = F;
+	return F;
 }
 
-SQLParseError.prototype = new Error();
-SQLParseError.prototype.constructor = SQLParseError;
+/**
+ * The base class for custom errors.
+ * @constructor
+ * @extends {Error}
+ * @param {String} message - The error message. Defaults to "Unknown error". 
+ * The message, along with any other following arguments will be 
+ * passed to the {@link strf strf function}
+ */
+var CustomError = createErrorClass("CustomError");
 
 /**
  * @constructor
@@ -24,17 +34,16 @@ SQLParseError.prototype.constructor = SQLParseError;
  * sql query". The message, along with any other following arguments will be 
  * passed to the {@link strf strf function}
  */
-function SQLRuntimeError(message)
-{
-	this.name    = "SQLRuntimeError";
-	this.message = strf.apply(
-		this, 
-		arguments.length ? arguments : ["Error while executing sql query"]
-	);
-}
+var SQLParseError = createErrorClass("SQLParseError", "Error while parsing sql query");
 
-SQLParseError.prototype = new Error();
-SQLParseError.prototype.constructor = SQLRuntimeError;
+/**
+ * @constructor
+ * @extends {Error}
+ * @param {String} message - The error message. Defaults to "Error while parsing
+ * sql query". The message, along with any other following arguments will be 
+ * passed to the {@link strf strf function}
+ */
+var SQLRuntimeError = createErrorClass("SQLRuntimeError", "Error while executing sql query");
 
 /**
  * @constructor
@@ -43,15 +52,5 @@ SQLParseError.prototype.constructor = SQLRuntimeError;
  * violation". The message, along with any other following arguments will be 
  * passed to the {@link strf strf function}
  */
-function SQLConstraintError(message)
-{
-	this.name    = "SQLRuntimeError";
-	this.message = strf.apply(
-		this, 
-		arguments.length ? arguments : ["SQL constraint violation"]
-	);
-}
-
-SQLConstraintError.prototype = new Error();
-SQLConstraintError.prototype.constructor = SQLConstraintError;
+var SQLConstraintError = createErrorClass("SQLConstraintError", "SQL constraint violation");
 
