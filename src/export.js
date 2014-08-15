@@ -2,6 +2,7 @@ GLOBAL[NS] = JSDB;
 
 JSDB.query  = query;
 JSDB.Result = Result;
+JSDB.query2 = query2;
 
 if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 	mixin(GLOBAL.JSDB, {
@@ -26,7 +27,7 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		tokenize         : tokenize,
 		getTokens        : getTokens,
 		Walker           : Walker,
-		parse            : parse,
+		//parse            : parse,
 		Table            : Table,
 		TableIndex       : TableIndex,
 		SERVER           : SERVER,
@@ -40,6 +41,7 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		innerJoin        : innerJoin,
 		crossJoin2       : crossJoin2,
 		executeCondition : executeCondition,
+		Transaction      : Transaction,
 
 		SQLConstraintError : SQLConstraintError,
 		SQLRuntimeError    : SQLRuntimeError,
