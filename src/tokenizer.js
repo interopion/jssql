@@ -141,15 +141,16 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 				}
 				else 
 				{
-					// Should we close a multi-line comment or jus append to it?
+					// Should we close a multi-line comment or just append to it?
 					if (state === TOKEN_TYPE_MULTI_COMMENT) 
 					{
 						buf += cur;
-						if (sql[pos - 1] == "*") 
+						pos++;
+						if (sql[pos - 2] == "*") 
 						{
 							if (buf) commit(); // close
 						}
-						pos++;
+						
 					}
 					else
 					{
