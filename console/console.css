@@ -1,0 +1,171 @@
+html {
+	height: 100%;
+}
+
+body {
+	margin     : 0;
+	padding    : 0;
+	background : #000;
+	color      : #CCC;
+	font-family: monospace;
+	font-size  : 16px;
+	height     : 100%;
+	position   : relative;
+}
+
+::-moz-selection {
+	background-color: #555;
+	color: #FFF;
+	text-shadow: 0 1px 0 #000;
+}
+::selection {
+	background-color: #999 !important;
+	/*color: #FFF;*/
+	text-shadow: 0 1px 0 #000;
+}
+
+pre {
+	margin     : 0;
+	padding    : 4px 4px 4px 16px;
+	white-space: pre-wrap;
+	-moz-tab-size:4; 
+	-o-tab-size:4; 
+	tab-size:4;
+}
+
+textarea {
+	position   : absolute;
+	width      : 100%;
+	margin     : -4px 0 0 0;
+	padding    : 0px 4px 0 16px;
+	left       : 0;
+	right      : 0;
+	border     : none;
+	box-sizing : border-box;
+	font-family: monospace;
+	white-space: pre;
+	font-size  : 16px;
+	background : transparent;
+	color      : #CCC;
+	resize     : none;
+	overflow   : visible;
+	-moz-tab-size:4; 
+	-o-tab-size:4; 
+	tab-size:4;
+	min-height: 2em;
+	outline: none;
+}
+
+textarea::-moz-placeholder {
+	color: #777;
+	font-weight: 100;
+	opacity: 0.6;
+}
+
+textarea::-webkit-input-placeholder {
+	color: #777;
+	font-weight: 100;
+	opacity: 0.6;
+}
+
+textarea.waiting {
+	background: url("76.GIF") 
+		no-repeat 
+		scroll 
+		4px 4px / 80px 12px 
+		rgba(0, 0, 0, 0);
+	-webkit-user-input: disabled;
+	-moz-user-input: disabled;
+	user-input: disabled;
+}
+
+textarea.waiting::-moz-placeholder {
+	color: transparent;
+}
+
+.old-input {
+	/*font-weight: bold;*/
+	color: #8C6;
+}
+
+.old-input:before {
+	content: "";
+	display: inline-block;
+	width  : 0;
+	height : 0;
+	border-width: 6px 0 6px 6px;
+	border-style: inset none inset solid;
+	border-color: transparent transparent transparent #777;
+	line-height: inherit;
+	margin: 0 0 0 -12px;
+	padding: 0 6px 0 0;
+	vertical-align: middle;
+}
+
+.error {
+	color: red;
+}
+
+.error::-moz-selection {
+	background-color: red;
+	text-shadow: 0 1px 0 #600;
+}
+
+.error::selection {
+	background-color: red;
+	text-shadow: 0 1px 0 #600;
+}
+
+blockquote {
+	border-left: 3px double #999;
+	color: #999;
+	margin: 1ex 0 1em 2em;
+	padding: 0 0 0 1ex;
+	font-size: smaller;
+}
+
+.error blockquote {
+	border-left: 3px double #CC9966;
+	color: #CC9966;
+}
+
+table {
+	border : 1px solid #666;
+	border-spacing:0;
+	margin: 1em 0 1ex;
+	table-layout: fixed;
+}
+
+td, th {
+	border-bottom: 1px solid #666;
+	border-right : 1px solid #666;
+	padding: 2px 4px;
+	text-align: left;
+}
+
+th {
+	background: #333;
+	padding: 4px;
+}
+
+td {
+	border-bottom-color: #333;
+	border-right : 1px solid #444;
+	/*border-bottom-style: dotted;*/
+}
+
+td:last-child, th:last-child {
+	border-right : none;
+}
+
+tr:last-child td {
+	border-bottom : none;
+}
+
+tr:nth-child(even) {
+	background: #202020;
+}
+
+pre .old-output {
+	margin-bottom: 2em !important;
+}
