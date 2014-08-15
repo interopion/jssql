@@ -11,7 +11,7 @@
  * @example new Result()
  * @return Result
  */
-function Result()
+function Result(data)
 {
 	/**
 	 * The data that the result represents. Initially this is null.
@@ -88,6 +88,10 @@ function Result()
 	 * @default 0
 	 */
 	this.rowLength = 0;
+
+	if (arguments.length) {
+		this.setData(data);
+	}
 }
 
 /**
@@ -204,15 +208,6 @@ Result.prototype = {
 			this.type = Result.TYPE_ARRAY;
 		}
 
-		// String (just a result message)
-		else if ( typeof data == "string" )
-		{
-			this.data = data || "";
-			this.cols = [];
-			this.rows = [];
-			this.type = Result.TYPE_MESSAGE;
-		}
-
 		// Boolean
 		else if ( data === true || data === false )
 		{
@@ -225,7 +220,10 @@ Result.prototype = {
 		// Invalid argument
 		else
 		{
-			throw new TypeError("Invalid argument");
+			this.data = String(data || "");
+			this.cols = [];
+			this.rows = [];
+			this.type = Result.TYPE_MESSAGE;
 		}
 
 		this.colLength = this.cols.length;
