@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: statements/begin.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: statements/begin.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source"><code>/** 
+ * No changes can be made to the database except within a transaction. Any
+ * command that changes the database (basically, any SQL command other than
+ * SELECT) will automatically start a transaction if one is not already in
+ * effect. Automatically started transactions are committed when the last query
+ * finishes.
+ * 
+ * Transactions can be started manually using the BEGIN command. Such
+ * transactions usually persist until the next COMMIT or ROLLBACK command. But a
+ * transaction will also ROLLBACK if the database is closed or if an error occurs
+ * and the ROLLBACK conflict resolution algorithm is specified. See the
+ * documentation on the ON CONFLICT clause for additional information about the
+ * ROLLBACK conflict resolution algorithm.
+ * 
+ * END TRANSACTION is an alias for COMMIT.
+ * 
+ * Transactions created using BEGIN...COMMIT do not nest. For nested
+ * transactions, use the SAVEPOINT and RELEASE commands. The "TO SAVEPOINT name"
+ * clause of the ROLLBACK command shown in the syntax diagram above is only
+ * applicable to SAVEPOINT transactions. An attempt to invoke the BEGIN command
+ * within a transaction will fail with an error, regardless of whether the
+ * transaction was started by SAVEPOINT or a prior BEGIN. The COMMIT command and
+ * the ROLLBACK command without the TO clause work the same on SAVEPOINT
+ * transactions as they do with transactions started by BEGIN.
+ * 
+ * 
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {Function}
+ * @example  * &lt;pre style="font-family:Menlo, monospace">
+ *
+ *    ┌───────┐                        ┌─────────────┐  
+ * >──┤ BEGIN ├──┬───────────────┬───┬─┤ TRANSACTION ├─┬──>
+ *    └───────┘  │ ┌───────────┐ │   │ └─────────────┘ │
+ *               ├─┤ DEFERRED  ├─┤   │                 │
+ *               │ └───────────┘ │   └─────────────────┘
+ *               │ ┌───────────┐ │
+ *               ├─┤ IMEDDIATE ├─┤
+ *               │ └───────────┘ │
+ *               │ ┌───────────┐ │
+ *               └─┤ EXCLUSIVE ├─┘
+ *                 └───────────┘
+ * &lt;/pre>
+ */ 
+STATEMENTS.BEGIN = function(walker) {
+	return new Task({
+		name : "Begin transaction",
+		execute : function(done, fail) {
+			
+			var type = "DEFERRED";
+
+			if ( walker.is("DEFERRED|IMEDDIATE|EXCLUSIVE") )
+			{
+				type = walker.get().toUpperCase();
+				walker.forward();
+			}
+
+			if (walker.is("TRANSACTION"))
+				walker.forward();
+			
+			walker.errorUntil(";");
+
+			walker.commit(function() {
+				SERVER.beginTransaction({ type : type });
+				done("Transaction created");
+			});
+		},
+		undo : function(done, fail) {
+			SERVER.rollbackTransaction(done, fail);
+		}
+	});
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Tue Aug 19 2014 16:41:49 GMT+0300 (EEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

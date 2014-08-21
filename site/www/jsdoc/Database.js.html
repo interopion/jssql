@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Database.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: Database.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source"><code>////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                             Class Database                                 //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @constructor
+ * @classdesc The Server class is used to create databses which are persistable 
+ * collections of tables.
+ * @extends {Persistable}
+ */
+function Database(name) 
+{
+	this.tables = {};
+	this.name = name;
+}
+
+Database.prototype = new Persistable();
+Database.prototype.constructor = Database;
+
+Database.prototype.toJSON = function() 
+{
+	var out = { name : this.name, tables : {} }, t;
+	for (t in this.tables) {
+		out.tables[t] = [NS, this.name, t].join(".");
+	}
+	return out;
+};
+
+Database.prototype.getStorageKey = function() 
+{
+	return NS + "." + this.name;
+};
+
+Database.prototype.drop = function()
+{
+	for ( var tableName in this.tables ) {//debugger; 
+		this.tables[tableName].drop();
+	}
+	Persistable.prototype.drop.call(this);
+};
+
+Database.prototype.load = function(onSuccess, onError) 
+{
+	var db = this;
+	JSDB.events.dispatch("loadstart:database", db);
+	db.read(function(json) {
+		var table, 
+			tables = [], 
+			tableName,
+			loaded = 0, 
+			tableCount = 0, i;
+
+		function onTableLoad(table)
+		{
+			return function()
+			{
+				db.tables[table.name] = table;
+				if (++loaded === tableCount) {
+					JSDB.events.dispatch("load:database", db);
+					if (onSuccess) onSuccess(db);
+				}
+			};
+		}
+
+		db.tables = {};
+
+		for ( var name in json.tables ) {
+			table = new Table(name, db);
+			tables[tableCount++] = table;
+		}
+
+		if (tableCount) {
+			for ( i = 0; i &lt; tableCount; i++ ) {
+				table = tables[i];
+				table.load(onTableLoad(table), onError);
+			}
+		} else {
+			JSDB.events.dispatch("load:database", db);
+			if (onSuccess) onSuccess(db);
+		}
+
+	}, onError);
+	
+	return db;
+};
+
+Database.prototype.save = function(onComplete, onError) 
+{
+	Persistable.prototype.save.call(this, function() {
+		SERVER.save(onComplete, onError);
+	}, onError);
+	return this;
+};
+
+Database.prototype.createTable = function(name, fields, ifNotExists)
+{
+	if (this.tables.hasOwnProperty(name)) {
+		if (!ifNotExists) {
+			throw new SQLRuntimeError('Table "%s" already exists', name);
+		}
+	}
+
+	var table = new Table(name, this), col;
+	for (col = 0; col &lt; fields.length; col++) {
+		table.addColumn(fields[col]);
+	}
+	
+	table.save();
+	this.tables[name] = table;
+	this.save();
+	return table;
+};
+
+/**
+ * Get a table by name from the database.
+ * @param {String} name - The name of the desired table
+ * @return {Table}
+ * @throws {SQLRuntimeError} error - If there is no such table
+ */
+Database.prototype.getTable = function(tableName)
+{			
+	var table = this.tables[tableName];
+	if (!table) {
+		throw new SQLRuntimeError(
+			'No such table "%s" in database "%s"',
+			tableName,
+			this.name
+		);
+	}
+	return table;
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Tue Aug 19 2014 16:41:49 GMT+0300 (EEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

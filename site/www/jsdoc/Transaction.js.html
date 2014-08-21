@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Transaction.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: Transaction.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source"><code>/**
+ * Class Transaction
+ * @classdesc Creates transaction objects which can be started, stopped and 
+ * rolled back (undone). All the tasks inside the transaction queue are executed
+ * asynchronously. There is a rich set of event callbacks available, as well as 
+ * ability to observe the execution progress.
+ * @param {Object}   options Optional configuration options.
+ * @param {Function} options.onComplete Optional. The callback function to be
+ *		invoked when the transaction is complete. The function will be called
+ * 		with no arguments.
+ * @param {Function} options.onRollback Optional. The callback function to be
+ *		invoked when the transaction has been rolled back. The function will be
+ *		called with the last error message as argument.
+ * @param {Function} options.onError Optional. The callback function to be
+ *		invoked when there is an error. The function will be
+ *		called with the last error message as argument.
+ * @param {Function} options.beforeTask Optional. 
+ * @param {Function} options.afterTask Optional. 
+ * @param {Function} options.beforeUndo Optional. 
+ * @param {Function} options.afterUndo Optional. 
+ * @param {Function} options.onProgress Optional. 
+ * @param {Number} options.delay Optional. The number of milliseconds to wait 
+ * 		before calling the next task in the queue. Defaults to 0.
+ * @param {Number} options.timeout Optional. The number of milliseconds to wait 
+ * 		for the current task to complete. If this time is exceeded the 
+ *		transaction is aborted. Defaults to 1000 (one second).
+ * @param {String} options.name Optional. The name of the transaction (to be 
+ *		used for logging to identify the current transaction in case it is 
+ * 		nested in another one...)
+ * @param {Boolean} options.autoRollback Optional.
+ * @param {Boolean} options.reqursiveRollback Optional. By default rolling back
+ *		a nested transaction will also rollback it's parent transaction. Set 
+ *		this to false to turn off this behavior.
+ * 
+ * The instance emits the following events:
+ * &lt;ul>
+ *   &lt;li>reset                    - after the instance has been reset&lt;/li>
+ *   &lt;li>error(error)             - on error&lt;/li>
+ *   &lt;li>before:task([task, pos]) - before a task is executed&lt;/li>
+ *   &lt;li>after:task([task, pos])  - after a task has been executed&lt;/li>
+ *   &lt;li>progress([q, task, pos]) - after a task has been executed or undone&lt;/li>
+ *   &lt;li>complete&lt;/li>
+ *   &lt;li>rollback(error)&lt;/li>
+ *   &lt;li>before:undo([task, pos])&lt;/li>
+ *   &lt;li>after:undo([task, pos])&lt;/li>
+ * &lt;/ul>
+ * @constructor
+ */
+function Transaction(options) 
+{
+	var 
+
+	config = mixin({
+		//onComplete   : noop,
+		//onRollback   : noop, // args: lastError
+		//onError      : noop, // args: Error error|String error message
+		//beforeTask   : noop, // args: task, pos
+		//afterTask    : noop, // args: task, pos
+		beforeUndo   : noop, // args: task, pos
+		afterUndo    : noop, // args: task, pos
+		onProgress   : noop, // args: q, task, pos
+		timeout      : 1000, // For any single task
+		delay        : 0,
+		name         : "Anonymous transaction",
+		autoRollback : true
+	}, options),
+
+	/**
+	 * Local reference to the instance
+	 * @type {Transaction}
+	 */
+	inst = this,
+
+	/**
+	 * The task queue
+	 * @type {Array}
+	 * @private
+	 */
+	tasks = [],
+
+	/**
+	 * The length of the task queue
+	 * @type {Number}
+	 * @private
+	 */
+	length = 0,
+
+	/**
+	 * The current position within the task queue. The initial value is -1 which
+	 * means that the transaction has not been started.
+	 * @type {Number}
+	 * @private
+	 */
+	position = -1,
+	
+	/**
+	 * The timeout that executes the current task
+	 * @private
+	 */
+	timer = null,
+	
+	/**
+	 * The delay timeout
+	 * @private
+	 */
+	delay = null,
+
+	/**
+	 * The total weight of the transaction. This is computed as the sum of the
+	 * weights of all the tasks. Each task might define it's own weight. 
+	 * Otherwise 1 is used for the task.
+	 * @type {Number}
+	 * @private
+	 */ 
+	weight = 0,
+	
+	/**
+	 * Contains the last error message (if any). Defaults to an empty string.
+	 * @type {String}
+	 * @private
+	 */
+	lastError = "",
+
+	/**
+	 * The transaction observer
+	 * @type {Object}
+	 * @private
+	 */
+	events = new Observer();
+
+	if (isFunction(config.onComplete))
+		events.on("complete", config.onComplete);
+	if (isFunction(config.onRollback))
+		events.on("rollback", config.onRollback);
+	if (isFunction(config.onError))
+		events.on("error", config.onError);
+	if (isFunction(config.beforeTask))
+		events.on("before:task", config.beforeTask);
+	if (isFunction(config.afterTask))
+		events.on("after:task", config.afterTask);
+
+	function destroy()
+	{
+		reset(true);
+		events.off();
+	}
+
+	/**
+	 * Resets the transaction
+	 * @throws {Error} if the transaction is currently running
+	 * @return {void}
+	 */
+	function reset(silent) 
+	{
+		if (isStarted() && !isComplete()) 
+			throw new Error("Cannot reset a transacion while it is runing");
+		
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
+		
+		tasks     = [];
+		length    = 0;
+		position  = -1;
+		timer     = null;
+		weight    = 0;
+		lastError = "";
+
+		if (!silent)
+			events.dispatch("reset");
+	}
+
+	/**
+	 * Calculates and returns the current position as a floating point number.
+	 * This tipically represents ho many of the available tasks are complete,
+	 * but can also be more complicated because each task can have it's own 
+	 * weight defined which affects this number.
+	 * @return {Number}
+	 */
+	function getProgress() 
+	{
+		var cur = 0, i;
+		for (i = 0; i &lt;= position; i++) {
+			cur += tasks[i].weight || 1;
+		}
+		return cur / weight;
+	}
+
+	/**
+	 * Checks if the transaction has been started
+	 * @return {Boolean}
+	 */
+	function isStarted() 
+	{
+		return position > -1;
+	}
+
+	/**
+	 * Checks if the transaction is empty
+	 * @return {Boolean}
+	 */
+	function isEmpty() 
+	{
+		return length === 0;
+	}
+
+	/**
+	 * Checks if the transaction is complete
+	 * @return {Boolean}
+	 */
+	function isComplete() 
+	{
+		return !isEmpty() && position === length - 1;
+	}
+	
+	/**
+	 * Appends new task to the transaction queue.
+	 * @param {Task|Transaction} task The task or sub-transaction to 
+	 * 		add to the queue
+	 * @throws {Error} If the transaction has already been started
+	 * @return {void}
+	 * @todo Allow for adding Transaction objects to create nested transactions
+	 */
+	function add(task) 
+	{
+		//if (isStarted()) 
+		//	throw "The transaction has already ran";
+
+		// Add nested transaction. In this case create new generic task that 
+		// wraps the entire nested transaction
+		if (task && task instanceof Transaction)
+		{
+			var tx = task;
+			
+			task = Transaction.createTask({
+				name : "Nested transaction",
+				execute : function(done, fail) 
+				{
+					tx.on("complete", done);
+					tx.on("error", fail);
+					tx.start();
+				},
+				undo : function(done) 
+				{
+					tx.on("rollback", done);
+					tx.rollback();
+				}
+			});
+
+			tx.parentTransaction = inst;
+
+			weight += tx.getWeight();
+		}
+		else
+		{
+			weight += task.weight || 1;
+			if (inst.parentTransaction) {
+				inst.parentTransaction.setWeight(
+					inst.parentTransaction.getWeight() + (task.weight || 1)
+				);
+			}
+		}
+
+		task.transaction = inst;
+		length = tasks.push(task);
+		task.name += " (at position " + length + ")";
+	}
+
+	/**
+	 * The function that attempts to invoke the next task in the queue
+	 */
+	function next(callerPosition) 
+	{
+		// clear times if needed
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
+
+		// Such a call might come from within a task that has already been 
+		// "outdated" due to timeout
+		if (callerPosition !== undefined && callerPosition !== position) {
+			return;
+		}
+
+		if (!isComplete() && !isEmpty()) {
+			(function worker(task, pos) {
+				var _timeout = "timeout" in task ? task.timeout : config.timeout;
+				
+				if ( _timeout > 0 ) {
+					timer = setTimeout(function() {
+						lastError = "Task '" + task.name + "' timed out!.";
+						events.dispatch("error", lastError);
+						if (config.autoRollback) 
+							undo(pos);
+					}, _timeout + config.delay);
+				}
+
+				try {
+					events.dispatch("before:task", task, pos);
+					task.execute(
+						function() {
+							if (pos === position) {
+								events.dispatch("progress", getProgress(), task, pos);
+								config.onProgress(getProgress(), task, pos);
+								events.dispatch("after:task", task, pos);
+								delay = setTimeout(next, config.delay);
+								//next();
+							} 
+						}, 
+						function(e) {
+							if (pos === position) {
+								lastError = e || "Task '" + task.name + "' failed.";
+								events.dispatch("error", lastError);
+								if (config.autoRollback) 
+									undo(pos);
+							}
+						}
+					);
+				} catch (ex) {
+					events.dispatch("error", ex);
+					if (config.autoRollback) 
+						undo(pos);
+				}
+			})(tasks[++position], position);
+		} else {
+			events.dispatch("complete");
+		}
+	}
+
+	/**
+	 * Undoes all the completed actions on failure.
+	 * @return {void}
+	 */
+	function undo(callerPosition) {
+		if (timer) 
+			clearTimeout(timer);
+
+		if (delay) 
+			clearTimeout(delay);
+		
+		// Such a call might come from within a task that has already been 
+		// "outdated" due to timeout
+		if (callerPosition !== undefined && callerPosition !== position) {
+			return;
+		}
+
+		if (position &lt; 0) {
+			events.dispatch("rollback", lastError);
+		} else {
+			try {
+				var task = tasks[position--];
+				events.dispatch("before:undo", task, position + 1);
+				config.beforeUndo(task, position + 1);
+				task.undo(function() {
+					events.dispatch("progress", getProgress(), task, position + 1);
+					config.onProgress(getProgress(), task, position + 1);
+					events.dispatch("after:undo", task, position + 1);
+					config.afterUndo(task, position + 1);
+					undo();
+				}, function(error) {
+					events.dispatch("progress", getProgress(), task, position + 1);
+					config.onProgress(getProgress(), task, position + 1);
+					events.dispatch("after:undo", task, position + 1);
+					config.afterUndo(task, position + 1);
+					events.dispatch("error", error || "Task '" + task.name + "' failed to undo");
+					undo();
+				});
+			} catch (ex) {
+				events.dispatch("error", ex);
+				undo();
+			}
+		}
+	}
+
+	// Instance methods --------------------------------------------------------
+	
+	this.bind   = events.bind;
+	this.on     = events.on;
+	this.one    = events.one;
+	this.unbind = events.unbind;
+	this.off    = events.off;
+
+	/**
+	 * Returns the length of the task queue
+	 * @return {Number}
+	 */
+	this.getLength = function()
+	{
+		return length;
+	};
+
+	/**
+	 * Returns the weight of the transaction which is the sum of all task weights
+	 * @return {Number}
+	 */
+	this.getWeight = function()
+	{
+		return weight;
+	};
+
+	this.setWeight = function(w)
+	{
+		weight = w;
+	};
+
+	/**
+	 * Starts the transaction. Only non-empty, not started and not running 
+	 * transaction can be started. Otherwise an Exception is thrown.
+	 * @throws {Error}
+	 * @return {void}
+	 */
+	this.start = function() 
+	{
+		//if (isEmpty()) 
+		//	throw new Error("The transaction has no tasks");
+		if (isComplete()) 
+			throw new Error("The transaction is already complete");
+		if (isStarted()) 
+			throw new Error("The transaction is already running");
+		
+		events.dispatch("start");
+		next();
+	};
+
+	/**
+	 * Resets the transaction
+	 * @throws {Error} if the transaction is currently running
+	 * @return {void}
+	 * @method reset
+	 * @memberof Transaction.prototype
+	 */
+	this.reset = reset;
+
+	this.destroy = destroy;
+
+	/**
+	 * Appends new task to the transaction queue.
+	 * @param {Task} task The task to add
+	 * @throws {Error} If the transaction has already been started
+	 * @return {void}
+	 * @method add
+	 * @memberof Transaction.prototype
+	 */
+	this.add = add;
+
+	/**
+	 * Undoes all the completed actions on failure.
+	 * @return {void}
+	 * @method rollback
+	 * @memberof Transaction.prototype
+	 */
+	this.rollback = undo;
+
+	/**
+	 * Checks if the transaction has been started
+	 * @return {Boolean}
+	 * @method isStarted
+	 * @memberof Transaction.prototype
+	 */
+	this.isStarted = isStarted;
+
+	/**
+	 * Checks if the transaction is complete
+	 * @return {Boolean}
+	 * @method isComplete
+	 * @memberof Transaction.prototype
+	 */
+	this.isComplete = isComplete;
+	
+	/**
+	 * Checks if the transaction is empty
+	 * @return {Boolean}
+	 * @method isEmpty
+	 * @memberof Transaction.prototype
+	 */
+	this.isEmpty = isEmpty;
+
+	/**
+	 * Calculates and returns the current position as a floating point 
+	 * number. This tipically represents ho many of the available tasks are 
+	 * complete, but can also be more complicated because each task can have 
+	 * it's own weight defined which affects this number.
+	 * @return {Number}
+	 * @method getProgress
+	 * @memberof Transaction.prototype
+	 */
+	this.getProgress = getProgress;
+
+	/**
+	 * Set the value of the configuration option identified by name
+	 * @param {String} name The name of the option
+	 * @param {*} value The new value for the option
+	 * @return {Transaction} Returns the instance.
+	 */
+	this.setOption = function(name, value)
+	{
+		config[name] = value;
+		return this;
+	};
+
+	/**
+	 * Get the value of the configuration option identified by name
+	 * @param {String} name The name of the option
+	 * @return {*} Returns the option value or undefined if the option does not
+	 *		exist.
+	 */
+	this.getOption = function(name)
+	{
+		return config[name];
+	};
+
+	this.next = next;
+
+	this.setTaskProgress = function(q) {
+		if (position > -1) {
+			var task = tasks[position];
+			config.onProgress(
+				getProgress() - (1 - q) * (task.weight || 1) / weight, 
+				task, 
+				position
+			);
+		}
+	};
+}
+
+/**
+ * Creates new transaction tasks
+ * @see Task
+ * @static
+ */
+Transaction.createTask = function(options) {
+	return new Task(options);
+};
+
+/**
+ * @classdesc The Task class can be used to create Tasks suitable for
+ * adding into transactions. The user is only required to provide "execute" and
+ * and "undo" implementations. However additional properties might be defined:
+ * @param {Object} options
+ * @param {String} options.name Optional. The name of the task. Defaults to 
+ *		"Anonymous task".
+ * @param {Number} options.timeout Optional. The timeout for the task. If not
+ *		provided, the global timeout option of the transaction will be used.
+ * @param {Function} options.execute The function that will be invoked as the 
+ * 		task worker. If this is not provided, an empty function is used and a 
+ * 		warning is generated to the console.
+ * @constructor
+ */
+function Task(options) 
+{
+	mixin(this, options);
+}
+
+Task.prototype = {
+	
+	/**
+	 * The name of the task. Defaults to "Anonymous task"
+	 * @type {String}
+	 */
+	name : "Anonymous task",
+
+	/**
+	 * The actual worker of the task.
+	 * @param {Function} done The implementation MUST call this after the job is
+	 *		successfully completed
+	 * @param {Function} fail The implementation MUST call this if the job has
+	 *		failed
+	 * @return {void}
+	 */
+	execute : function(done, fail) {
+		console.warn(
+			"The 'execute' method for task '" + this.name + 
+			"' is not implemented!"
+		);
+		done();
+	},
+
+	/**
+	 * The function that undoes the task
+	 * @param {Function} done The implementation MUST call this after the job is
+	 *		successfully completed
+	 * @param {Function} fail The implementation MUST call this if the job has
+	 *		failed
+	 * @return {void}
+	 */
+	undo : function(done, fail) {
+		console.warn(
+			"The 'undo' method for task '" + this.name + 
+			"' is not implemented!"
+		);
+		done();
+	}
+};
+
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Tue Aug 19 2014 16:41:49 GMT+0300 (EEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

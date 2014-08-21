@@ -1,0 +1,79 @@
+body {
+	background: #DDD;
+	margin: 0;
+}
+#main {
+	margin: 0 10%;
+}
+.header {
+	margin: 1em 0;
+}
+.footer {
+	margin: 1em 0;
+	color: #999;
+}
+.container {
+	padding: 2em;
+	margin: 0;
+	background: #FFF;
+	border-radius: 1em;
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 0 10px 0 rgba(0, 0, 0, 0.3);
+}
+a {
+	color: #0083CC;
+	text-decoration: none;
+}
+a:hover {
+	text-decoration: underline;
+}
+.pull-right {
+	float: right;
+}
+code {
+	background: #EEE;
+	padding: 1px 3px;
+	border-radius: 4px;
+	box-shadow: 0 0 1px 0 rgba(0, 0, 0, 0.2) inset;
+}
+
+table {
+	width: 100%;
+	background: #DDD;
+	border-spacing:1px;
+}
+
+th {
+	padding: 4px 8px;
+	box-shadow: 0px 0px 0px 1px rgba(0, 0, 0, 0.05);
+	text-shadow: 0 1px 0 #FFF;
+}
+
+td {
+	padding: 4px 8px;
+	vertical-align: top;
+}
+
+tbody tr {
+	background: #FFF;
+}
+
+tbody tr:nth-child(even) {
+	background: #F6F6F5;
+}
+
+/* google-code-prettify customization --------------------------------------- */
+pre.prettyprint, code.prettyprint {
+	background-color: #EEE;
+	text-shadow: 0 1px 0 #FFF;
+	border: none;
+	-moz-tab-size: 4;
+	tab-size: 4;
+}
+
+pre.prettyprint {
+	margin: 1em auto;
+	padding: 1em;
+	white-space: pre-wrap;
+	border-radius: 8px;
+	box-shadow: 0 0 1px 0 rgba(0, 0, 0, 0.2) inset;
+}

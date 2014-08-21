@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: constants.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: constants.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source"><code>var 
+
+SERVER,
+
+/**
+ * This object contains parsers for various SQL statements
+ * @namespace STATEMENTS
+ */
+STATEMENTS = {},
+
+/**
+ * The name of the global namespace
+ * @type {String}
+ */
+NS = "JSDB",
+
+/**
+ * The namespace that will be exported globally
+ * @namespace JSDB
+ */
+JSDB = {},
+
+CFG = {},
+
+// Token type constants --------------------------------------------------------
+TOKEN_TYPE_UNKNOWN             = 0,
+TOKEN_TYPE_WORD                = 1,
+TOKEN_TYPE_NUMBER              = 2,
+TOKEN_TYPE_OPERATOR            = 3,
+TOKEN_TYPE_SINGLE_QUOTE_STRING = 4,
+TOKEN_TYPE_DOUBLE_QUOTE_STRING = 5,
+TOKEN_TYPE_BACK_TICK_STRING    = 6,
+TOKEN_TYPE_SUBMIT              = 7,
+TOKEN_TYPE_COMMENT             = 8,
+TOKEN_TYPE_MULTI_COMMENT       = 9,
+TOKEN_TYPE_PUNCTOATOR          = 10,
+//TOKEN_TYPE_BLOCK_OPEN          = 11,
+//TOKEN_TYPE_BLOCK_CLOSE         = 12,
+TOKEN_TYPE_SPACE               = 13,
+TOKEN_TYPE_EOL                 = 14,
+TOKEN_TYPE_EOF                 = 15,
+
+STRING = [
+	TOKEN_TYPE_DOUBLE_QUOTE_STRING, 
+	TOKEN_TYPE_SINGLE_QUOTE_STRING, 
+	TOKEN_TYPE_BACK_TICK_STRING
+],
+WORD_OR_STRING = [
+	TOKEN_TYPE_WORD, 
+	TOKEN_TYPE_DOUBLE_QUOTE_STRING, 
+	TOKEN_TYPE_SINGLE_QUOTE_STRING, 
+	TOKEN_TYPE_BACK_TICK_STRING
+],
+NUMBER_OR_STRING = [
+	TOKEN_TYPE_NUMBER, 
+	TOKEN_TYPE_DOUBLE_QUOTE_STRING, 
+	TOKEN_TYPE_SINGLE_QUOTE_STRING, 
+	TOKEN_TYPE_BACK_TICK_STRING
+],
+ANY_VALUE = [
+	TOKEN_TYPE_NUMBER, 
+	TOKEN_TYPE_DOUBLE_QUOTE_STRING, 
+	TOKEN_TYPE_SINGLE_QUOTE_STRING, 
+	TOKEN_TYPE_BACK_TICK_STRING,
+	TOKEN_TYPE_WORD
+],
+		
+// State constants -------------------------------------------------------------
+STATE_IDDLE    = 0,
+STATE_WAITING  = 2,
+STATE_WORKING  = 4,
+STATE_ERROR    = 8,
+STATE_COMPLETE = 16,
+
+OPERATORS = {
+
+	// Logical Operators
+	ALL     : 1,
+	AND     : 1,
+	ANY     : 1,
+	BETWEEN : 1,
+	EXISTS  : 1,
+	IN      : 1,
+	LIKE    : 1,
+	NOT     : 1,
+	OR      : 1,
+	IS      : 1,
+	//NULL    : 1,
+	UNIQUE  : 1,
+	IF      : 1,
+
+	// Comparison Operators
+	"!=" : 1,
+	"&lt;>" : 1,
+	">=" : 1,
+	"&lt;=" : 1,
+	"!&lt;" : 1,
+	"!>" : 1,
+	"="  : 1,
+	">"  : 1,
+	"&lt;"  : 1,
+
+	// Arithmetic Operators
+	"+" : 1,
+	"-" : 1,
+	"*" : 1,
+	"/" : 1,
+	"%" : 1
+},
+
+DATA_TYPES = [
+	"BIT", // [(length)]
+	"TINYINT", // [(length)] [UNSIGNED] [ZEROFILL]
+	"SMALLINT", // [(length)] [UNSIGNED] [ZEROFILL]
+	"MEDIUMINT", // [(length)] [UNSIGNED] [ZEROFILL]
+	"INT", // [(length)] [UNSIGNED] [ZEROFILL]
+	"INTEGER", // [(length)] [UNSIGNED] [ZEROFILL]
+	"BIGINT", // [(length)] [UNSIGNED] [ZEROFILL]
+	"REAL", // [(length,decimals)] [UNSIGNED] [ZEROFILL]
+	"DOUBLE", // [(length,decimals)] [UNSIGNED] [ZEROFILL]
+	"FLOAT", // [(length,decimals)] [UNSIGNED] [ZEROFILL]
+	"DECIMAL", // [(length[,decimals])] [UNSIGNED] [ZEROFILL]
+	"NUMERIC", // [(length[,decimals])] [UNSIGNED] [ZEROFILL]
+	"DATE",
+	"TIME", // [(fsp)]
+	"TIMESTAMP", // [(fsp)]
+	"DATETIME", // [(fsp)]
+	"YEAR",
+	"CHAR", // [(length)] [CHARACTER SET charset_name] [COLLATE collation_name]
+	"VARCHAR", // (length) [CHARACTER SET charset_name] [COLLATE collation_name]
+	"BINARY", // [(length)]
+	"VARBINARY", //(length)
+	"TINYBLOB",
+	"BLOB",
+	"MEDIUMBLOB",
+	"LONGBLOB",
+	"TINYTEXT", // [BINARY] [CHARACTER SET charset_name] [COLLATE collation_name]
+	"TEXT", //  [BINARY] [CHARACTER SET charset_name] [COLLATE collation_name]
+	"MEDIUMTEXT", //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
+	"LONGTEXT", //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
+	"ENUM", // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
+	"SET"//, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
+	//"spatial_type"
+],
+
+DATABASES = {},
+CURRENT_DATABASE,
+
+TOKEN_TYPE_MAP = {};
+TOKEN_TYPE_MAP[TOKEN_TYPE_UNKNOWN]             = "character";
+TOKEN_TYPE_MAP[TOKEN_TYPE_WORD]                = "word";
+TOKEN_TYPE_MAP[TOKEN_TYPE_NUMBER]              = "number";
+TOKEN_TYPE_MAP[TOKEN_TYPE_OPERATOR]            = "operator";
+TOKEN_TYPE_MAP[TOKEN_TYPE_SINGLE_QUOTE_STRING] = "string";
+TOKEN_TYPE_MAP[TOKEN_TYPE_DOUBLE_QUOTE_STRING] = "string";
+TOKEN_TYPE_MAP[TOKEN_TYPE_BACK_TICK_STRING]    = "string";
+TOKEN_TYPE_MAP[TOKEN_TYPE_SUBMIT]              = "character";
+TOKEN_TYPE_MAP[TOKEN_TYPE_COMMENT]             = "comment";
+TOKEN_TYPE_MAP[TOKEN_TYPE_MULTI_COMMENT]       = "comment";
+TOKEN_TYPE_MAP[TOKEN_TYPE_PUNCTOATOR]          = "punctoator";
+//TOKEN_TYPE_MAP[TOKEN_TYPE_BLOCK_OPEN]          = "character";
+//TOKEN_TYPE_MAP[TOKEN_TYPE_BLOCK_CLOSE]         = "character";
+TOKEN_TYPE_MAP[TOKEN_TYPE_SPACE]               = "space";
+TOKEN_TYPE_MAP[TOKEN_TYPE_EOL]                 = "new line";
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Tue Aug 19 2014 16:41:49 GMT+0300 (EEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: query.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: query.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source"><code>////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                            SQL Query Classes                               //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+function queryFactory(verb, subject, params)
+{
+	var Fn;
+	if (verb == "CREATE") {
+		if (subject == "DATABASE") {
+			Fn = CreateDatabaseQuery;
+		} else if (subject == "TABLE") {
+			Fn = CreateTableQuery;
+		} else {
+			throw new Error(
+				"Query for " + verb + "+" + subject + " not implemented"
+			);
+		}
+	}
+
+	var q = new Fn();
+	if (params) {
+		q.setParams(params);
+	}
+	return q;
+}
+
+function Query() {}
+CreateQuery.prototype.setParams = function(params) {};
+
+function CreateQuery() {}
+CreateQuery.prototype = new CreateQuery();
+CreateQuery.prototype.toString = function() {
+	return this.generateSQL();
+};
+
+
+
+// CreateDatabaseQuery ---------------------------------------------------------
+
+/**
+ * Class CreateDatabaseQuery extends CreateQuery
+ * @constructor
+ */
+function CreateDatabaseQuery() {}
+
+/** Inherit from CreateQuery */
+CreateDatabaseQuery.prototype = new CreateQuery();
+
+/**
+ * The name of the database that will be created. Initially this is undefined.
+ * @var {String}
+ * @private
+ */
+CreateDatabaseQuery.prototype._name = undefined;
+
+/**
+ * The "If NOT EXISTS" flag. Defaults to false.
+ * @var {Boolean}
+ * @private
+ */
+CreateDatabaseQuery.prototype._ifNotExists = false;
+
+/**
+ * Generates and returns a "CREATE DATABASE" SQL query. This is used by the 
+ * toString method too.
+ * @throws {SQLRuntimeError} If the instance is incomplete
+ * @return {String} The query as formatted SQL string
+ */
+CreateDatabaseQuery.prototype.generateSQL = function() 
+{
+	if (typeof this._name != "string") {
+		throw new SQLRuntimeError("Invalid database name");
+	}
+	if (!this._name) {
+		throw new SQLRuntimeError("No database name");
+	}
+	return "CREATE DATABASE " + (this._ifNotExists ? "IF NOT EXISTS " : "") + 
+		quote(this._name, '"');
+};
+
+/**
+ * Executes the query.
+ * @return {void}
+ */
+CreateDatabaseQuery.prototype.execute = function() 
+{
+	SERVER.createDatabase(this._name, this._ifNotExists);
+};
+
+/**
+ * Sets or gets the "_ifNotExists" flag. If the argument is missing (or if it
+ * is undefined) returns the current value. Otherwise the argument is converted
+ * to boolean and applied to the "_ifNotExists" flag.
+ * @param {Boolean} bIf
+ * @return {Boolean|CreateDatabaseQuery} Returns the instance on set or the 
+ *                                       _ifNotExists value on get.
+ */
+CreateDatabaseQuery.prototype.ifNotExists = function(bIf) 
+{
+	if (bIf === undefined) {
+		return this._ifNotExists;
+	}
+	this._ifNotExists = !!bIf;
+	return this;
+};
+
+/**
+ * Sets or gets the "name" of the database that should be created. If the 
+ * argument is falsy returns the current name. Otherwise the argument is 
+ * converted to string and written to the "name" property.
+ * @param {String} dbName
+ * @return {String|CreateDatabaseQuery} Returns the instance on set or the 
+ *                                      current name on get.
+ */
+CreateDatabaseQuery.prototype.name = function(dbName) 
+{
+	if (dbName) {
+		this._name = String(dbName);
+		return this;
+	}
+	return this._name;
+};
+
+// CreateTableQuery ------------------------------------------------------------
+
+/**
+ * Class CreateDatabaseQuery extends CreateQuery
+ * @constructor
+ */
+function CreateTableQuery() 
+{
+	this.columns = [];
+	this.constraints = [];
+}
+
+/** Inherit from CreateQuery */
+CreateTableQuery.prototype = new CreateQuery();
+
+/**
+ * The name of the table that should be created. Initially this is undefined.
+ * @var {String}
+ * @private
+ */
+CreateTableQuery.prototype._name = undefined;
+
+/**
+ * The flag indicating if the table should be created as temporary one.
+ * Defaults to false.
+ * @var {Boolean}
+ * @private
+ */
+CreateTableQuery.prototype._temporary = false;
+
+/**
+ * The "If NOT EXISTS" flag. Defaults to false.
+ * @var {Boolean}
+ * @private
+ */
+CreateTableQuery.prototype._ifNotExists = false;
+
+/**
+ * Sets or gets the "_ifNotExists" flag. If the argument is missing (or if it
+ * is undefined) returns the current value. Otherwise the argument is converted
+ * to boolean and applied to the "_ifNotExists" flag.
+ * @param {Boolean} bIf
+ * @return {Boolean|CreateTableQuery} Returns the instance on set or the 
+ *                                    _ifNotExists value on get.
+ */
+CreateTableQuery.prototype.ifNotExists = function(bIf) 
+{
+	if (bIf === undefined) {
+		return this._ifNotExists;
+	}
+	this._ifNotExists = !!bIf;
+	return this;
+};
+
+/**
+ * Sets or gets the "_temporary" flag. If the argument is missing (or if it
+ * is undefined) returns the current value. Otherwise the argument is converted
+ * to boolean and applied to the "_temporary" flag.
+ * @param {Boolean} bTemp
+ * @return {Boolean|CreateTableQuery} Returns the instance on set or the 
+ *                                    _temporary value on get.
+ */
+CreateTableQuery.prototype.temporary = function(bTemp) 
+{
+	if (bTemp === undefined) {
+		return this._temporary;
+	}
+	this._temporary = !!bTemp;
+	return this;
+};
+
+/**
+ * Generates and returns a "CREATE TABLE" SQL query. This is used by the 
+ * toString method too.
+ * @throws {SQLRuntimeError} If the instance is incomplete
+ * @return {String} The query as formatted SQL string
+ */
+CreateTableQuery.prototype.generateSQL = function() 
+{
+	
+};
+
+/**
+ * Sets or gets the "name" of the table that should be created. If the 
+ * argument is falsy returns the current name. Otherwise the argument is 
+ * converted to string and written to the "name" property.
+ * @param {String} tableName
+ * @return {String|CreateTableQuery} Returns the instance on set or the 
+ *                                   current name on get.
+ */
+CreateTableQuery.prototype.name = function(tableName) 
+{
+	if (tableName) {
+		this._name = String(tableName);
+		return this;
+	}
+	return this._name;
+};
+
+CreateTableQuery.prototype.addConstraint = function(constraint)
+{
+	this.constraints.push(constraint);
+};
+
+/**
+ * Executes the query.
+ * @return {void}
+ */
+CreateTableQuery.prototype.execute = function() 
+{
+	var table = createTable(
+		this.name(), 
+		this.columns, //fields
+		this.ifNotExists(), 
+		null //database
+	);
+
+	for (var i = 0, l = this.constraints.length; i &lt; l; i++) {
+		table.addConstraint(this.constraints[i]);
+	}
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Tue Aug 19 2014 16:41:49 GMT+0300 (EEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

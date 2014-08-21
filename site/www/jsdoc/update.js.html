@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: statements/update.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: statements/update.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source"><code>/**
+ * @memberof STATEMENTS
+ * @type {Function}
+ * @param {Walker} walker - The walker instance used to parse the current 
+ * statement
+ * @return {Function}
+ * @example
+ * &lt;pre style="font-family:Menlo, monospace">
+ * 
+ *     ┌────────┐                             ┌──────────────┐  
+ *  >──┤ UPDATE ├──┬──────────────────────┬───┤ "table name" ├──┐
+ *     └────────┘  │ ┌────┐  ┌──────────┐ │   └──────────────┘  │
+ *                 ├─┤ OR ├──┤ ROLLBACK ├─┤                     │
+ *                 │ └────┘  └──────────┘ │                     │
+ *                 │ ┌────┐  ┌──────────┐ │                     │
+ *                 ├─┤ OR ├──┤  ABORT   ├─┤                     │
+ *                 │ └────┘  └──────────┘ │                     │
+ *                 │ ┌────┐  ┌──────────┐ │                     │
+ *                 ├─┤ OR ├──┤ REPLACE  ├─┤                     │
+ *                 │ └────┘  └──────────┘ │                     │
+ *                 │ ┌────┐  ┌──────────┐ │                     │
+ *                 ├─┤ OR ├──┤   FAIL   ├─┤                     │
+ *                 │ └────┘  └──────────┘ │                     │
+ *                 │ ┌────┐  ┌──────────┐ │                     │
+ *                 └─┤ OR ├──┤  IGNORE  ├─┘                     │
+ *                   └────┘  └──────────┘                       │
+ *   ┌──────────────────────────────────────────────────────────┘  
+ *   │ ┌─────┐     ┌───────────────┐ ┌───┐ ┌───────┐    ┌───────┐  ┌───────┐
+ *   └─┤ SET ├──┬──┤ "column name" ├─┤ = ├─┤ expr. ├──┬─┤ WHERE ├──┤ expr. ├──>
+ *     └─────┘  │  └───────────────┘ └───┘ └───────┘  │ └───────┘  └───────┘
+ *              │               ┌───┐                 │
+ *              └───────────────┤ , │&lt;────────────────┘
+ *                              └───┘
+ *             
+ *
+ * &lt;/pre>
+ */
+STATEMENTS.UPDATE = function(walker) {
+
+	/**
+	 * This will match any string (in any quotes) or just a word as unquoted 
+	 * name.
+	 * @type {String}
+	 * @inner
+	 * @private
+	 */ 
+	var identifier = [
+		"@" + TOKEN_TYPE_WORD,
+		"@" + TOKEN_TYPE_SINGLE_QUOTE_STRING,
+		"@" + TOKEN_TYPE_DOUBLE_QUOTE_STRING,
+		"@" + TOKEN_TYPE_BACK_TICK_STRING
+	].join("|");
+
+	/**
+	 * Parses the OR part of the UPDATE statement.
+	 * @param {Walker} walker
+	 * @return {String} The name af the action to take on failure. One of 
+	 * ROLLBACK|ABORT|REPLACE|FAIL|IGNORE. Defaults to ABORT.
+	 */
+	function getAltBehavior(walker)
+	{
+		var or = "ABORT";
+
+		if ( walker.is("OR") )
+		{
+			walker.forward().require("ROLLBACK|ABORT|REPLACE|FAIL|IGNORE");
+			or = walker.get().toUpperCase();
+			walker.forward();
+		}
+
+		return or;
+	}
+
+	/**
+	 * Gets the table that is to be updated
+	 * @param {Walker} walker
+	 * @return {Table}
+	 */
+	function getTable(walker)
+	{
+		var tableName, dbName, db;
+
+		if ( !walker.is(identifier) )
+		{
+			throw new SQLParseError(
+				'Expecting a table identifier before "%s"',
+				walker.get()
+			);
+		}
+
+		tableName = walker.get();
+
+		if ( walker.forward().is(".") )
+		{
+			if ( !walker.forward().is(identifier) )
+			{
+				throw new SQLParseError(
+					'Expecting an identifier for table name after %s.',
+					tableName
+				);
+			}
+
+			dbName = tableName;
+			tableName = walker.get();
+			walker.forward();
+		}
+
+		db = dbName ?
+			SERVER.getDatabase(dbName) :
+			SERVER.getCurrentDatabase();
+
+		if ( !db )
+		{
+			if ( dbName )
+			{
+				throw new SQLRuntimeError("No such database '%s'", dbName);
+			}
+			else
+			{
+				throw new SQLRuntimeError("No database selected");
+			}
+		}
+
+		return db.getTable(tableName);
+	}
+
+	/**
+	 * Parses the WHERE part of the UPDATE statement.
+	 * @param {Walker} walker
+	 * @return {String} The WHERE expression.
+	 */
+	function getWhere(walker)
+	{
+		var where = "", start, end;
+
+		if ( walker.is("WHERE") ) 
+		{
+			walker.forward();
+			start = walker.current()[2];
+			end   = start;
+			walker.nextUntil(";");
+			end   = walker.current()[2];
+			where = walker._input.substring(start, end);
+		}
+
+		return where;
+	}
+
+	/**
+	 * Parses the SET part of the UPDATE statement and returns a map object
+	 * containing the column names as keys and value expressions as values that
+	 * should be applied.
+	 * @param {Walker} walker
+	 * @return {Object}
+	 */
+	function getUpdater(walker)
+	{
+		var updater = {};
+
+		function getPair()
+		{
+			var name, value, start, end;
+
+			if ( !walker.is(identifier) )
+			{
+				throw new SQLParseError(
+					'Expecting a column identifier before "%s"',
+					walker.get()
+				);
+			}
+
+			name = walker.get();
+
+			walker.forward();
+			walker.require("=");
+			start = walker.current()[3];
+			walker.forward();
+
+			
+			end   = start;
+			walker.nextUntil(",|WHERE|;");
+			end   = walker.current()[2];
+			value = trim(walker._input.substring(start, end));
+			//console.log(value);
+
+			updater[name] = value;
+
+			if (walker.is(",")) {
+				walker.forward();
+				getPair();
+			}
+		}
+
+		walker.require("SET");
+		walker.forward();
+		getPair();
+
+		return updater;
+	}
+
+	return new Task({
+		name : "Update Table",
+		execute : function(done, fail)
+		{
+			var or      = getAltBehavior(walker),
+				table   = getTable(walker),
+				updater = getUpdater(walker),
+				where   = getWhere(walker);
+
+			//console.log("or = ", or, "table: ", table, "updater: ", updater, "where: ", where);
+
+			walker.errorUntil(";").commit(function() {
+				table.update(
+					updater, 
+					or, 
+					where, 
+					function() {
+						done("DONE");
+					}, 
+					function(e) {
+						fail(e);
+					}
+				);
+			});
+		},
+		undo : function(done, fail) {
+			fail("undo is not implemented for UPDATE queries yet!");
+		}
+	});
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Tue Aug 19 2014 16:41:49 GMT+0300 (EEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

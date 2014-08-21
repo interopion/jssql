@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Result.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: Result.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source"><code>/**
+ * Creates new Result instance. The idea is to first create an "empty" instance 
+ * and then execute a query and update the Result instance using the @setData 
+ * method. This way the Result object will also capture the execution time (the
+ * time between calling the constructor and calling the setData method).
+ * @classdesc Represents the result of any query (from SELECT, UPDATE, DELETE 
+ * etc.). The results from SELECT queries have &lt;b>rows&lt;/b> and &lt;b>cols&lt;/b> 
+ * properties...
+ * @constructor
+ * @author Vladimir Ignatov &lt;vlad.ignatov@gmail.com>
+ * @example new Result()
+ * @return Result
+ */
+function Result(data)
+{
+	/**
+	 * The data that the result represents. Initially this is null.
+	 * @type {Object|Array|String|Boolean}
+	 * @default null
+	 * @private
+	 */
+	this.data = null;
+
+	/**
+	 * The type of the result. One of the Result.TYPE_XX constants.
+	 * @default Result.TYPE_UNKNOWN
+	 * @type {Number}
+	 */
+	this.type = Result.TYPE_UNKNOWN;
+
+	/**
+	 * An array of the names of the columns included in the result set
+	 * @type {Array}
+	 * @default []
+	 */
+	this.cols = [];
+
+	/**
+	 * An array of the rows included in the result set. Each row can be an array
+	 * or an object
+	 * @type {Array}
+	 * @default []
+	 */
+	this.rows = [];
+
+	/**
+	 * The time when the instance has been created. This is used to measure the
+	 * time interval between creating the instance and the setting of the actual
+	 * data in the result.
+	 * @type {Number}
+	 * @private
+	 */
+	this._startTime = Date.now();
+
+	/**
+	 * The time when the data has been set into the instance
+	 * @type {Number}
+	 * @private
+	 * @default 0
+	 */
+	this._endTime = 0;
+
+	/**
+	 * The time interval (in ms) between creating the instance and the setting 
+	 * of the actual data in the result.
+	 * @type {Number}
+	 * @readonly
+	 * @default 0
+	 */
+	this.time = 0;
+
+	/**
+	 * The length of the columns in the result. This property set by the 
+	 * setData method once, so that the other methods does not need to count 
+	 * the columns multiple times.
+	 * @type {Number}
+	 * @readonly
+	 * @default 0
+	 */
+	this.colLength = 0;
+	
+	/**
+	 * The length of the rows in the result. This property set by the 
+	 * setData method once, so that the other methods does not need to count 
+	 * the columns multiple times.
+	 * @type {Number}
+	 * @readonly
+	 * @default 0
+	 */
+	this.rowLength = 0;
+
+	if (arguments.length) {
+		this.setData(data);
+	}
+}
+
+/**
+ * Indicates that the result is of unknown type. That is the initial state of 
+ * the result and later (when the setData is called) it should with to some of
+ * the other type constants.
+ * @type {Number}
+ * @constant
+ * @static
+ */
+Result.TYPE_UNKNOWN = 0;
+
+/**
+ * Indicates that the result is of array type. The result.rows property should
+ * be filled with rows but the cols should be empty (unknown)
+ * @type {Number}
+ * @constant
+ * @static
+ */
+Result.TYPE_ARRAY = 2;
+
+/**
+ * Indicates that the result is of set type. The result.rows property should
+ * be filled with rows and the cols should be filled too
+ * @type {Number}
+ * @constant
+ * @static
+ */
+Result.TYPE_SET = 4;
+
+/**
+ * Indicates that the result is of string type. The result.data property should
+ * be set to a string message.
+ * @type {Number}
+ * @constant
+ * @static
+ */
+Result.TYPE_MESSAGE = 8;
+
+/**
+ * Indicates that the result is of boolean type. The result.data property should
+ * be true or false and show if the query was successful or not.
+ * @type {Number}
+ * @constant
+ * @static
+ */
+Result.TYPE_BOOL = 16;
+
+/**
+ * Indicates a result of mutation. The result.data property should be the number
+ * of affected rows.
+ * @type {Number}
+ * @constant
+ * @static
+ */
+Result.TYPE_MUTATION = 32;
+
+Result.prototype = {
+
+	/**
+	 * Sets the actual data that this result object represents. 
+	 * @param {Object|Array|String|Boolean} data The data might 
+	 * be in different formats (see the examples below).
+	 * &lt;ul>
+	 *   &lt;li>An object with @rows and @cols properties&lt;/li>
+	 *   &lt;li>An Array&lt;/li>
+	 *   &lt;li>A string&lt;/li>
+	 *   &lt;li>A boolean value&lt;/li>
+	 * &lt;/ul>
+	 * @example (new Result()).setData([
+	 *	 [1, 2], 
+	 *	 [3, 4], 
+	 *	 [5, 6]
+	 * ]);
+	 * @example (new Result()).setData({
+	 *    cols: ["a", "b"],
+	 *    rows: [
+	 *       [1, 2],
+	 *       [3, 4]
+	 *    ]
+	 * });
+	 * @example (new Result()).setData({
+	 *    cols: ["a", "b"],
+	 *    rows: [
+	 *        { a: 1, b : 2 },
+	 *        { b: 3, a : 4 }
+	 *    ]
+	 * });
+	 * @example (new Result()).setData("Query executed successfully");
+	 * @return {Result} Returns the instance
+	 * @throws {TypeError} Exception - If the argument is invalid
+	 */
+	setData : function(data)
+	{
+		this._endTime   = Date.now();
+		this.time       = this._endTime - this._startTime;
+		this._startTime = this._endTime;
+		
+		// Object
+		if ( data && typeof data == "object" )
+		{
+			this.data = data;
+			this.cols = data.cols || [];
+			this.rows = data.rows || [];
+			this.type = Result.TYPE_SET;
+		}
+
+		// Array
+		else if ( Object.prototype.toString.call(data) == "[object Array]" )
+		{
+			this.data = data;
+			this.rows = data;
+			this.cols = [];
+			this.type = Result.TYPE_ARRAY;
+		}
+
+		// Boolean
+		else if ( data === true || data === false )
+		{
+			this.data = data;
+			this.cols = [];
+			this.rows = [];
+			this.type = Result.TYPE_BOOL;
+		}
+
+		// Invalid argument
+		else
+		{
+			this.data = String(data || "");
+			this.cols = [];
+			this.rows = [];
+			this.type = Result.TYPE_MESSAGE;
+		}
+
+		this.colLength = this.cols.length;
+		this.rowLength = this.rows.length;
+
+		return this;
+	},
+
+	/**
+	 * Tests if the result can be considered successful or not.
+	 * @return {Boolean}
+	 */
+	isSuccess : function()
+	{
+		if ( this.type === Result.TYPE_UNKNOWN )
+			return false;
+		if ( this.type === Result.TYPE_BOOL && !this.data )
+			return false;
+		return true;
+	},
+
+	/**
+	 * Generates and returns a message describing the result.
+	 * @return {String}
+	 */
+	getMessage : function()
+	{
+		if ( !this.isSuccess() )
+			return "Query failed";
+		if ( this.type === Result.TYPE_MESSAGE )
+			return this.data;
+		if ( this.type === Result.TYPE_ARRAY || this.type === Result.TYPE_SET )
+			return this.rowLength + " rows in set. Query took " + 
+				this.time + "ms.";
+		if ( this.type === Result.TYPE_MUTATION )
+			return this.data + " rows affected. Query took " + 
+				this.time + "ms.";
+		return "Query executed successfully in " + this.time + "ms.";
+	},
+
+	/**
+	 * Generates and returns an HTML table from the result data.
+	 * @param {Object} attrs Optional table attributes as plain object
+	 * @return {String} HTML table code
+	 * @example resultInstance.toHTML({ "class" : "my-cool-table" });
+	 */
+	toHTML : function( attrs ) 
+	{
+		var html   = [],
+			colLen = this.cols.length,
+			rowLen = this.rows.length,
+			tmp, i, j, v;
+
+		html.push('&lt;table');
+
+		if ( attrs ) 
+		{
+			html.push(' ');
+
+			tmp = [];
+			for ( v in attrs )
+			{
+				tmp.push(v + "=" + escape(attrs[v]));
+			}
+
+			html.push(tmp.join(" "));
+		}
+
+		html.push('>&lt;thead>&lt;tr>');
+
+		for ( i = 0; i &lt; colLen; i++ )
+        {
+			html.push('&lt;th>', this.cols[i], '&lt;/th>');
+		}
+
+		html.push('&lt;/tr>&lt;/thead>&lt;tbody>');
+
+		for ( i = 0; i &lt; rowLen; i++ )
+		{
+			tmp = this.rows[i];
+			html.push('&lt;tr>');
+			for ( j = 0; j &lt; colLen; j++ ) 
+			{
+				v = tmp[this.cols[j]] || tmp[j];
+				html.push(
+					'&lt;td>', 
+					v === undefined ? '' : String(v), 
+					'&lt;/td>'
+				);
+			}
+			html.push('&lt;/tr>');
+		}
+
+		html.push('&lt;/tbody>&lt;/table>');
+		
+		return html.join("");
+	},
+
+	/**
+	 * Creates and returns a JSON object representing the result
+	 * @return {Onject}
+	 */
+	toJSON : function() 
+	{
+		var json = {
+			message    : this.getMessage(),
+			queryTime  : this.time,
+			successful : this.isSuccess()
+		};
+
+		if ( json.successful ) 
+		{
+			if ( this.type === Result.TYPE_MUTATION )
+			{
+				json.affectedRows = this.data;
+			}
+
+			if ( this.type === Result.TYPE_ARRAY )
+			{
+				json.rows = this.rows;
+				json.rowLength = this.rowLength;
+			}
+
+			if ( this.type === Result.TYPE_SET )
+			{
+				json.rows = this.rows;
+				json.cols = this.cols;
+				json.rowLength = this.rowLength;
+				json.colLength = this.colLength;
+			}
+		}
+
+		return json;
+	},
+
+	/**
+	 * Creates and returns a JSON string representing the result
+	 * @param {Number} indent Optional. If provided this must be a positive 
+	 * integer to set the number of spaces used for indentation. Setting this to
+	 * anything greather than 0 will produce a pretty-printed version of the 
+	 * JSON string.
+	 * @return {String} JSON code
+	 * @example resultInstance.toJSONString(4);
+	 */
+	toJSONString : function(indent) 
+	{
+		return JSON.stringify(this.toJSON(), null, indent || 0);
+	},
+
+	/**
+	 * Creates and returns a string representation of the result
+	 * @return {String}
+	 * @param {String} rowSeparator - The string used to separate the rows. 
+	 * Defaults to ";".
+	 * @param {String} valueSeparator - The string used to separate the values 
+	 * in the rows. Defaults to ",".
+	 */
+	toString : function(rowSeparator, valueSeparator) 
+	{
+		var inst = this,
+			rows = [];
+
+		this.forEach(function(row) {
+			var curRow = [], i, v;
+			for ( i = 0; i &lt; inst.colLength; i++ )
+			{
+				v = row[inst.cols[i]] || row[i];
+				curRow.push(v === undefined ? ';' : String(v));
+			}
+			rows.push(curRow.join(
+				valueSeparator === undefined ? "," : String(valueSeparator)
+			));
+		});
+		
+		return rows.join(
+			rowSeparator === undefined ? "\n" : String(rowSeparator)
+		);
+	},
+
+	/**
+	 * Creates and returns an XML representation of the result
+	 * @param {String} indent The white space used for indentation. Can be one 
+	 * or more spaces or tabs. Defaults to "" (no indentation).
+	 * @return {String}
+	 */
+	toXML : function(indent) 
+	{
+		var inst       = this,
+			xml        = [ '&lt;result>' ],
+			successful = this.isSuccess();
+
+		xml.push(
+			indent ? "\n" : "", 
+			indent || "", 
+			'&lt;successful>', successful, '&lt;/successful>'
+		);
+
+		xml.push(
+			indent ? "\n" : "", 
+			indent || "", 
+			'&lt;message>', this.getMessage(), '&lt;/message>'
+		);
+
+		xml.push(
+			indent ? "\n" : "", 
+			indent || "", 
+			'&lt;queryTime>', this.time, '&lt;/queryTime>'
+		);
+
+		if ( successful )
+		{
+			if ( this.type === Result.TYPE_MUTATION )
+			{
+				xml.push(
+					indent ? "\n" : "", 
+					indent || "", 
+					'&lt;affectedRows>', this.data, '&lt;/affectedRows>'
+				);
+			}
+
+			if ( this.type === Result.TYPE_ARRAY )
+			{
+				xml.push(
+					indent ? "\n" : "", 
+					indent || "", 
+					'&lt;rowLength>', this.rowLength, '&lt;/rowLength>'
+				);
+			}
+
+			if ( this.type === Result.TYPE_SET )
+			{
+				xml.push(
+					indent ? "\n" : "", 
+					indent || "", 
+					'&lt;rowLength>', this.rowLength, '&lt;/rowLength>'
+				);
+				xml.push(
+					indent ? "\n" : "", 
+					indent || "", 
+					'&lt;colLength>', this.colLength, '&lt;/colLength>'
+				);
+			}
+
+			if ( this.type === Result.TYPE_ARRAY || this.type === Result.TYPE_SET )
+			{
+				this.forEach(function(row) {
+					var curRow = [], i, v;
+
+					curRow.push(indent ? "\n" : "", indent || "", '&lt;row>');
+					for ( i = 0; i &lt; inst.colLength; i++ )
+					{
+						v = row[inst.cols[i]] || row[i];
+						curRow.push(
+							indent ? "\n" : "",
+							indent || "", 
+							indent || "", 
+							'&lt;property>', 
+							v === undefined ? '' : String(v),
+							'&lt;/property>'
+						);
+					}
+					curRow.push(indent ? "\n" : "", indent || "", '&lt;/row>');
+					xml.push(curRow.join(""));
+				});
+			}
+		}
+
+		xml.push(indent ? "\n" : "", '&lt;/result>');
+		return xml.join("");
+	},
+
+	/**
+	 * Creates and returns a CSV representation of the result
+	 * @return {String}
+	 */
+	toCSV : function() 
+	{
+		return this.toString("\n", ",");
+	},
+
+	/**
+	 * Iterates over the result rows and calls the callback function for each
+	 * row.
+	 * @param {Function} callback The callback function to be invoked on each
+	 * row. It will be called with 3 arguments:
+	 * &lt;ol>
+	 *     &lt;li>The current row&lt;/li>
+	 *     &lt;li>The current row index&lt;/li>
+	 *     &lt;li>All the rows&lt;/li>
+	 * &lt;/ol>
+	 * If the function returns &lt;b>false&lt;/b> (exactly) the iteration will be 
+	 * stopped.
+	 * @example resultInstance.forEach(function(row, rowIndex, allRows) {
+	 *     // Do something with the row
+	 * });
+	 * @return {void}
+	 */
+	forEach : function( callback ) 
+	{
+		for ( var i = 0; i &lt; this.rowLength; i++ )
+		{
+			if ( callback( this.rows[i], i, this.rows ) === false )
+			{
+				break;
+			}
+		}
+	}
+};
+
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Tue Aug 19 2014 16:41:49 GMT+0300 (EEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: parser.js</title>
+    
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+    
+    <h1 class="page-title">Source: parser.js</h1>
+    
+    
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source"><code>/**
+ * Simple wrapper for query lists. Its an array but its instanceof QueryList
+ * so it is useful for argument polymorphism... For example the 
+ * normalizeQueryList can work with strings and arrays but if the input array is
+ * a QueryList, then it is considered complete and not processed...
+ */
+function QueryList() {}
+QueryList.prototype = [];
+
+/**
+ * Parses the string and returns a list of queries
+ */
+function getQueries(sql)
+{
+	var queries = new QueryList(),
+		tokens  = getTokens(normalizeQueryList(sql), {
+			skipComments : true,
+			skipSpace    : true,
+			skipEol      : true,
+			skipStrQuots : true
+		}),
+		walker = new Walker(tokens, sql),
+		start, end, tokLen = tokens.length, offset = 0, q, tok;
+
+	function onToken(tok) {
+		tok[2] += offset;
+		tok[3] += offset;
+		end = tok[3];
+		q.tokens.push(tok);
+	}
+
+	while (walker._pos &lt; tokLen - 1) {
+		
+		q = { sql : "", tokens : [] };
+
+		// Set both markers to the start of the first token
+		start = end = walker.current()[2];
+
+		walker.nextUntil(";", onToken);
+
+		// If the ";" is missing at the end of the last query consider it 
+		// incomplete and abort the procedure
+		if (!walker.is(";"))
+			break;
+
+		tok = walker.current();
+		tok[2] += offset;
+		end = tok[3];
+		tok[3] += offset;
+		q.tokens.push(tok);
+		q.sql = sql.substring(start, end);
+		if (q.sql && q.sql != ";")
+			queries.push(q);
+		offset = -end-1;
+
+		if ( !walker.next() )
+			break;
+	}
+
+	return queries;
+}
+
+/**
+ * Converts the input to normalized SQL string. Appends missing semicolons at 
+ * the end, trims, joins multiple queries etc. 
+ * @param {String|Array} Can also be an array with nested arrays in which case
+ * it will be recursive and produce a flat query list string
+ * @return {Array}
+ */
+function normalizeQueryList(input) {
+	return isArray(input) ? 
+			input instanceof QueryList ?
+				input : 
+				input.map(normalizeQueryList).join("").trim() : 
+			String(input).trim().replace(/(.*?);*?$/, "$1;");
+}
+
+/**
+ * Executes the given SQL query and invokes the callback function which has the
+ * "error-first" signature "function(error, result, queryIndex)".
+ * @param {String} sql The SQL query (or multiple queries as string or as array)
+ */
+function query2(sql, callback) 
+{
+	query(sql, function(result, idx) {
+		callback(null, result, idx);
+	}, function(err, idx) {
+		var error = error && error instanceof Error ?
+			err : 
+			new Error(String(err || "Unknown error"));
+		callback(error, null, idx);
+	});
+}
+
+function query(sql, onSuccess, onError) 
+{
+	var 
+
+	// First we need to split the SQL into queries because the behavior is
+	// very different for single vs multiple queries
+	queries = sql instanceof QueryList ? sql : getQueries(sql),
+
+	// The number of SQL queries
+	len = queries.length,
+
+	// The current query (inside iteration)
+	currentQuery = null,
+
+	// Just an iterator variable
+	i = 0;
+
+	//console.log("queries:");console.dir(queries);
+
+	function onResult(result, queryIndex)
+	{
+		if (result !== undefined) {
+			onSuccess(result, queryIndex || i);
+		}
+	}
+
+	function onFailure(e, i)
+	{
+		(onError || defaultErrorHandler)(
+			e && e instanceof Error ? 
+				e : 
+				new Error(String(e || "Unknown error")),
+			i
+		);
+	}
+
+	function q(name, walker, queryIndex, next)
+	{
+		return function() {
+			var fn = STATEMENTS[name],
+				tx = SERVER.getTransaction(),
+				result = new Result(),
+				task;
+			
+			if (tx) 
+			{
+				tx.add(Transaction.createTask({
+					name : name,
+					execute : function(done, fail) {
+						var _result = new Result(), _task;
+						try {
+							_task = fn(walker);
+							_task.execute(
+								function(r) { 
+									_result.setData(r);
+									onResult(_result, queryIndex);
+									done();
+								}, 
+								function(err) {
+									_task.undo(noop, fail);
+									fail(err);
+								}
+							);
+						} catch (ex) {
+							//_result = null;
+							if (_task) {
+								_task.undo(noop, fail);
+							}
+							fail(ex);
+						}
+					},
+					undo : function(done, fail) {
+						done();
+					}
+				}));
+				result.setData(name + " query added to the transaction");
+				onResult(result, queryIndex);
+				next();
+			}
+			else
+			{
+				try {
+					task = fn(walker);
+					task.execute(
+						function(r) {
+							result.setData(r);
+							onResult(result, queryIndex);
+							next();
+						}, 
+						function(e) {
+							//result = null;
+							onFailure(e, queryIndex);
+							task.undo(noop, function(err) {
+								onFailure("Undo failed: " + err, queryIndex);
+							});
+						}
+					);
+				} catch (err) {
+					onFailure(err, queryIndex);
+				}
+			}
+		};
+	}
+
+	// Iterate over the queries
+	// -------------------------------------------------------------------------
+	function handleQueryAt(index) 
+	{
+		var currentQuery = queries[index];
+
+		// All done already
+		if (!currentQuery) 
+			return;
+
+		var next = function() {
+			handleQueryAt(index + 1);
+		};
+
+		// Each query has it's own walker
+		var walker = new Walker(currentQuery.tokens, currentQuery.sql);
+
+		walker.pick({
+				
+			// The transaction control statements ------------------------------
+			"BEGIN" : q("BEGIN", walker, index, next),
+
+			"COMMIT|END" : function() {
+				var tx = SERVER.getTransaction(), result;
+
+				if (!tx) {
+					onFailure("There is no transaction to commit", index);
+					return;
+				}
+
+				result = new Result();
+
+				if (tx.isEmpty()) {
+					STATEMENTS.COMMIT(walker).execute(noop, onFailure);
+					result.setData("Empty transaction committed");
+					onResult(result, index);
+					next();
+				} else {
+					result.setData("Transaction committed");
+					onResult(result, index);
+					tx.one("complete", function() {
+						result.setData("Transaction complete");
+						onResult(result, index);
+						setTimeout(next, 0);
+					});
+					tx.one("rollback", function(err) {
+						onFailure(
+							"Transaction rolled back!" + 
+							(err ? "\n" + err : ""), 
+							index
+						);
+						setTimeout(next, 0);
+					});
+					STATEMENTS.COMMIT(walker).execute(noop, onFailure);
+				}
+			},
+
+			"ROLLBACK" : function() {
+				var tx = SERVER.getTransaction(), result;
+
+				if (!tx) {
+					onFailure("There is no transaction to rollback", index);
+					return;
+				}
+
+				result = new Result();
+
+				if (tx.isEmpty()) {
+					STATEMENTS.ROLLBACK(walker).execute(noop, onFailure);
+					result.setData("Empty transaction rolled back");
+					onResult(result, index);
+					next();
+				} else {
+					tx.one("rollback", function() {
+						result.setData("Transaction rolled back!");
+						onResult(result, index);
+						setTimeout(next, 0);
+					});
+					STATEMENTS.ROLLBACK(walker).execute(noop, onFailure);
+				}
+			},
+
+			// All the others --------------------------------------------------
+			"SHOW" : function() {
+				walker.pick({
+					"DATABASES|SCHEMAS" : q("SHOW_DATABASES", walker, index, next),
+					"TABLES"            : q("SHOW_TABLES"   , walker, index, next),
+					"COLUMNS"           : q("SHOW_COLUMNS"  , walker, index, next)
+				});
+			},
+			"CREATE" : function() {
+				walker.pick({
+					"DATABASE|SCHEMA" : q("CREATE_DATABASE", walker, index, next),
+					"TABLE"           : q("CREATE_TABLE"   , walker, index, next),
+					"TEMPORARY TABLE" : q("CREATE_TABLE"   , walker, index, next)
+				});
+			},
+			"DROP" : function() {
+				walker.pick({
+					"DATABASE|SCHEMA" : q("DROP_DATABASE", walker, index, next),
+					"TABLE"           : q("DROP_TABLE"   , walker, index, next),
+					"TEMPORARY TABLE" : q("DROP_TABLE"   , walker, index, next)
+				});
+			},
+			
+			"SELECT"     : q("SELECT", walker, index, next),
+			"USE"        : q("USE"   , walker, index, next),
+			"UPDATE"     : q("UPDATE", walker, index, next),
+			"INSERT"     : q("INSERT", walker, index, next),
+			"DELETE"     : q("DELETE", walker, index, next),
+			"SOURCE"     : q("SOURCE", walker, index, next)
+		});
+	}
+
+	if (len) {
+		try {
+			handleQueryAt(0);
+		} catch (err) {
+			onFailure(err);	
+		}
+	} else {
+		onSuccess(new Result("No queries executed"));
+	}
+}
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Tue Aug 19 2014 16:41:49 GMT+0300 (EEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
