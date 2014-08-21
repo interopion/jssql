@@ -42,17 +42,36 @@ module.exports = function(grunt) {
 		'src/query.js',
 		'src/export.js',
 		'src/Result.js',
+		'src/facade.js',
 		'src/init.js'
 	];
 
 	// Project configuration.
 	grunt.initConfig({
 		pkg   : grunt.file.readJSON('package.json'),
+		bump: {
+			options: {
+				files: ['package.json'],
+				updateConfigs: ['pkg'],
+				commit: false,
+				//commitMessage: 'Release v%VERSION%',
+				//commitFiles: ['package.json'],
+				createTag: false,
+				//tagName: 'v%VERSION%',
+				//tagMessage: 'Version %VERSION%',
+				push: false,
+				//pushTo: 'upstream',
+				//gitDescribeOptions: '--tags --always --abbrev=1 --dirty=-d'
+			}
+		},
 		concat: {
 			options: {
 				separator    : "\n",
-				banner       : '\n(function(GLOBAL,undefined){\n"use strict";\n',
-				footer       : "\n\n})(window);\n",
+				banner       : '/**\n' + 
+							   ' * jsSQL version <%= pkg.version %>\n' + 
+							   ' */\n' + 
+							   '(function(GLOBAL,undefined){\n"use strict";\n',
+				footer       : "\njsSQL.version = '<%= pkg.version %>';\n})(window);\n",
 				stripBanners : false,
 				process      : function(src, filepath) {
 					return  '\n' + 
@@ -109,7 +128,8 @@ module.exports = function(grunt) {
 			website : {
 				src: jsFiles.concat(["readme.md"]),
 				options: {
-					destination: '../jekyll-bootstrap/doc',
+					destination: 'site/www/jsdoc',
+					//template   : './node_modules/grunt-jsdoc/node_modules/jsdoc/templates/custom'
 				}
 			}
 		}
@@ -121,13 +141,15 @@ module.exports = function(grunt) {
 	grunt.loadNpmTasks('grunt-contrib-jshint');
 	grunt.loadNpmTasks('grunt-contrib-uglify');
 	grunt.loadNpmTasks('grunt-jsdoc');
+	grunt.loadNpmTasks('grunt-bump');
 
 	// Default task(s).
 	grunt.registerTask('default', [
 		'jshint:beforeconcat', 
-		'concat', 
+		'bump',
+		'concat',
 		'jshint:afterconcat', 
 		'uglify:afterconcat',
-		'jsdoc:dist'
+		'jsdoc:website'
 	]);
 };

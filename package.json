@@ -1,6 +1,6 @@
 {
-  "name": "jsdb-2",
-  "version": "0.0.0",
+  "name": "jssql",
+  "version": "0.0.26",
   "description": "Javascript SQL Database Server",
   "main": "index.js",
   "scripts": {
@@ -18,6 +18,7 @@
     "grunt-contrib-watch": "~0.6.1",
     "grunt-contrib-jshint": "~0.10.0",
     "grunt-contrib-uglify": "~0.4.0",
-    "grunt-jsdoc": "~0.5.6"
+    "grunt-jsdoc": "~0.5.6",
+    "grunt-bump": "0.0.15"
   }
 }
