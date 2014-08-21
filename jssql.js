@@ -1,4 +1,6 @@
-
+/**
+ * jsSQL version 0.0.26
+ */
 (function(GLOBAL,undefined){
 "use strict";
 
@@ -26,6 +28,8 @@ NS = "JSDB",
  * @namespace JSDB
  */
 JSDB = {},
+
+CFG = {},
 
 // Token type constants --------------------------------------------------------
 TOKEN_TYPE_UNKNOWN             = 0,
@@ -1446,13 +1450,13 @@ function Observer() {
 		}
 	}
 
-	this.dispatch = function(e, data) 
+	this.dispatch = function(e) 
 	{
 		var handlers = listeners[e] || [], 
 			l = handlers.length, 
 			i, 
 			canceled = false,
-			args = Array.prototype.slice.call(arguments, 1);
+			args = Array.prototype.slice.call(arguments, 0);
 
 		//console.info("dispatch: ", e, data);
 
@@ -1461,6 +1465,11 @@ function Observer() {
 				canceled = true; 
 				break;
 			}
+		}
+
+		if (e != "*") {
+			args.unshift("*");
+			this.dispatch.apply(this, args);
 		}
 
 		return !canceled;
@@ -4967,7 +4976,7 @@ STATEMENTS.SELECT = function(walker) {
 			walker
 			.errorUntil(";")
 			.commit(function() {//console.log("EXEC SELECT");
-				console.dir(query);
+				//console.dir(query);
 				var result = execute(query);
 				done({
 					cols : result.cols,
@@ -7068,10 +7077,10 @@ Table.prototype.insert = function(keys, values)
  */
 Table.prototype.update = function(map, alt, where, onSuccess, onError)
 {
-	// The UPDATE can be canceled if a "before_update:table" listener returns false 
-	if (!JSDB.events.dispatch("before_update:table", this)) {
+	// The UPDATE can be canceled if a "beforeupdate:table" listener returns false 
+	if (!JSDB.events.dispatch("beforeupdate:table", this)) {
 		onError(new SQLRuntimeError(
-			'The UPDATE procedure of table "%s" was canceled by a "before_update:table" event listener',
+			'The UPDATE procedure of table "%s" was canceled by a "beforeupdate:table" event listener',
 			this.getStorageKey()
 		));
 		return;
@@ -7082,7 +7091,10 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 			name         : "Update " + table.name + " transaction",
 			autoRollback : false,
 			onError      : handleConflict,
-			onComplete   : onSuccess
+			onComplete   : function() {
+				JSDB.events.dispatch("update:table", table);
+				onSuccess();
+			}
 		});
 
 	// ROLLBACK|ABORT|REPLACE|FAIL|IGNORE
@@ -9852,6 +9864,61 @@ Result.prototype = {
 
 
 // -----------------------------------------------------------------------------
+// Starts file "src/facade.js"
+// -----------------------------------------------------------------------------
+var API = {
+	query  : query2,
+	config : config,
+	on     : events.on.bind(events),
+	one    : events.one.bind(events),
+	off    : events.off.bind(events),
+	each   : forEachRow
+};
+
+function jsSQL(opts, cb) {
+
+	if (!cb) {
+		cb = opts;
+		opts = {};
+	}
+
+	mixin(CFG, opts);
+	
+	if (!isFunction(cb))
+		return;
+
+	if (!JSDB.SERVER.loaded) {
+		JSDB.events.one("load:server", function() {
+			cb(API);	
+		});
+	} else {
+		cb(API);
+	}
+}
+
+function config(options) {
+	if (options === undefined)
+		return mixin({}, CFG);
+	mixin(CFG, options);
+}
+
+function forEachRow(sql, cb) {
+	query2(sql, function(err, result) {
+		if (err) throw err;
+
+		if (result && result.rows) {
+			result.rows.forEach(cb);
+		}
+	});
+}
+
+jsSQL.on  = API.on;
+jsSQL.one = API.one;
+jsSQL.off = API.off;
+
+window.jsSQL = jsSQL;
+
+// -----------------------------------------------------------------------------
 // Starts file "src/init.js"
 // -----------------------------------------------------------------------------
 (function() {
@@ -9866,5 +9933,5 @@ Result.prototype = {
 	//console.dir(SERVER);
 })();
 
-
+jsSQL.version = '0.0.26';
 })(window);
