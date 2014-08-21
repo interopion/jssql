@@ -86,13 +86,13 @@ function Observer() {
 		}
 	}
 
-	this.dispatch = function(e, data) 
+	this.dispatch = function(e) 
 	{
 		var handlers = listeners[e] || [], 
 			l = handlers.length, 
 			i, 
 			canceled = false,
-			args = Array.prototype.slice.call(arguments, 1);
+			args = Array.prototype.slice.call(arguments, 0);
 
 		//console.info("dispatch: ", e, data);
 
@@ -101,6 +101,11 @@ function Observer() {
 				canceled = true; 
 				break;
 			}
+		}
+
+		if (e != "*") {
+			args.unshift("*");
+			this.dispatch.apply(this, args);
 		}
 
 		return !canceled;
