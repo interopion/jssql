@@ -705,7 +705,7 @@ STATEMENTS.SELECT = function(walker) {
 			walker
 			.errorUntil(";")
 			.commit(function() {//console.log("EXEC SELECT");
-				console.dir(query);
+				//console.dir(query);
 				var result = execute(query);
 				done({
 					cols : result.cols,
