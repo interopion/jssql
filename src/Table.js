@@ -331,10 +331,10 @@ Table.prototype.insert = function(keys, values)
  */
 Table.prototype.update = function(map, alt, where, onSuccess, onError)
 {
-	// The UPDATE can be canceled if a "before_update:table" listener returns false 
-	if (!JSDB.events.dispatch("before_update:table", this)) {
+	// The UPDATE can be canceled if a "beforeupdate:table" listener returns false 
+	if (!JSDB.events.dispatch("beforeupdate:table", this)) {
 		onError(new SQLRuntimeError(
-			'The UPDATE procedure of table "%s" was canceled by a "before_update:table" event listener',
+			'The UPDATE procedure of table "%s" was canceled by a "beforeupdate:table" event listener',
 			this.getStorageKey()
 		));
 		return;
@@ -345,7 +345,10 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 			name         : "Update " + table.name + " transaction",
 			autoRollback : false,
 			onError      : handleConflict,
-			onComplete   : onSuccess
+			onComplete   : function() {
+				JSDB.events.dispatch("update:table", table);
+				onSuccess();
+			}
 		});
 
 	// ROLLBACK|ABORT|REPLACE|FAIL|IGNORE
