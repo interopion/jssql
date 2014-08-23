@@ -5,7 +5,8 @@
  */
 function Observer() {
 	
-	var listeners = {};
+	var listeners = {},
+		inst = this;
 
 	function returnFalse()
 	{
@@ -45,8 +46,8 @@ function Observer() {
 		if (handler === false)
 			handler = returnFalse;
 
-		function fn(data) {
-			var out = handler(data);
+		function fn() {
+			var out = handler.apply(inst, arguments);
 			unbind(eType, fn);
 			return out;
 		}
@@ -97,7 +98,7 @@ function Observer() {
 		//console.info("dispatch: ", e, data);
 
 		for (i = 0; i < l; i++) {
-			if (handlers[i].apply(this, args) === false) {
+			if (handlers[i].apply(this, arguments) === false) {
 				canceled = true; 
 				break;
 			}
