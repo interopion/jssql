@@ -176,11 +176,15 @@ JSDB.query([
 				<a class="pull-right" href="#top">Back to top</a>
 				<h2>List of all the supported events</h2>
 				<table>
+					<col style="width:10em"></col>
+					<col style="width:7em" align="center"></col>
+					<col></col>
+					<col></col>
 					<thead>
 						<tr>
 							<th>Event Type</th>
-							<th align="center">Cancellable</th>
-							<th>Handler arguments</th>
+							<th>Cancellable</th>
+							<th nowrap>Handler arguments</th>
 							<th>Description</th>
 						</tr>
 					</thead>
@@ -216,9 +220,21 @@ JSDB.query([
 							<td></td>
 						</tr>
 						<tr>
-							<td><strong>before_update:row</strong></td>
+							<td><strong>beforeupdate:row</strong></td>
 							<td align="center">Yes</td>
-							<td><code class="prettyprint lang-js">event</code></td>
+							<td>
+								<code class="prettyprint lang-js">event</code>,
+								<code class="prettyprint lang-js">TableRow</code>
+							</td>
+							<td></td>
+						</tr>
+						<tr>
+							<td><strong>update:row</strong></td>
+							<td align="center">No</td>
+							<td>
+								<code class="prettyprint lang-js">event</code>,
+								<code class="prettyprint lang-js">TableRow</code>
+							</td>
 							<td></td>
 						</tr>
 						<tr>
