@@ -250,9 +250,9 @@
 		);
 	});
 
-	// Make sure that "before_update:table" and "before_update:row" events are triggered
+	// Make sure that "beforeupdate:table" and "beforeupdate:row" events are triggered
 	QUnit.asyncTest(
-		'Make sure that "before_update:table" and "before_update:row" events are triggered', 
+		'Make sure that "beforeupdate:table" and "beforeupdate:row" events are triggered', 
 		function(assert) {
 			var tableEventFired = false,
 				rowEventFired  = false,
@@ -260,12 +260,15 @@
 				row   = table.rows['2'],
 				sql   = "UPDATE t1 SET val = 'd' WHERE id = 2;";
 
-			JSDB.events.one("before_update:table", function(t) {
+			JSDB.events.one("beforeupdate:table", function(e, t) {
+				//debugger;
+				//console.log(arguments);
 				tableEventFired = true;
 				assert.strictEqual(t, table, "The Table instance gets passed to the event listeners");
 			});
 
-			JSDB.events.one("before_update:row", function(r) {
+			JSDB.events.one("beforeupdate:row", function(e, r) {
+				//console.log(arguments);
 				rowEventFired = true;
 				assert.strictEqual(r, row, "The TableRow instance gets passed to the event listeners");
 			});
@@ -273,8 +276,8 @@
 			JSDB.query(
 				sql,
 				function() {
-					assert.strictEqual(tableEventFired, true, "The 'before_update:table' event is fired");
-					assert.strictEqual(rowEventFired  , true, "The 'before_update:row' event is fired");
+					assert.strictEqual(tableEventFired, true, "The 'beforeupdate:table' event is fired");
+					assert.strictEqual(rowEventFired  , true, "The 'beforeupdate:row' event is fired");
 
 					assert.deepEqual(
 						row.toJSON(), 
@@ -299,46 +302,43 @@
 			var sql = "UPDATE t1 SET id = 2 WHERE id = 1;",
 				table = table = JSDB.SERVER.databases.unitTestingDB.tables.t1;
 
-			JSDB.query(
-				sql, 
-				function() {
-					QUnit.pushFailure(
-						"Trying to duplicate a primary key must throw SQLConstraintError exception.", 
-						sql
-					);
+			jsSQL(function(API) {
+				API.query(sql, function(err, result) {
+					if (QUnit.config.semaphore) {
+						if (!err) {
+							QUnit.pushFailure(
+								"Trying to duplicate a primary key must throw SQLConstraintError exception.", 
+								sql
+							);
+						}
+
+						assert.deepEqual(
+							table.rows['1'].toJSON(), 
+							{ id : 1, val : 'a' },
+							"The first row of the table is NOT updated."
+						);
+
+						assert.deepEqual(
+							table.rows['2'].toJSON(), 
+							{ id : 2, val : 'b' },
+							"The second row of the table is NOT updated."
+						);
 					
-					if (QUnit.config.semaphore)
 						QUnit.start();
-				},
-				function(error) {
-					QUnit.push(1,1,1,"Failed as expected");
-					assert.deepEqual(
-						table.rows['1'].toJSON(), 
-						{ id : 1, val : 'a' },
-						"The first row of the table is NOT updated."
-					);
-					assert.deepEqual(
-						table.rows['2'].toJSON(), 
-						{ id : 2, val : 'b' },
-						"The second row of the table is NOT updated."
-					);
-					//assert.ok(error instanceof JSDB.SQLConstraintError);
-					console.error(error);
-					if (QUnit.config.semaphore)
-						QUnit.start();
-				}
-			);
+					}
+				});
+			});
 		}
 	);
 
-	// Make sure that "before_update:table" and "before_update:row" events are cancelable
+	// Make sure that "beforeupdate:table" and "beforeupdate:row" events are cancelable
 	QUnit.asyncTest(
-		'Make sure that "before_update:table" and "before_update:row" events are cancelable', 
+		'Make sure that "beforeupdate:table" and "beforeupdate:row" events are cancelable', 
 		function(assert) {
 			var table = JSDB.SERVER.databases.unitTestingDB.tables.t1,
 				sql   = "UPDATE t1 SET val = 'd';";
 
-			JSDB.events.one("before_update:table", false);
+			JSDB.events.one("beforeupdate:table", false);
 
 			JSDB.query(
 				sql,
