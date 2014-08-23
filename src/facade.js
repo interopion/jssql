@@ -4,7 +4,13 @@ var API = {
 	on     : events.on.bind(events),
 	one    : events.one.bind(events),
 	off    : events.off.bind(events),
-	each   : forEachRow
+	each   : forEachRow,
+	getDatabase : function(dbName) {
+		return getDatabase(dbName, true);
+	},
+	getTable : function(tableName, dbName) {
+		return getTable(tableName, dbName, true);
+	}
 };
 
 function jsSQL(opts, cb) {
