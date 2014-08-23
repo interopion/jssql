@@ -134,7 +134,7 @@ function query(sql, onSuccess, onError)
 			var fn = STATEMENTS[name],
 				tx = SERVER.getTransaction(),
 				result = new Result(),
-				task;
+				task, ignoreError;
 			
 			if (tx) 
 			{
@@ -142,7 +142,7 @@ function query(sql, onSuccess, onError)
 					name : name,
 					execute : function(done, fail) {
 						var _result = new Result(), _task;
-						try {
+						//try {
 							_task = fn(walker);
 							_task.execute(
 								function(r) { 
@@ -151,17 +151,20 @@ function query(sql, onSuccess, onError)
 									done();
 								}, 
 								function(err) {
+									//ignoreError = true;
 									_task.undo(noop, fail);
 									fail(err);
+									//ignoreError = false;
 								}
 							);
-						} catch (ex) {
-							//_result = null;
-							if (_task) {
-								_task.undo(noop, fail);
-							}
-							fail(ex);
-						}
+						//} catch (ex) {
+						//	if (!ignoreError) {
+						//		if (_task) {
+						//			_task.undo(noop, fail);
+						//		}
+						//		fail(ex);
+						//	}
+						//}
 					},
 					undo : function(done, fail) {
 						done();
@@ -173,6 +176,7 @@ function query(sql, onSuccess, onError)
 			}
 			else
 			{
+				//ignoreError = false;
 				try {
 					task = fn(walker);
 					task.execute(
@@ -185,12 +189,15 @@ function query(sql, onSuccess, onError)
 							//result = null;
 							onFailure(e, queryIndex);
 							task.undo(noop, function(err) {
-								onFailure("Undo failed: " + err, queryIndex);
+								//ignoreError = true;
+							//	onFailure("Undo failed: " + err, queryIndex);
+								//ignoreError = false;
 							});
 						}
 					);
 				} catch (err) {
-					onFailure(err, queryIndex);
+				//	if ( !ignoreError )
+						onFailure(err, queryIndex);
 				}
 			}
 		};

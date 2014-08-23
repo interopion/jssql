@@ -7,7 +7,7 @@ module.exports = function(grunt) {
 		'src/events.js',
 		'src/tokenizer.js',
 		'src/Walker.js',
-		'src/BinaryTree.js',
+		//'src/BinaryTree.js',
 		'src/Transaction.js',
 		'src/statements/conflict-clause.js',
 		'src/statements/indexed-column.js',

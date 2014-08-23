@@ -1,5 +1,5 @@
 /**
- * jsSQL version 0.0.26
+ * jsSQL version 0.0.48
  */
 (function(GLOBAL,undefined){
 "use strict";
@@ -568,10 +568,12 @@ function keys(o, all) {
 
 function noop() {}
 
-function getDatabase(dbName)
+function getDatabase(dbName, throwError)
 {
 	var database;
 	if (!dbName) {
+		if (throwError === false)
+			return null;
 		database = SERVER.currentDatabase;
 		if (!database) {
 			throw new SQLRuntimeError('No database selected.');
@@ -579,6 +581,8 @@ function getDatabase(dbName)
 	} else {
 		database = SERVER.databases[dbName];
 		if (!database) {
+			if (throwError === false)
+				return null;
 			throw new SQLRuntimeError(
 				'No such database "%s"',
 				dbName
@@ -589,11 +593,16 @@ function getDatabase(dbName)
 	return database;
 }
 
-function getTable(tableName, dbName)
+function getTable(tableName, dbName, throwError)
 {			
-	var database = getDatabase(dbName),
-		table    = database.tables[tableName];
+	var database = getDatabase(dbName), table;
+
+	if (!database) return null;
+	
+	table = database.tables[tableName];
+
 	if (!table) {
+		if (throwError === false) return null;
 		throw new SQLRuntimeError(
 			'No such table "%s" in database "%s"',
 			tableName,
@@ -861,94 +870,9 @@ function LIKE(input, val) {//console.log("--> ", arguments);
 }
 
 // JOIN functions --------------------------------------------------------------
-function LinkedListNode(data)
-{
-	this.data = data;
-}
 
-LinkedListNode.prototype = {
-	prev : null,
-	next : null,
-	before : function(data) {
-		var node = new LinkedListNode(data);
-		if (this.prev) {
-			node.prev = this.prev;
-			this.prev.next = node;
-		}
-		this.prev = node;
-		node.next = this;
-		return node;
-	},
-	after : function(data) {
-		var node = new LinkedListNode(data);
-		if (this.next) {
-			node.next = this.next;
-			this.next.prev = node;
-		}
-		this.next = node;
-		node.prev = this;
-		return node;
-	}
-};
 
-function crossJoinUsingLinkedList(tables) 
-{
-	var tl = tables.length,
-		rows = [],
-		left, 
-		right, 
-		row, 
-		row0,
-		rowId,
-		prev,
-		next,
-		first,
-		cur,
-		i = 0,
-		l = 0,
-		y;
 
-	while ( i < tl )
-	{
-		right = tables[i++];
-
-		if (i === 1) {
-			for ( rowId in right.rows )
-			{
-				if (!first) {
-					first = new LinkedListNode(right.rows[rowId]._data.slice());
-					prev  = first;
-				} else {
-					prev  = prev.after(right.rows[rowId]._data.slice());
-				}
-			}
-		} else {
-			row = first;
-			while ( row ) {
-				y = 0;
-				row0 = row.data;
-				for ( rowId in right.rows )
-				{
-					if (++y === 1) {
-						row.data = row0.concat( right.rows[rowId]._data );
-					} else {
-						row = row.after(row0.concat( right.rows[rowId]._data ));
-					}
-				}
-				row = row.next;
-			}
-		}
-	}
-
-	row = first;
-	while ( row ) {
-		rows.push(row.data);
-		row = row.next;
-	}
-	//console.dir(first);
-	//console.dir(rows);
-	return rows;
-}
 
 function crossJoin2(arrays)
 {
@@ -1003,7 +927,6 @@ function crossJoin2(arrays)
 
 function crossJoin(tables) 
 {
-	//crossJoinUsingLinkedList(tables);
 	//console.time("crossJoin");
 	var _tables = tables.slice(),
 		tl = _tables.length,
@@ -1369,7 +1292,8 @@ var SQLConstraintError = createErrorClass("SQLConstraintError", "SQL constraint 
  */
 function Observer() {
 	
-	var listeners = {};
+	var listeners = {},
+		inst = this;
 
 	function returnFalse()
 	{
@@ -1409,8 +1333,8 @@ function Observer() {
 		if (handler === false)
 			handler = returnFalse;
 
-		function fn(data) {
-			var out = handler(data);
+		function fn() {
+			var out = handler.apply(inst, arguments);
 			unbind(eType, fn);
 			return out;
 		}
@@ -1461,7 +1385,7 @@ function Observer() {
 		//console.info("dispatch: ", e, data);
 
 		for (i = 0; i < l; i++) {
-			if (handlers[i].apply(this, args) === false) {
+			if (handlers[i].apply(this, arguments) === false) {
 				canceled = true; 
 				break;
 			}
@@ -2648,94 +2572,6 @@ Walker.prototype = {
 		});
 		
 		return this;
-	}
-};
-
-// -----------------------------------------------------------------------------
-// Starts file "src/BinaryTree.js"
-// -----------------------------------------------------------------------------
-function BinaryTree()
-{
-	this.root = null;
-}
-
-BinaryTree.prototype = {
-
-	closestBefore : function(needle) 
-	{
-		var current = this.root;
-
-		while ( current ) 
-		{
-			if (current.value > needle) {
-				if (!current.left) 
-					return null;
-				current = current.left;
-			}
-			else if (current.value < needle) {
-				if (!current.right || current.right.value >= needle) 
-					return current;
-				current = current.right;
-			}
-			else {
-				return current;
-			}
-		}
-
-		return current;
-	},
-
-	insert : function(node)
-	{
-		var closest = this.closestBefore(node.value);
-		if (!closest) {
-			node.right = this.root;
-			node.left  = null;
-			this.root  = node;
-
-		} else {
-			if (closest.right) {
-				node.right = closest.right;
-				closest.right.left = node;
-			}
-			closest.right = node;
-			node.left = closest;
-		}
-	}
-};
-
-function BinaryTreeNode(value)
-{
-	this.value = value;
-}
-
-BinaryTreeNode.prototype = {
-	left   : null,
-	right  : null,
-	parent : null,
-	value  : null,
-
-	setLeft : function(node) 
-	{
-		this.left = node;
-	},
-	setRight : function(node) 
-	{
-		if (this.right) {
-			node.right = this.right;
-			this.right.left = node;
-		}
-		node.left = this;
-		this.right = node;
-
-	},
-	setParent : function(node) 
-	{
-		this.parent = node;
-	},
-	remove : function(node) 
-	{
-		this.parent = null;
 	}
 };
 
@@ -5741,7 +5577,7 @@ function query(sql, onSuccess, onError)
 			var fn = STATEMENTS[name],
 				tx = SERVER.getTransaction(),
 				result = new Result(),
-				task;
+				task, ignoreError;
 			
 			if (tx) 
 			{
@@ -5749,7 +5585,7 @@ function query(sql, onSuccess, onError)
 					name : name,
 					execute : function(done, fail) {
 						var _result = new Result(), _task;
-						try {
+						//try {
 							_task = fn(walker);
 							_task.execute(
 								function(r) { 
@@ -5758,17 +5594,20 @@ function query(sql, onSuccess, onError)
 									done();
 								}, 
 								function(err) {
+									//ignoreError = true;
 									_task.undo(noop, fail);
 									fail(err);
+									//ignoreError = false;
 								}
 							);
-						} catch (ex) {
-							//_result = null;
-							if (_task) {
-								_task.undo(noop, fail);
-							}
-							fail(ex);
-						}
+						//} catch (ex) {
+						//	if (!ignoreError) {
+						//		if (_task) {
+						//			_task.undo(noop, fail);
+						//		}
+						//		fail(ex);
+						//	}
+						//}
 					},
 					undo : function(done, fail) {
 						done();
@@ -5780,6 +5619,7 @@ function query(sql, onSuccess, onError)
 			}
 			else
 			{
+				//ignoreError = false;
 				try {
 					task = fn(walker);
 					task.execute(
@@ -5792,12 +5632,15 @@ function query(sql, onSuccess, onError)
 							//result = null;
 							onFailure(e, queryIndex);
 							task.undo(noop, function(err) {
-								onFailure("Undo failed: " + err, queryIndex);
+								//ignoreError = true;
+							//	onFailure("Undo failed: " + err, queryIndex);
+								//ignoreError = false;
 							});
 						}
 					);
 				} catch (err) {
-					onFailure(err, queryIndex);
+				//	if ( !ignoreError )
+						onFailure(err, queryIndex);
 				}
 			}
 		};
@@ -7092,8 +6935,10 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 			autoRollback : false,
 			onError      : handleConflict,
 			onComplete   : function() {
-				JSDB.events.dispatch("update:table", table);
-				onSuccess();
+				table.save(function() {
+					JSDB.events.dispatch("update:table", table);
+					onSuccess();
+				}, onError);
 			}
 		});
 
@@ -7172,90 +7017,63 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 		}
 	}
 
+	function createRowUpdater(row, newRow) 
+	{
+		var rowBackUp = row.toJSON(), task = Transaction.createTask({
+			name : "Update row " + row.getStorageKey(),
+			execute : function(done, fail)
+			{
+				var name;
+
+				// Create the updated version of the row
+				for ( name in map )
+				{
+					newRow[name] = executeCondition(map[name], newRow);
+				}
+
+				// The UPDATE can be canceled on row level if a 
+				// "beforeupdate:row" listener returns false 
+				if (!JSDB.events.dispatch("beforeupdate:row", row))
+				{
+					done();
+					return true;
+				}
+
+				// Update table indexes
+				for (var ki in table.keys) 
+				{
+					table.keys[ki].beforeUpdate(row, newRow);
+				}
+
+				// Update the actual row
+				for ( name in map )
+				{
+					row.setCellValue( name, newRow[name] );
+				}
+
+				JSDB.events.dispatch("update:row", row);
+
+				done();
+			},
+			undo : function(done)
+			{
+				for ( var name in rowBackUp )
+					row.setCellValue( name, rowBackUp[name] );
+				done();
+			}
+		});
+
+		trx.add(task);
+	}
+
 	each(table.rows, function(row, id) {
-		//debugger;
 		var newRow = row.toJSON(), name;
 
 		// Skip rows that don't match the WHERE condition if any
 		if (where && !executeCondition( where, newRow ))
-		{
 			return true;
-		}
 
-		// Create the updated version of the row
-		//for ( name in map )
-		//{
-		//	newRow[name] = executeCondition(map[name], newRow);
-		//}
-
-		// The UPDATE can be canceled on row level if a "before_update:row" 
-		// listener returns false 
-		//if (!JSDB.events.dispatch("before_update:row", row))
-		//{
-		//	return true;
-		//}
-
-		// Update table indexes
-		//for (var ki in table.keys) 
-		//{
-		//	table.keys[ki].beforeUpdate(row, newRow);
-		//}
-		
-		// Update the actual row
-		//for ( name in map )
-		//{
-		//	row.setCellValue( name, newRow[name] );
-		//}
-
-		(function(row, newRow) {
-
-			var rowBackUp = row.toJSON();
-			
-			var task = Transaction.createTask({
-				name : "Update row " + row.getStorageKey(),
-				execute : function(done, fail)
-				{
-					var name;
-
-					// Create the updated version of the row
-					for ( name in map )
-					{
-						newRow[name] = executeCondition(map[name], newRow);
-					}
-
-					// The UPDATE can be canceled on row level if a 
-					// "before_update:row" listener returns false 
-					if (!JSDB.events.dispatch("before_update:row", row))
-					{
-						done();
-						return true;
-					}
-
-					// Update table indexes
-					for (var ki in table.keys) 
-					{
-						table.keys[ki].beforeUpdate(row, newRow);
-					}
-
-					// Update the actual row
-					for ( name in map )
-					{
-						row.setCellValue( name, newRow[name] );
-					}
-
-					done();
-				},
-				undo : function(done)
-				{
-					for ( var name in rowBackUp )
-						row.setCellValue( name, rowBackUp[name] );
-					done();
-				}
-			});
-
-			trx.add(task);
-
-		})(row, newRow);
+		createRowUpdater(row, newRow);
 	});
 	
 	trx.start();
@@ -9307,8 +9125,8 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		TableRow         : TableRow,
 		//TableCell : TableCell,
 		binarySearch     : binarySearch,
-		BinaryTree       : BinaryTree,
-		BinaryTreeNode   : BinaryTreeNode,
+		//BinaryTree       : BinaryTree,
+		//BinaryTreeNode   : BinaryTreeNode,
 		crossJoin        : crossJoin,
 		innerJoin        : innerJoin,
 		crossJoin2       : crossJoin2,
@@ -9872,7 +9690,13 @@ var API = {
 	on     : events.on.bind(events),
 	one    : events.one.bind(events),
 	off    : events.off.bind(events),
-	each   : forEachRow
+	each   : forEachRow,
+	getDatabase : function(dbName) {
+		return getDatabase(dbName, true);
+	},
+	getTable : function(tableName, dbName) {
+		return getTable(tableName, dbName, true);
+	}
 };
 
 function jsSQL(opts, cb) {
@@ -9933,5 +9757,5 @@ window.jsSQL = jsSQL;
 	//console.dir(SERVER);
 })();
 
-jsSQL.version = '0.0.26';
+jsSQL.version = '0.0.48';
 })(window);

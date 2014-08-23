@@ -346,8 +346,10 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 			autoRollback : false,
 			onError      : handleConflict,
 			onComplete   : function() {
-				JSDB.events.dispatch("update:table", table);
-				onSuccess();
+				table.save(function() {
+					JSDB.events.dispatch("update:table", table);
+					onSuccess();
+				}, onError);
 			}
 		});
 
@@ -426,90 +428,63 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 		}
 	}
 
+	function createRowUpdater(row, newRow) 
+	{
+		var rowBackUp = row.toJSON(), task = Transaction.createTask({
+			name : "Update row " + row.getStorageKey(),
+			execute : function(done, fail)
+			{
+				var name;
+
+				// Create the updated version of the row
+				for ( name in map )
+				{
+					newRow[name] = executeCondition(map[name], newRow);
+				}
+
+				// The UPDATE can be canceled on row level if a 
+				// "beforeupdate:row" listener returns false 
+				if (!JSDB.events.dispatch("beforeupdate:row", row))
+				{
+					done();
+					return true;
+				}
+
+				// Update table indexes
+				for (var ki in table.keys) 
+				{
+					table.keys[ki].beforeUpdate(row, newRow);
+				}
+
+				// Update the actual row
+				for ( name in map )
+				{
+					row.setCellValue( name, newRow[name] );
+				}
+
+				JSDB.events.dispatch("update:row", row);
+
+				done();
+			},
+			undo : function(done)
+			{
+				for ( var name in rowBackUp )
+					row.setCellValue( name, rowBackUp[name] );
+				done();
+			}
+		});
+
+		trx.add(task);
+	}
+
 	each(table.rows, function(row, id) {
-		//debugger;
 		var newRow = row.toJSON(), name;
 
 		// Skip rows that don't match the WHERE condition if any
 		if (where && !executeCondition( where, newRow ))
-		{
 			return true;
-		}
 
-		// Create the updated version of the row
-		//for ( name in map )
-		//{
-		//	newRow[name] = executeCondition(map[name], newRow);
-		//}
-
-		// The UPDATE can be canceled on row level if a "before_update:row" 
-		// listener returns false 
-		//if (!JSDB.events.dispatch("before_update:row", row))
-		//{
-		//	return true;
-		//}
-
-		// Update table indexes
-		//for (var ki in table.keys) 
-		//{
-		//	table.keys[ki].beforeUpdate(row, newRow);
-		//}
-		
-		// Update the actual row
-		//for ( name in map )
-		//{
-		//	row.setCellValue( name, newRow[name] );
-		//}
-
-		(function(row, newRow) {
-
-			var rowBackUp = row.toJSON();
-			
-			var task = Transaction.createTask({
-				name : "Update row " + row.getStorageKey(),
-				execute : function(done, fail)
-				{
-					var name;
-
-					// Create the updated version of the row
-					for ( name in map )
-					{
-						newRow[name] = executeCondition(map[name], newRow);
-					}
-
-					// The UPDATE can be canceled on row level if a 
-					// "before_update:row" listener returns false 
-					if (!JSDB.events.dispatch("before_update:row", row))
-					{
-						done();
-						return true;
-					}
-
-					// Update table indexes
-					for (var ki in table.keys) 
-					{
-						table.keys[ki].beforeUpdate(row, newRow);
-					}
-
-					// Update the actual row
-					for ( name in map )
-					{
-						row.setCellValue( name, newRow[name] );
-					}
-
-					done();
-				},
-				undo : function(done)
-				{
-					for ( var name in rowBackUp )
-						row.setCellValue( name, rowBackUp[name] );
-					done();
-				}
-			});
-
-			trx.add(task);
-
-		})(row, newRow);
+		createRowUpdater(row, newRow);
 	});
 	
 	trx.start();
