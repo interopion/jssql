@@ -12,7 +12,12 @@ Persistable.prototype = {
 	 * The storage engine instance used by this object.
 	 * @todo This should be configurable!
 	 */
-	storage : Storage.getEngine("LocalStorage"),
+	//storage : Storage.getEngine(CFG.storageEngine),
+
+	getStorage : function() 
+	{
+		return Storage.getEngine(CFG.storageEngine);
+	},
 	
 	/**
 	 * The method that should generate and return the plain (JSON) 
@@ -47,7 +52,7 @@ Persistable.prototype = {
 	 */
 	read : function(next)
 	{
-		this.storage.get(this.getStorageKey(), function(err, data) {
+		this.getStorage().get(this.getStorageKey(), function(err, data) {
 			if (err)
 				return next(err, null);
 
@@ -70,7 +75,7 @@ Persistable.prototype = {
 	 */
 	write : function(data, next)
 	{
-		this.storage.set( this.getStorageKey(),  JSON.stringify(data), next );
+		this.getStorage().set( this.getStorageKey(),  JSON.stringify(data), next );
 	},
 	
 	/**
@@ -80,7 +85,7 @@ Persistable.prototype = {
 	 */
 	drop : function(next)
 	{
-		return this.storage.unset(this.getStorageKey(), next);
+		return this.getStorage().unset(this.getStorageKey(), next);
 	},
 	
 	/**
