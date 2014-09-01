@@ -6,86 +6,95 @@
 function MemoryStorage() {
 	var _store = {};
 
-	this.setMany = function(map, onSuccess, onError)
+	this.setMany = function(map, next)
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				for ( var key in map )
 					_store[key] = map[key];
-				if (onSuccess) 
-						onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 
-	this.getMany = function(keys, onSuccess, onError)
+	this.getMany = function(keys, next)
 	{
 		setTimeout(function() {
+			var err = null, out = [], key;
 			try {
-				var out = [];
-				for (var i = 0, l = keys.length; i < l; i++)
-					out.push( _store[keys[i]] );
-				if (onSuccess) 
-					onSuccess( out );
+				for (var i = 0, l = keys.length; i < l; i++) {
+					key = keys[i];
+					out.push( key in _store ? _store[key] : null );
+				}
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err, out);
 		}, 0);
 	};
 
-	this.unsetMany = function(keys, onSuccess, onError)
+	this.unsetMany = function(keys, next)
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				for (var i = 0, l = keys.length; i < l; i++)
 					if (_store.hasOwnProperty(keys[i])) 
 						delete _store[keys[i]];
-				if (onSuccess) 
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 	
-	this.set = function(key, value, onSuccess, onError) 
+	this.set = function(key, value, next) 
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
-				_store[key] = val;
-				if (onSuccess) 
-					onSuccess();
+				_store[key] = value;
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 	
-	this.get = function(key, onSuccess, onError) 
+	this.get = function(key, next) 
 	{
 		setTimeout(function() {
+			var err = null, out;
 			try {
-				if (onSuccess) 
-					onSuccess( _store[key] );
+				out = key in _store ? _store[key] : null;
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
-		}, 0);
+			if (next)
+				next(err, out);
+			return out;
+		});
 	};
 	
-	this.unset = function(key, onSuccess, onError) 
+	this.unset = function(key, next) 
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				if (_store.hasOwnProperty(key)) 
 					delete _store[key];
-				if (onSuccess) 
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next) 
+				next(err);
 		}, 0);
 	};
 }

@@ -21,29 +21,29 @@ var Storage = (function() {
 		},
 		getEnginePrototype : function() {
 			return {
-				set : function(key, value, onSuccess, onError) 
+				set : function(key, value, next) 
 				{
-					onError("Failed to save - not implemented.");
+					next("Failed to save - not implemented.");
 				},
-				get : function(key, onSuccess, onError) 
+				get : function(key, next) 
 				{
-					onError("Failed to read - not implemented.");
+					next("Failed to read - not implemented.");
 				},
-				unset : function(key, onSuccess, onError) 
+				unset : function(key, next) 
 				{
-					onError("Failed to delete - not implemented.");
+					next("Failed to delete - not implemented.");
 				},
-				setMany : function(map, onSuccess, onError)
+				setMany : function(map, next)
 				{
-					onError("Failed to save - not implemented.");
+					next("Failed to save - not implemented.");
 				},
-				getMany : function(keys, onSuccess, onError)
+				getMany : function(keys, next)
 				{
-					onError("Failed to read - not implemented.");
+					next("Failed to read - not implemented.");
 				},
-				unsetMany : function(keys, onSuccess, onError)
+				unsetMany : function(keys, next)
 				{
-					onError("Failed to delete - not implemented.");
+					next("Failed to delete - not implemented.");
 				}
 			};
 		}

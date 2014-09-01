@@ -5,32 +5,36 @@
  */
 function LocalStorage() 
 {
-	this.setMany = function(map, onSuccess, onError)
+	if (!window.localStorage || !isFunction(localStorage.setItem))
+		throw new Error("localStorage is not supported");
+
+	this.setMany = function(map, next)
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				for ( var key in map )
 					localStorage.setItem( key, map[key] );
-				if (onSuccess) 
-						onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 
-	this.getMany = function(keys, onSuccess, onError)
+	this.getMany = function(keys, next)
 	{
 		setTimeout(function() {
+			var err = null, out = [];
 			try {
-				var out = [];
 				for (var i = 0, l = keys.length; i < l; i++)
 					out.push( localStorage.getItem( keys[i] ) );
-				if (onSuccess) 
-					onSuccess( out );
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err, out);
 		}, 0);
 	};
 
@@ -43,55 +47,60 @@ function LocalStorage()
 	 * single argument
 	 * @return {void} undefined - This method is async. so use the callbacks
 	 */
-	this.unsetMany = function(keys, onSuccess, onError)
+	this.unsetMany = function(keys, next)
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				for (var i = 0, l = keys.length; i < l; i++)
 					localStorage.removeItem( keys[i] );
-				if (onSuccess) 
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 
-	this.set = function(key, value, onSuccess, onError) 
+	this.set = function(key, value, next) 
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				localStorage.setItem( key, value );
-				if (onSuccess)
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 	
-	this.get = function(key, onSuccess, onError) 
+	this.get = function(key, next) 
 	{
 		setTimeout(function() {
+			var err = null, out;
 			try {
-				if (onSuccess)
-					onSuccess(localStorage.getItem( key ));
+				out = localStorage.getItem( key );
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err, out);
 		}, 0);
 	};
 	
-	this.unset = function(key, onSuccess, onError) 
+	this.unset = function(key, next) 
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				localStorage.removeItem( key );
-				if (onSuccess)
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next) 
+				next(err);
 		}, 0);
 	};
 }

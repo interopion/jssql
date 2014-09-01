@@ -4,15 +4,15 @@ function FileSystemStorage() {
 		fileSystem : {
 			size               : 15 * 1024 * 1024, // 15MB
 			type               : window.PERSISTENT,
-			rootFolder         : ".ERS",
-			filesFolderName    : "files",
-			recordFolderPrefix : "record-",
-			recordDatafileName : "record.json",
-			recordsFolderName  : "records",
-			usersDatafileName  : "users.json",
+			//rootFolder         : ".ERS",
+			//filesFolderName    : "files",
+			//recordFolderPrefix : "record-",
+			//recordDatafileName : "record.json",
+			//recordsFolderName  : "records",
+			//usersDatafileName  : "users.json",
 
 			// this.affects Utils.createUniqueFile and Utils.uniqueDir
-			uniqueEntryCreateAttempts : 100
+			//uniqueEntryCreateAttempts : 100
 		}
 	};
 
@@ -147,10 +147,6 @@ function FileSystemStorage() {
 	////////////////////////////////////////////////////////////////////////////
 	this.set = function(key, value, next) 
 	{
-		// JSDB
-		// JSDB.world
-		// JSDB.world.City
-		// JSDB.world.City.1
 		var path  = key + ".json",
 			_next = createNextHandler(next),
 			onError = function(err) {
@@ -361,13 +357,6 @@ function FileSystemStorage() {
 			deleteNext();
 		}, onError);
 	};
-
-	////////////////////////////////////////////////////////////////////////////
-	//getFileSystem(function(fs) {
-	//	console.dir(fs.root.toURL());
-	//}, function(err) {
-	//	throw err;
-	//});
 
 }
 
