@@ -5,7 +5,7 @@
 			QUnit.stop();
 			jsSQL(function(API) {
 				API.query("CREATE DATABASE IF NOT EXISTS unitTestingDB;USE unitTestingDB", function(err, result, idx) {
-					if (err) throw err;
+					if (err) QUnit.pushFailure("setup failed: " + err);
 					if (idx === 1)
 						QUnit.start();
 				});
@@ -15,7 +15,7 @@
 			QUnit.stop();
 			jsSQL(function(API) {
 				API.query("DROP DATABASE IF EXISTS unitTestingDB;", function(err) {
-					if (err) throw err;
+					if (err) QUnit.pushFailure("teardown failed: " + err);
 					QUnit.start();
 				});
 			});

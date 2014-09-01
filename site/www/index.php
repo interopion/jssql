@@ -1,4 +1,9 @@
-<?php require('header.php'); ?>
+<?php 
+$title = 'Manual';
+$head = '<link href="google-code-prettify/prettify.css" type="text/css" rel="stylesheet" />
+		<script type="text/javascript" src="google-code-prettify/prettify.js"></script>
+';
+require('header.php'); ?>
 				<h1>JsSql API Reference</h1>
 				<hr>
 
@@ -174,11 +179,40 @@ JSDB.query([
 				<br>
 				<a name="events"></a>
 				<a class="pull-right" href="#top">Back to top</a>
-				<h2>List of all the supported events</h2>
+				<h2>Events</h2>
+				<p>
+				There are some events dispatched by the jsSql library to allow
+				you to trace what is going on and even to control the execution 
+				flow in some cases. These event are following certain naming 
+				convention:
+				<ol>
+					<li>
+						The event type is expressed as <b>action[:target]</b>.
+						The action part is the name of the action that has happened
+						(or is about to happen). Additionally, if the same action
+						can happen on different targets, the target is appended after
+						a colon to namespace the event. For example "save:table"
+						if fired after a table has been saved and "save:row" - 
+						after a row has been saved.
+					</li>
+					<li>
+						Since the events are usually dispatched to notify the 
+						interested parties about some asynchronous procedure,
+						most of them are in pairs - when something is about to 
+						happen and after it has happened. Some of the "before events"
+						can be canceled which will prevent the actual execution 
+						of the action. Others cannot be canceled. The rule here
+						is that the cancel-able "before" events are named as 
+						"<b>before</b>action[:target]", while those that cannot be
+						canceled are named as "action<b>start</b>[:target]".
+					</li>
+				</ol>
+				</p>
+				<h3>List of all the supported events</h3>
 				<table>
-					<col style="width:10em"></col>
+					<col style="width:11em"></col>
 					<col style="width:7em" align="center"></col>
-					<col></col>
+					<col style="width:15em"></col>
 					<col></col>
 					<thead>
 						<tr>
@@ -190,16 +224,119 @@ JSDB.query([
 					</thead>
 					<tbody>
 						<tr>
+							<th colspan="4" class="group-heading">loadstart</th>
+						</tr>
+						<tr>
 							<td><strong>loadstart:server</strong></td>
 							<td align="center">No</td>
-							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">JSDB.SERVER</code></td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">server</code></td>
 							<td>Fired when the database server starts loading it's data from the storage</td>
+						</tr>
+						<tr>
+							<td><strong>loadstart:database</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">database</code></td>
+							<td>Fired when a database starts loading it's data from the storage</td>
+						</tr>
+						<tr>
+							<td><strong>loadstart:table</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">table</code></td>
+							<td>Fired when a table starts loading it's data from the storage</td>
+						</tr>
+						<tr>
+							<td><strong>loadstart:row</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">row</code></td>
+							<td>Fired when a row starts loading it's data from the storage</td>
+						</tr>
+
+						<tr>
+							<th colspan="4" class="group-heading">load</th>
 						</tr>
 						<tr>
 							<td><strong>load:server</strong></td>
 							<td align="center">No</td>
-							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">JSDB.SERVER</code></td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">server</code></td>
 							<td>Fired when the database server has completed loading it's data from the storage (even if nothing new has been loaded)</td>
+						</tr>
+						<tr>
+							<td><strong>load:database</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">database</code></td>
+							<td>Fired when a database has completed loading it's data from the storage (even if nothing new has been loaded)</td>
+						</tr>
+						<tr>
+							<td><strong>load:table</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">table</code></td>
+							<td>Fired when a table has completed loading it's data from the storage (even if nothing new has been loaded)</td>
+						</tr>
+						<tr>
+							<td><strong>load:row</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">row</code></td>
+							<td>Fired when a table row has completed loading it's data from the storage (even if nothing new has been loaded)</td>
+						</tr>
+
+						<tr>
+							<th colspan="4" class="group-heading">savestart</th>
+						</tr>
+						<tr>
+							<td><strong>savestart:server</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">server</code></td>
+							<td>When the server starts saving itself</td>
+						</tr>
+						<tr>
+							<td><strong>savestart:database</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">database</code></td>
+							<td>When a database starts saving itself</td>
+						</tr>
+						<tr>
+							<td><strong>savestart:table</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">table</code></td>
+							<td>When a table starts saving itself</td>
+						</tr>
+						<tr>
+							<td><strong>savestart:row</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">row</code></td>
+							<td>When a row starts saving itself</td>
+						</tr>
+
+						<tr>
+							<th colspan="4" class="group-heading">save</th>
+						</tr>
+						<tr>
+							<td><strong>save:server</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">server</code></td>
+							<td>When the server has been saved</td>
+						</tr>
+						<tr>
+							<td><strong>save:database</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">database</code></td>
+							<td>When a database has been saved</td>
+						</tr>
+						<tr>
+							<td><strong>save:table</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">table</code></td>
+							<td>When a table has been saved</td>
+						</tr>
+						<tr>
+							<td><strong>save:row</strong></td>
+							<td align="center">No</td>
+							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">row</code></td>
+							<td>When a row has been saved</td>
+						</tr>
+
+						<tr>
+							<th colspan="4" class="group-heading">beforeupdate</th>
 						</tr>
 						<tr>
 							<td><strong>beforeupdate:table</strong></td>
@@ -208,16 +345,11 @@ JSDB.query([
 								<code class="prettyprint lang-js">event</code>,
 								<code class="prettyprint lang-js">Table</code>
 							</td>
-							<td></td>
-						</tr>
-						<tr>
-							<td><strong>update:table</strong></td>
-							<td align="center">No</td>
 							<td>
-								<code class="prettyprint lang-js">event</code>,
-								<code class="prettyprint lang-js">Table</code>
+								When a table is about to be updated. If a handler
+								function returns <code>false</code> (exactly) the
+								update will be canceled!
 							</td>
-							<td></td>
 						</tr>
 						<tr>
 							<td><strong>beforeupdate:row</strong></td>
@@ -225,6 +357,19 @@ JSDB.query([
 							<td>
 								<code class="prettyprint lang-js">event</code>,
 								<code class="prettyprint lang-js">TableRow</code>
+							</td>
+							<td></td>
+						</tr>
+
+						<tr>
+							<th colspan="4" class="group-heading">update</th>
+						</tr>
+						<tr>
+							<td><strong>update:table</strong></td>
+							<td align="center">No</td>
+							<td>
+								<code class="prettyprint lang-js">event</code>,
+								<code class="prettyprint lang-js">Table</code>
 							</td>
 							<td></td>
 						</tr>
@@ -237,42 +382,12 @@ JSDB.query([
 							</td>
 							<td></td>
 						</tr>
-						<tr>
-							<td><strong>loadstart:row</strong></td>
-							<td align="center">No</td>
-							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">row</code></td>
-							<td>When a row starts loading itself from the storage</td>
-						</tr>
-						<tr>
-							<td><strong>load:row</strong></td>
-							<td align="center">No</td>
-							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">row</code></td>
-							<td>When a row has been loaded from the storage</td>
-						</tr>
-						<tr>
-							<td><strong>savestart:row</strong></td>
-							<td align="center">No</td>
-							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">row</code></td>
-							<td>When a row starts saving itself</td>
-						</tr>
-						<tr>
-							<td><strong>save:row</strong></td>
-							<td align="center">No</td>
-							<td><code class="prettyprint lang-js">event</code>, <code class="prettyprint lang-js">row</code></td>
-							<td>When a row has been saved</td>
-						</tr>
-						<tr>
-							<td><strong>loadstart:table</strong></td>
-							<td align="center"></td>
-							<td><code class="prettyprint lang-js">event</code></td>
-							<td></td>
-						</tr>
-						<tr>
-							<td><strong>load:table</strong></td>
-							<td align="center"></td>
-							<td><code class="prettyprint lang-js">event</code></td>
-							<td></td>
-						</tr>
+						
+						
+						
+						
+						
+						
 					</tbody>
 				</table>
 				<br>
@@ -290,7 +405,7 @@ JSDB.query([
 				<h4>USE</h4>
 				<p>
 				It's a very simple statement - just the keyword <code>USE</code> followed by 
-				the name of the database. Not that the named database MUST exist
+				the name of the database. Note that the named database MUST exist
 				or an exception will be thrown. The database name can be specified 
 				as a simple word, or if needed  it can be a string quoted in double
 				quotes, single quotes or tick marks. Here is an example:
@@ -360,6 +475,8 @@ SHOW TABLES FROM `table` IN "database";
 SHOW TABLES IN 'table' IN database;
 SHOW SCHEMAS IN 'table' IN database;
 </pre>
-
+<script type="text/javascript">
+prettyPrint();
+</script>
 <?php require('footer.php'); ?>
 			

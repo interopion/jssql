@@ -66,6 +66,11 @@ tbody tr:nth-child(even) {
 	background: #F6F6F5;
 }
 
+.group-heading {
+	background: #efe;
+	color: #060;
+}
+
 /* google-code-prettify customization --------------------------------------- */
 pre.prettyprint, code.prettyprint {
 	background-color: #EEE;

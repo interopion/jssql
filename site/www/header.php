@@ -1,17 +1,21 @@
-<!DOCTYPE html>
+<?php
+
+if (!isset($title))
+	$title = 'Home';
+
+if (!isset($head))
+	$head  = '';
+
+?><!DOCTYPE html>
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>JSSQL - Manual</title>
+		<title>JSSQL - <?php echo $title; ?></title>
 		<link rel="shortcut icon" type="image/png" href="favicon.png">
-		<link href="google-code-prettify/prettify.css" type="text/css" rel="stylesheet" />
+		<?php echo $head; ?>
 		<link href="style.css" type="text/css" rel="stylesheet" />
-		<script type="text/javascript" src="google-code-prettify/prettify.js"></script>
-
-		<!-- This MUST be removed on production. It is here only to enable console tests -->
-		<script type="text/javascript" src="/js/jssql.js"></script>
 	</head>
-	<body onload="prettyPrint()">
+	<body>
 		<div id="main">
 			<div class="header">
 				<img name="logo" alt="JSSQL Logo" width="128" height="64" style="background:#BBB;vertical-align:middle;margin-right:1em;">

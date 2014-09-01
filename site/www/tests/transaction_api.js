@@ -10,19 +10,22 @@
 			onComplete : function onTransactionComplete() {
 				if (QUnit.config.semaphore) {
 					ok(true, 'Transaction "' + transactionName + '" complete');
-					QUnit.start();
+					if (QUnit.config.semaphore)
+						QUnit.start();
 				}
 			},
 			onRollback : function onTransactionRollback() {
 				if (QUnit.config.semaphore) {
 					ok(true, 'Transaction "' + transactionName + '" was undone');
-					QUnit.start();
+					if (QUnit.config.semaphore)
+						QUnit.start();
 				}
 			},
 			onError : function onTransactionError(e) {
 				if (QUnit.config.semaphore) {
 					ok(true, 'Transaction "' + transactionName + '" error: ' + e);
-					QUnit.start();
+					if (QUnit.config.semaphore)
+						QUnit.start();
 				}
 			}
 		};
@@ -32,15 +35,15 @@
 		return Transaction.createTask({
 			name  : options.name,
 			weight: options.weight,
-			execute : function(done, fail) {
+			execute : function(next) {
 				if (options.fails) {
 					ok(true, "Task " + this.transaction.getOption("name") + "." + this.name + " fails");
-					fail();
+					next(true);
 				} else if (options.throws) {
 					throw "Task " + this.transaction.getOption("name") + "." + this.name + " throws an error";
 				} else {
 					ok(true, "Task " + this.transaction.getOption("name") + "." + this.name + " executes");
-					done();
+					next();
 				}
 			},
 			undo : function(done) {
@@ -176,31 +179,41 @@
 		tx.start();
 	});
 
-	QUnit.asyncTest("Event callbacks", function() {
+	QUnit.asyncTest("Event callbacks", function(assert) {
 		var tr = new Transaction({
 			delay : 200,
-			onTransactionCompletemplete : function() {
-				ok(true, "onComplete");
+			onTransactionComplete : function(e) {
+				assert.strictEqual(e, "complete");
 				start();
 			},
-			onRollback : function() {
-				ok(true, "onRollback");
+			onRollback : function(e, err) {
+				assert.strictEqual(e, "rollback");
+				assert.ok(err, "onRollback: " + err);
 				start();
 			},
-			onError : function(e) {
-				ok(true, "onError: " + e);
+			onError : function(e, err) {
+				assert.strictEqual(e, "error");
+				assert.ok(err, "onError: " + err);
 			},
-			beforeTask : function(t, i) {
-				ok(true, "beforeTask: " + t.name + ", index: " + i);
+			beforeTask : function(e, t, i) {
+				assert.ok(t, "has task argument");
+				assert.ok(i || i === 0, "has index argument");
+				assert.strictEqual(e, "before:task", "beforeTask: " + t.name + ", index: " + i);
 			},
-			afterTask : function(t, i) {
-				ok(true, "afterTask: " + t.name + ", index: " + i);
+			afterTask : function(e, t, i) {
+				assert.ok(t, "has task argument");
+				assert.ok(i || i === 0, "has index argument");
+				assert.strictEqual(e, "after:task", "afterTask: " + t.name + ", index: " + i);
 			},
-			beforeUndo : function(t, i) {
-				ok(true, "beforeUndo: " + t.name + ", index: " + i);
+			beforeUndo : function(e, t, i) {
+				assert.ok(t, "has task argument");
+				assert.ok(i || i === 0, "has index argument");
+				assert.strictEqual(e, "before:undo", "beforeUndo: " + t.name + ", index: " + i);
 			},
-			afterUndo : function(t, i) {
-				ok(true, "afterUndo: " + t.name + ", index: " + i);
+			afterUndo : function(e, t, i) {
+				assert.ok(t, "has task argument");
+				assert.ok(i || i === 0, "has index argument");
+				assert.strictEqual(e, "after:undo", "afterUndo: " + t.name + ", index: " + i);
 			},
 			onProgress : function(q, t, i) {
 				ok(true, "onProgress: " + q);

@@ -1,5 +1,5 @@
 /**
- * jsSQL version 0.0.48
+ * jsSQL version 0.0.303
  */
 (function(GLOBAL,undefined){
 "use strict";
@@ -29,7 +29,9 @@ NS = "JSDB",
  */
 JSDB = {},
 
-CFG = {},
+CFG = {
+	debug : false
+},
 
 // Token type constants --------------------------------------------------------
 TOKEN_TYPE_UNKNOWN             = 0,
@@ -411,32 +413,6 @@ function getTokens(sql, options)
 	return tokens;
 }
 
-function createTable(name, fields, ifNotExists, database)
-{
-	database = database || CURRENT_DATABASE;
-	if (!database) {
-		throw new SQLRuntimeError("No database selected");
-	}
-	
-	return database.createTable(name, fields, ifNotExists);
-}
-
-function dropTable(name, ifExists, database) 
-{
-	database = database || CURRENT_DATABASE;
-	if (!database) {
-		throw new SQLRuntimeError("No database selected");
-	}
-
-	if (!database.tables.hasOwnProperty(name)) {
-		if (!ifExists) {
-			throw new SQLRuntimeError('Table "%s" does not exist', name);
-		}
-	}
-
-	delete database.tables[name];
-}
-
 function each(o, callback, scope)
 {
 	var key, len, argLen = arguments.length;
@@ -572,21 +548,20 @@ function getDatabase(dbName, throwError)
 {
 	var database;
 	if (!dbName) {
-		if (throwError === false)
-			return null;
 		database = SERVER.currentDatabase;
 		if (!database) {
-			throw new SQLRuntimeError('No database selected.');
+			if (throwError === false)
+				return null;
+
+			throw new SQLRuntimeError( 'No database selected.' );
 		}
 	} else {
 		database = SERVER.databases[dbName];
 		if (!database) {
 			if (throwError === false)
 				return null;
-			throw new SQLRuntimeError(
-				'No such database "%s"',
-				dbName
-			);
+			
+			throw new SQLRuntimeError( 'No such database "%s"', dbName );
 		}
 	}
 	
@@ -595,14 +570,16 @@ function getDatabase(dbName, throwError)
 
 function getTable(tableName, dbName, throwError)
 {			
-	var database = getDatabase(dbName), table;
+	var database = getDatabase(dbName, throwError), table;
 
 	if (!database) return null;
 	
 	table = database.tables[tableName];
 
 	if (!table) {
-		if (throwError === false) return null;
+		if (throwError === false) 
+			return null;
+		
 		throw new SQLRuntimeError(
 			'No such table "%s" in database "%s"',
 			tableName,
@@ -611,6 +588,17 @@ function getTable(tableName, dbName, throwError)
 	}
 	
 	return table;
+}
+
+function createTable(name, fields, ifNotExists, database, next)
+{
+	database = database || SERVER.currentDatabase;
+	
+	if (!database) {
+		throw new SQLRuntimeError("No database selected");
+	}
+	
+	return database.createTable(name, fields, ifNotExists, next);
 }
 
 function isArray(x) 
@@ -708,8 +696,15 @@ function assert(condition, msg) {
 
 function defaultErrorHandler(e) 
 {
-	if (window.console && console.error) 
+	if (CFG.debug && window.console && console.error) 
 		console.error(e);
+}
+
+function createNextHandler(fn) {
+	return isFunction(fn) ? fn : function(err) {
+		if (err)
+			throw err;
+	};
 }
 
 function mixin()
@@ -2636,9 +2631,9 @@ function Transaction(options)
 		//onError      : noop, // args: Error error|String error message
 		//beforeTask   : noop, // args: task, pos
 		//afterTask    : noop, // args: task, pos
-		beforeUndo   : noop, // args: task, pos
-		afterUndo    : noop, // args: task, pos
-		onProgress   : noop, // args: q, task, pos
+		//beforeUndo   : noop, // args: task, pos
+		//afterUndo    : noop, // args: task, pos
+		//onProgress   : noop, // args: q, task, pos
 		timeout      : 1000, // For any single task
 		delay        : 0,
 		name         : "Anonymous transaction",
@@ -2708,16 +2703,37 @@ function Transaction(options)
 	 */
 	events = new Observer();
 
-	if (isFunction(config.onComplete))
-		events.on("complete", config.onComplete);
-	if (isFunction(config.onRollback))
-		events.on("rollback", config.onRollback);
-	if (isFunction(config.onError))
-		events.on("error", config.onError);
-	if (isFunction(config.beforeTask))
-		events.on("before:task", config.beforeTask);
-	if (isFunction(config.afterTask))
-		events.on("after:task", config.afterTask);
+	if (CFG.debug) {
+		events.on("error", function(e, err) {
+			console.error(err);
+		});
+		events.on("before:task", function(e, task, pos) {
+			console.info("Starting task ", config.name, "->", task.name);
+		});
+		//events.on("after:task", function(e, task, pos) {
+		//	console.info(e, "(" + pos + ")", config.name, "->", task.name);
+		//});
+		events.on("complete", function(e) {
+			console.info('Transaction complete "%s"', config.name);
+		});
+	}
+
+	var eventMap = {
+		"onComplete" : "complete",
+		"onRollback" : "rollback",
+		"onError"    : "error",
+		"beforeTask" : "before:task",
+		"afterTask"  : "after:task",
+		"beforeUndo" : "before:undo",
+		"afterUndo"  : "after:undo",
+		"onProgress" : "progress"
+	};
+
+	for (var handler in eventMap) {
+		if (isFunction(config[handler])) {
+			events.on(eventMap[handler], config[handler]);
+		}
+	}
 
 	function destroy()
 	{
@@ -2813,15 +2829,19 @@ function Transaction(options)
 			
 			task = Transaction.createTask({
 				name : "Nested transaction",
-				execute : function(done, fail) 
+				execute : function(next) 
 				{
-					tx.on("complete", done);
-					tx.on("error", fail);
+					tx.on("complete", next);
+					tx.on("error", next);
 					tx.start();
 				},
-				undo : function(done) 
+				undo : function(next) 
 				{
-					tx.on("rollback", done);
+					tx.on("rollback", function() {
+						var args = Array.prototype.slice.call(arguments);
+						args.unshift(null);
+						next.apply(tx, args);
+					});
 					tx.rollback();
 				}
 			});
@@ -2876,21 +2896,18 @@ function Transaction(options)
 				try {
 					events.dispatch("before:task", task, pos);
 					task.execute(
-						function() {
+						
+						function(err) {
 							if (pos === position) {
-								events.dispatch("progress", getProgress(), task, pos);
-								config.onProgress(getProgress(), task, pos);
-								events.dispatch("after:task", task, pos);
-								delay = setTimeout(next, config.delay);
-								//next();
-							} 
-						}, 
-						function(e) {
-							if (pos === position) {
-								lastError = e || "Task '" + task.name + "' failed.";
-								events.dispatch("error", lastError);
-								if (config.autoRollback) 
-									undo(pos);
+								if (err) {
+									lastError = err || "Task '" + task.name + "' failed.";
+									events.dispatch("error", lastError);
+									if (config.autoRollback) undo(pos);
+								} else {
+									events.dispatch("progress", getProgress(), task, pos);
+									events.dispatch("after:task", task, pos);
+									delay = setTimeout(next, config.delay);
+								}
 							}
 						}
 					);
@@ -2928,21 +2945,20 @@ function Transaction(options)
 			try {
 				var task = tasks[position--];
 				events.dispatch("before:undo", task, position + 1);
-				config.beforeUndo(task, position + 1);
-				task.undo(function() {
-					events.dispatch("progress", getProgress(), task, position + 1);
-					config.onProgress(getProgress(), task, position + 1);
-					events.dispatch("after:undo", task, position + 1);
-					config.afterUndo(task, position + 1);
-					undo();
-				}, function(error) {
-					events.dispatch("progress", getProgress(), task, position + 1);
-					config.onProgress(getProgress(), task, position + 1);
-					events.dispatch("after:undo", task, position + 1);
-					config.afterUndo(task, position + 1);
-					events.dispatch("error", error || "Task '" + task.name + "' failed to undo");
-					undo();
-				});
+				task.undo(
+					function(err) {
+						if (err) {
+							events.dispatch("progress", getProgress(), task, position + 1);
+							events.dispatch("after:undo", task, position + 1);
+							events.dispatch("error", err || "Task '" + task.name + "' failed to undo");
+							undo();
+						} else {
+							events.dispatch("progress", getProgress(), task, position + 1);
+							events.dispatch("after:undo", task, position + 1);
+							undo();
+						}
+					}
+				);
 			} catch (ex) {
 				events.dispatch("error", ex);
 				undo();
@@ -3088,17 +3104,6 @@ function Transaction(options)
 	};
 
 	this.next = next;
-
-	this.setTaskProgress = function(q) {
-		if (position > -1) {
-			var task = tasks[position];
-			config.onProgress(
-				getProgress() - (1 - q) * (task.weight || 1) / weight, 
-				task, 
-				position
-			);
-		}
-	};
 }
 
 /**
@@ -3145,12 +3150,12 @@ Task.prototype = {
 	 *		failed
 	 * @return {void}
 	 */
-	execute : function(done, fail) {
+	execute : function(next) {
 		console.warn(
 			"The 'execute' method for task '" + this.name + 
 			"' is not implemented!"
 		);
-		done();
+		next();
 	},
 
 	/**
@@ -3161,12 +3166,12 @@ Task.prototype = {
 	 *		failed
 	 * @return {void}
 	 */
-	undo : function(done, fail) {
+	undo : function(next) {
 		console.warn(
 			"The 'undo' method for task '" + this.name + 
 			"' is not implemented!"
 		);
-		done();
+		next();
 	}
 };
 
@@ -3264,31 +3269,33 @@ STATEMENTS.USE = function(walker) {
 	// Remember the last used DB here so that we can undo
 	var lastUsedDB = SERVER.getCurrentDatabase();
 
-	function undo(done, fail) {
+	function undo(next) {
 		if (lastUsedDB) {
 			SERVER.setCurrentDatabase(lastUsedDB.name);
-			done('Current database restored to "' + lastUsedDB.name + '".');
+			next(null, 'Current database restored to "' + lastUsedDB.name + '".');
 		} else {
-			done();
+			next();
 		}
 	}
 	
 	return new Task({
 		name : "Use Database",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var dbName;
 			walker.someType(WORD_OR_STRING, function(token) {
 				dbName = token[0];
 			})
 			.errorUntil(";")
 			.commit(function() {
+				var err = null, out = null;
 				try {
 					SERVER.setCurrentDatabase(dbName);
 					lastUsedDB = SERVER.getCurrentDatabase();
-					done('Database "' + dbName + '" selected.');
-				} catch (err) {
-					fail(err);
+					out = 'Database "' + dbName + '" selected.';
+				} catch (ex) {
+					err = ex;
 				}
+				next(err, out);
 			});
 		},
 		undo : undo
@@ -3308,16 +3315,16 @@ STATEMENTS.USE = function(walker) {
 STATEMENTS.SHOW_DATABASES = function(walker) {
 	return new Task({
 		name : "Show databases",
-		execute : function(done, fail) {
+		execute : function(next) {
 			walker.errorUntil(";").commit(function() {
-				done({
+				next(null, {
 					cols : ["Databases"],
 					rows : keys(SERVER.databases).map(makeArray)
 				});
 			});
 		},
-		undo : function(done, fail) {
-			done(); // Nothing to undo here...
+		undo : function(next) {
+			next(); // Nothing to undo here...
 		}
 	});
 };
@@ -3358,7 +3365,7 @@ STATEMENTS.SHOW_TABLES = function(walker)
 {
 	return new Task({
 		name : "Show tables",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var db = SERVER.getCurrentDatabase(), dbName;
 
 			if ( walker.is("FROM|IN") ) 
@@ -3373,20 +3380,20 @@ STATEMENTS.SHOW_TABLES = function(walker)
 			walker.nextUntil(";").commit(function() {
 				if (!db) {
 					if (dbName) {
-						fail(new SQLRuntimeError('No such database "%s"', dbName));
+						next(new SQLRuntimeError('No such database "%s"', dbName), null);
 					} else {
-						fail(new SQLRuntimeError('No database selected'));
+						next(new SQLRuntimeError('No database selected'), null);
 					}
 				} else {
-					done({
+					next(null, {
 						cols : ['Tables in database "' + db.name + '"'],
 						rows : keys(db.tables).map(makeArray)
 					});
 				}
 			});
 		},
-		undo : function(done, fail) {
-			done();// Nothing to undo here...
+		undo : function(next) {
+			next();// Nothing to undo here...
 		}
 	});
 };
@@ -3443,7 +3450,7 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 			
 	return new Task({
 		name : "Show columns",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var dbName, tableName;
 
 			walker.pick({
@@ -3471,9 +3478,9 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 				
 				if (!database) {
 					if ( dbName ) {
-						return fail(new SQLRuntimeError('No such database "%s"', dbName));
+						return next(new SQLRuntimeError('No such database "%s"', dbName), null);
 					} else {
-						return fail(new SQLRuntimeError('No database selected'));
+						return next(new SQLRuntimeError('No database selected'), null);
 					}
 				}
 				
@@ -3481,11 +3488,11 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 
 				if (!table)
 				{
-					return fail(new SQLRuntimeError(
+					return next(new SQLRuntimeError(
 						'No such table "%s" in databse "%s"',
 						tableName,
 						database.name
-					));
+					), null);
 				}
 				
 				var result = {
@@ -3509,11 +3516,11 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 					]);
 				});	
 
-				done(result);
+				next(null, result);
 			});
 		},
-		undo : function(done, fail) {
-			done(); // Nothing to undo here....
+		undo : function(next) {
+			next(); // Nothing to undo here....
 		}
 	});
 };
@@ -3533,17 +3540,17 @@ STATEMENTS.CREATE_DATABASE = function(walker) {
 	// remember the databse name here so that we can undo
 	var dbName;
 
-	function undo(done, fail) {
+	function undo(next) {
 		if (dbName) {
-			SERVER.dropDatabase(dbName, true, done, fail);
+			SERVER.dropDatabase(dbName, true, next);
 		} else {
-			done();
+			next();
 		}
 	}
 
 	return new Task({
 		name : "Create Database",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var q = new CreateDatabaseQuery();
 
 			// Make sure to reset this in case it stores something from 
@@ -3560,13 +3567,12 @@ STATEMENTS.CREATE_DATABASE = function(walker) {
 			.nextUntil(";")
 			.commit(function() {
 				dbName = q.name();
-				q.execute();
-				done('Database "' + q.name() + '" created.');
+				q.execute(function(err) {
+					next(err, err ? null : 'Database "' + q.name() + '" created.');
+				});
 			});
 		},
-		undo : function(done, fail) {
-			undo(done, fail);
-		}
+		undo : undo
 	});
 };
 
@@ -3585,20 +3591,20 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 	// remember the table name here so that we can undo
 	var tableName;
 
-	function undo(done, fail) 
+	function undo(next) 
 	{
 		if (tableName) {
 			var db = SERVER.getCurrentDatabase();
 			if (db) {
 				var table = db.tables[tableName];
 				if (table) {
-					fail("Droping tables is not fully implemented yet!");
+					next("Droping tables is not fully implemented yet!");
 				}
 			}
 			//SERVER.dropDatabase(dbName, true, done, fail);
-			done();
+			next();
 		} else {
-			done();
+			next();
 		}
 	}
 	
@@ -3803,7 +3809,7 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 	
 	return new Task({
 		name : "Create Table",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var q = new CreateTableQuery();
 
 			// Make sure to reset this in case it stores something from 
@@ -3825,19 +3831,12 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			})
 			.nextUntil(";")
 			.commit(function() {
-				//console.log("CreateTableQuery:");
-				//console.dir(q);
-				try {
-					q.execute();
-					done('Table "' + q.name() + '" created.');
-				} catch (err) {
-					fail(err);
-				}
+				q.execute(function(err) {
+					next(err, err ? null : 'Table "' + q.name() + '" created');
+				});
 			});
 		},
-		undo : function(done, fail) {
-			undo(done, fail);
-		}
+		undo : undo
 	});
 };
 
@@ -3854,7 +3853,7 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 STATEMENTS.DROP_DATABASE = function(walker) {
 	return new Task({
 		name : "Drop Database",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var q = {};
 			walker.optional("IF EXISTS", function() {
 				q.ifExists = true;
@@ -3864,12 +3863,13 @@ STATEMENTS.DROP_DATABASE = function(walker) {
 			}, "for the database name")
 			.errorUntil(";")
 			.commit(function() {
-				SERVER.dropDatabase(q.name, q.ifExists);
-				done('Database "' + q.name + '" deleted.');
+				SERVER.dropDatabase(q.name, q.ifExists, function(err) {
+					next(err, err ? null : 'Database "' + q.name + '" deleted.');
+				});
 			});
 		},
-		undo : function(done, fail) {
-			fail ("undo is not implemented for the DROP DATABASE queries");
+		undo : function(next) {
+			next("undo is not implemented for the DROP DATABASE queries");
 		}
 	});
 };
@@ -3891,7 +3891,7 @@ STATEMENTS.DROP_TABLE = function(walker) {
 	
 	return new Task({
 		name : "Drop Table",
-		execute : function(done, fail) {
+		execute : function(next) {
 			
 			walker.optional("IF EXISTS", function() {
 				ifExists = true;
@@ -3930,27 +3930,33 @@ STATEMENTS.DROP_TABLE = function(walker) {
 				table = database.tables[tableName];
 				if (!table) {
 					if (ifExists) {
-						return done(
-							'Table "' + database.name + '.' + tableName + '" does not exist.'
+						return next(
+							null,
+							'Table "' + database.name + '.' + tableName + 
+							'" does not exist.'
 						);
 					}
 					
-					throw new SQLRuntimeError(
+					return next(new SQLRuntimeError(
 						'No such table "%s" in databse "%s"',
 						tableName,
 						database.name
-					);
+					), null);
 				}
 				
-				table.drop(function() {
-					done(
+				table.drop(function(err) {
+					if (err)
+						return next(err, null);
+					
+					next(
+						null,
 						'Table "' + database.name + '.' + table.name + '" deleted.'
 					);
-				}, fail);
+				});
 			});
 		},
-		undo : function(done, fail) {
-			fail("undo is not implemented for the DROP TABLE queries");
+		undo : function(next) {
+			next(null, "undo is not implemented for the DROP TABLE queries");
 		}
 	});
 };
@@ -4036,7 +4042,7 @@ STATEMENTS.INSERT = function(walker) {
 	
 	return new Task({
 		name : "Insert Query",
-		execute : function(done, fail) {
+		execute : function(next) {
 			walker
 			// TODO: with-clause
 			
@@ -4092,12 +4098,13 @@ STATEMENTS.INSERT = function(walker) {
 					valueSets : valueSets,
 					columns   : columns
 				});*/
-				table.insert(columns, valueSets);
-				done(valueSets.length + ' rows inserted.');
+				table.insert(columns, valueSets, function(err) {
+					next(err, err ? null : valueSets.length + ' rows inserted');
+				});
 			});
 		},
-		undo : function(done, fail) {
-			fail("undo not implemented for INSERT queries!");
+		undo : function(next) {
+			next("undo not implemented for INSERT queries!");
 		}
 	});
 };
@@ -4783,7 +4790,7 @@ STATEMENTS.SELECT = function(walker) {
 
 	return new Task({
 		name : "SELECT Query",
-		execute : function(done, fail) {//console.log("WALK SELECT");
+		execute : function(next) {//console.log("WALK SELECT");
 			//debugger;
 			var query = {
 				fields : [],
@@ -4814,14 +4821,14 @@ STATEMENTS.SELECT = function(walker) {
 			.commit(function() {//console.log("EXEC SELECT");
 				//console.dir(query);
 				var result = execute(query);
-				done({
+				next(null, {
 					cols : result.cols,
 					rows : result.rows
 				});
 			});
 		},
-		undo : function(done, fail) {
-			done(); // There is nothing to undo after select
+		undo : function(next) {
+			next(); // There is nothing to undo after select
 		}
 	});
 };
@@ -4857,7 +4864,7 @@ STATEMENTS.DELETE = function(walker) {
 
 	return new Task({
 		name : "Delete Query",
-		execute : function(done, fail)
+		execute : function(next)
 		{
 			var tableName, dbName, start = 0, end = 0, where = "";
 
@@ -4959,19 +4966,20 @@ STATEMENTS.DELETE = function(walker) {
 
 				if ( len ) 
 				{
-					
-					table.deleteRows(rowIds, function() {
-						done(len + " rows deleted");
-					}, fail);
+					table.deleteRows(rowIds, function(err) {
+						next(err, err ? null : len + " rows deleted");
+					});
 				}
 				else
 				{
-					done(len + " rows deleted");
+					next(null, len + " rows deleted");
 				}
 			});
 		},
-		undo : function(done, fail) {
-			fail("undo not implemented for DELETE queries!");
+		undo : function(next) {
+			if (CFG.debug)
+				console.warn("undo not implemented for DELETE queries!");
+			next();
 		}
 	});
 };
@@ -5182,14 +5190,12 @@ STATEMENTS.UPDATE = function(walker) {
 
 	return new Task({
 		name : "Update Table",
-		execute : function(done, fail)
+		execute : function(next)
 		{
 			var or      = getAltBehavior(walker),
 				table   = getTable(walker),
 				updater = getUpdater(walker),
 				where   = getWhere(walker);
-
-			//console.log("or = ", or, "table: ", table, "updater: ", updater, "where: ", where);
 
 			walker.errorUntil(";").commit(function() {
 				table.update(
@@ -5197,16 +5203,18 @@ STATEMENTS.UPDATE = function(walker) {
 					or, 
 					where, 
 					function() {
-						done("DONE");
+						next(null, "DONE");
 					}, 
 					function(e) {
-						fail(e);
+						next(e, null);
 					}
 				);
 			});
 		},
-		undo : function(done, fail) {
-			fail("undo is not implemented for UPDATE queries yet!");
+		undo : function(next) {
+			if (CFG.debug)
+				console.warn("undo is not implemented for UPDATE queries yet!");
+			next();
 		}
 	});
 };
@@ -5264,7 +5272,7 @@ STATEMENTS.UPDATE = function(walker) {
 STATEMENTS.BEGIN = function(walker) {
 	return new Task({
 		name : "Begin transaction",
-		execute : function(done, fail) {
+		execute : function(next) {
 			
 			var type = "DEFERRED";
 
@@ -5281,11 +5289,11 @@ STATEMENTS.BEGIN = function(walker) {
 
 			walker.commit(function() {
 				SERVER.beginTransaction({ type : type });
-				done("Transaction created");
+				next(null, "Transaction created");
 			});
 		},
-		undo : function(done, fail) {
-			SERVER.rollbackTransaction(done, fail);
+		undo : function(next) {
+			SERVER.rollbackTransaction(next);
 		}
 	});
 };
@@ -5313,7 +5321,7 @@ STATEMENTS.BEGIN = function(walker) {
 STATEMENTS.COMMIT = function(walker) {
 	return new Task({
 		name : "Commit transaction",
-		execute : function(done, fail) {
+		execute : function(next) {
 			if (walker.is("TRANSACTION"))
 				walker.forward();
 			
@@ -5321,11 +5329,11 @@ STATEMENTS.COMMIT = function(walker) {
 
 			walker.commit(function() {
 				SERVER.commitTransaction();
-				done();
+				next();
 			});
 		},
-		undo : function(done, fail) {
-			SERVER.rollbackTransaction(done, fail);
+		undo : function(next) {
+			SERVER.rollbackTransaction(next);
 		}
 	});
 };
@@ -5353,7 +5361,7 @@ STATEMENTS.COMMIT = function(walker) {
 STATEMENTS.ROLLBACK = function(walker) {
 	return new Task({
 		name : "Rollback transaction",
-		execute : function(done, fail) {
+		execute : function(next) {
 			if (walker.is("TRANSACTION"))
 				walker.forward();
 			
@@ -5361,12 +5369,12 @@ STATEMENTS.ROLLBACK = function(walker) {
 
 			walker.commit(function() {
 				SERVER.rollbackTransaction();
-				done();
+				next();
 			});
 		},
-		undo : function() {
+		undo : function(next) {
 			SERVER.commitTransaction();
-			done();
+			next();
 		}
 	});
 };
@@ -5379,7 +5387,7 @@ STATEMENTS.ROLLBACK = function(walker) {
 STATEMENTS.SOURCE = function(walker) {
 	return new Task({
 		name : "SOURCE Command",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var start = walker.current()[2],
 				xhr,
 				end,
@@ -5413,17 +5421,17 @@ STATEMENTS.SOURCE = function(walker) {
 									len = queries.length;
 								query(queries, function(result, idx) {
 									if (idx === len - 1) {
-										done(strf(
+										next(null, strf(
 											'%s queries executed successfuly from file "%s"',
 											len,
 											url
 										));
 									}
 								}, function(e, idx) {
-									fail(e + " (query: " + queries[idx].sql + ")");
+									next(e + " (query: " + queries[idx].sql + ")", null);
 								});
 							} else {
-								fail(xhr.statusText);
+								next(xhr.statusText, null);
 							}
 						}
 					};
@@ -5431,9 +5439,10 @@ STATEMENTS.SOURCE = function(walker) {
 				}
 			});
 		},
-		undo : function(done, fail) {
-			console.warn("The SOURCE command cannot be undone!");
-			done();
+		undo : function(next) {
+			if (CFG.debug)
+				console.warn("The SOURCE command cannot be undone!");
+			next();
 		}
 	});
 };
@@ -5455,8 +5464,10 @@ QueryList.prototype = [];
  */
 function getQueries(sql)
 {
+	sql = normalizeQueryList(sql);
+
 	var queries = new QueryList(),
-		tokens  = getTokens(normalizeQueryList(sql), {
+		tokens  = getTokens(sql, {
 			skipComments : true,
 			skipSpace    : true,
 			skipEol      : true,
@@ -5528,7 +5539,7 @@ function query2(sql, callback)
 	query(sql, function(result, idx) {
 		callback(null, result, idx);
 	}, function(err, idx) {
-		var error = error && error instanceof Error ?
+		var error = err && err instanceof Error ?
 			err : 
 			new Error(String(err || "Unknown error"));
 		callback(error, null, idx);
@@ -5577,70 +5588,58 @@ function query(sql, onSuccess, onError)
 			var fn = STATEMENTS[name],
 				tx = SERVER.getTransaction(),
 				result = new Result(),
-				task, ignoreError;
+				task;
 			
 			if (tx) 
 			{
 				tx.add(Transaction.createTask({
 					name : name,
-					execute : function(done, fail) {
+					execute : function(next) {
 						var _result = new Result(), _task;
-						//try {
+						try {
 							_task = fn(walker);
-							_task.execute(
-								function(r) { 
-									_result.setData(r);
+							_task.execute(function(err, res) {
+								if (err) {
+									_task.undo(function() {
+										next(err);
+									});
+								} else {
+									_result.setData(res);
 									onResult(_result, queryIndex);
-									done();
-								}, 
-								function(err) {
-									//ignoreError = true;
-									_task.undo(noop, fail);
-									fail(err);
-									//ignoreError = false;
+									next();
 								}
-							);
-						//} catch (ex) {
-						//	if (!ignoreError) {
-						//		if (_task) {
-						//			_task.undo(noop, fail);
-						//		}
-						//		fail(ex);
-						//	}
-						//}
+							});
+						} catch (ex) {
+							next(ex);
+						}
 					},
 					undo : function(done, fail) {
 						done();
 					}
 				}));
+
 				result.setData(name + " query added to the transaction");
 				onResult(result, queryIndex);
 				next();
 			}
 			else
 			{
-				//ignoreError = false;
 				try {
 					task = fn(walker);
 					task.execute(
-						function(r) {
-							result.setData(r);
-							onResult(result, queryIndex);
-							next();
-						}, 
-						function(e) {
-							//result = null;
-							onFailure(e, queryIndex);
-							task.undo(noop, function(err) {
-								//ignoreError = true;
-							//	onFailure("Undo failed: " + err, queryIndex);
-								//ignoreError = false;
-							});
+						function(err, r) {
+							if (err) {
+								onFailure(err, queryIndex);
+								task.undo(noop, noop);
+							} else {
+								result.setData(r);
+								onResult(result, queryIndex);
+								next();
+							}
 						}
 					);
 				} catch (err) {
-				//	if ( !ignoreError )
-						onFailure(err, queryIndex);
+					onFailure(err, queryIndex);
 				}
 			}
 		};
@@ -5799,29 +5798,29 @@ var Storage = (function() {
 		},
 		getEnginePrototype : function() {
 			return {
-				set : function(key, value, onSuccess, onError) 
+				set : function(key, value, next) 
 				{
-					onError("Failed to save - not implemented.");
+					next("Failed to save - not implemented.");
 				},
-				get : function(key, onSuccess, onError) 
+				get : function(key, next) 
 				{
-					onError("Failed to read - not implemented.");
+					next("Failed to read - not implemented.");
 				},
-				unset : function(key, onSuccess, onError) 
+				unset : function(key, next) 
 				{
-					onError("Failed to delete - not implemented.");
+					next("Failed to delete - not implemented.");
 				},
-				setMany : function(map, onSuccess, onError)
+				setMany : function(map, next)
 				{
-					onError("Failed to save - not implemented.");
+					next("Failed to save - not implemented.");
 				},
-				getMany : function(keys, onSuccess, onError)
+				getMany : function(keys, next)
 				{
-					onError("Failed to read - not implemented.");
+					next("Failed to read - not implemented.");
 				},
-				unsetMany : function(keys, onSuccess, onError)
+				unsetMany : function(keys, next)
 				{
-					onError("Failed to delete - not implemented.");
+					next("Failed to delete - not implemented.");
 				}
 			};
 		}
@@ -5839,32 +5838,36 @@ var Storage = (function() {
  */
 function LocalStorage() 
 {
-	this.setMany = function(map, onSuccess, onError)
+	if (!window.localStorage || !isFunction(localStorage.setItem))
+		throw new Error("localStorage is not supported");
+
+	this.setMany = function(map, next)
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				for ( var key in map )
 					localStorage.setItem( key, map[key] );
-				if (onSuccess) 
-						onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 
-	this.getMany = function(keys, onSuccess, onError)
+	this.getMany = function(keys, next)
 	{
 		setTimeout(function() {
+			var err = null, out = [];
 			try {
-				var out = [];
 				for (var i = 0, l = keys.length; i < l; i++)
 					out.push( localStorage.getItem( keys[i] ) );
-				if (onSuccess) 
-					onSuccess( out );
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err, out);
 		}, 0);
 	};
 
@@ -5877,55 +5880,60 @@ function LocalStorage()
 	 * single argument
 	 * @return {void} undefined - This method is async. so use the callbacks
 	 */
-	this.unsetMany = function(keys, onSuccess, onError)
+	this.unsetMany = function(keys, next)
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				for (var i = 0, l = keys.length; i < l; i++)
 					localStorage.removeItem( keys[i] );
-				if (onSuccess) 
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 
-	this.set = function(key, value, onSuccess, onError) 
+	this.set = function(key, value, next) 
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				localStorage.setItem( key, value );
-				if (onSuccess)
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 	
-	this.get = function(key, onSuccess, onError) 
+	this.get = function(key, next) 
 	{
 		setTimeout(function() {
+			var err = null, out;
 			try {
-				if (onSuccess)
-					onSuccess(localStorage.getItem( key ));
+				out = localStorage.getItem( key );
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err, out);
 		}, 0);
 	};
 	
-	this.unset = function(key, onSuccess, onError) 
+	this.unset = function(key, next) 
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				localStorage.removeItem( key );
-				if (onSuccess)
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next) 
+				next(err);
 		}, 0);
 	};
 }
@@ -5945,86 +5953,95 @@ Storage.registerEngine("LocalStorage", LocalStorage);
 function MemoryStorage() {
 	var _store = {};
 
-	this.setMany = function(map, onSuccess, onError)
+	this.setMany = function(map, next)
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				for ( var key in map )
 					_store[key] = map[key];
-				if (onSuccess) 
-						onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 
-	this.getMany = function(keys, onSuccess, onError)
+	this.getMany = function(keys, next)
 	{
 		setTimeout(function() {
+			var err = null, out = [], key;
 			try {
-				var out = [];
-				for (var i = 0, l = keys.length; i < l; i++)
-					out.push( _store[keys[i]] );
-				if (onSuccess) 
-					onSuccess( out );
+				for (var i = 0, l = keys.length; i < l; i++) {
+					key = keys[i];
+					out.push( key in _store ? _store[key] : null );
+				}
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err, out);
 		}, 0);
 	};
 
-	this.unsetMany = function(keys, onSuccess, onError)
+	this.unsetMany = function(keys, next)
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				for (var i = 0, l = keys.length; i < l; i++)
 					if (_store.hasOwnProperty(keys[i])) 
 						delete _store[keys[i]];
-				if (onSuccess) 
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 	
-	this.set = function(key, value, onSuccess, onError) 
+	this.set = function(key, value, next) 
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
-				_store[key] = val;
-				if (onSuccess) 
-					onSuccess();
+				_store[key] = value;
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next)
+				next(err);
 		}, 0);
 	};
 	
-	this.get = function(key, onSuccess, onError) 
+	this.get = function(key, next) 
 	{
 		setTimeout(function() {
+			var err = null, out;
 			try {
-				if (onSuccess) 
-					onSuccess( _store[key] );
+				out = key in _store ? _store[key] : null;
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
-		}, 0);
+			if (next)
+				next(err, out);
+			return out;
+		});
 	};
 	
-	this.unset = function(key, onSuccess, onError) 
+	this.unset = function(key, next) 
 	{
 		setTimeout(function() {
+			var err = null;
 			try {
 				if (_store.hasOwnProperty(key)) 
 					delete _store[key];
-				if (onSuccess) 
-					onSuccess();
 			} catch (ex) {
-				(onError || defaultErrorHandler)(ex);
+				err = ex;
 			}
+			if (next) 
+				next(err);
 		}, 0);
 	};
 }
@@ -6032,6 +6049,376 @@ function MemoryStorage() {
 MemoryStorage.prototype = Storage.getEnginePrototype();
 MemoryStorage.prototype.constructor = MemoryStorage;
 Storage.registerEngine("MemoryStorage", MemoryStorage);
+
+
+// -----------------------------------------------------------------------------
+// Starts file "src/storage/FileSystemStorage.js"
+// -----------------------------------------------------------------------------
+function FileSystemStorage() {
+	
+	var CONFIG = {
+		fileSystem : {
+			size               : 15 * 1024 * 1024, // 15MB
+			type               : window.PERSISTENT,
+			//rootFolder         : ".ERS",
+			//filesFolderName    : "files",
+			//recordFolderPrefix : "record-",
+			//recordDatafileName : "record.json",
+			//recordsFolderName  : "records",
+			//usersDatafileName  : "users.json",
+
+			// this.affects Utils.createUniqueFile and Utils.uniqueDir
+			//uniqueEntryCreateAttempts : 100
+		}
+	};
+
+	var PERSISTENT = window.PERSISTENT;
+	var TEMPORARY  = window.TEMPORARY;
+
+	/**
+	 * Obtains a reference to the private file system (if such is supported).
+	 * @param {Number} type One of the global PERSISTENT or TEMPORARY constants
+	 * @param {Number} size The size to allocate in bytes
+	 * @param {Function} onSuccess (called with the FileSystem)
+	 * @param {Function} onError (called with message String or Error object)
+	 * @return {void} This is async. so use the callbacks instead
+	 */
+	function getFileSystem(onSuccess, onError) {
+		var requestFileSystem = window.requestFileSystem ||
+								window.webkitRequestFileSystem,
+			type = CONFIG.fileSystem.type,
+			size = window.Cordova ? 0 : CONFIG.fileSystem.size;
+
+		if (!requestFileSystem) {
+			return onError("It seems that 'requestFileSystem' is not supported by this browser");
+		}
+			
+		if (type === PERSISTENT && size > 0) {
+			requestQuota(size, function(grantedBytes) {
+				requestFileSystem(type, grantedBytes, onSuccess, onError);
+			});
+		} else {
+			requestFileSystem(type, size, onSuccess, onError);
+		}
+	}
+
+	/**
+	 * Makes the browser request a storage quota by the user
+	 */
+	function requestQuota(bytes, onSuccess, onError) {
+		if (navigator.webkitPersistentStorage && navigator.webkitPersistentStorage.requestQuota) {
+			navigator.webkitPersistentStorage.requestQuota(bytes || 0, onSuccess, onError);
+		} else {
+			onError("The Quota API is not supported");
+		}
+	}
+
+	/**
+	 * Reads a file in all the ways supported by the File API (as text,
+	 * as binary, as dataURL and as arrayBuffer).
+	 * @param {File} file
+	 * @param {Object|Function} options (optional) If function, this should be
+	 *    the "onloadend" callback. Otherwise this should be an object that
+	 *    may have some of the following properties:
+	 *      "onloadstart" {Function}
+	 *      "onprogress"  {Function}
+	 *      "onload"      {Function}
+	 *      "onabort"     {Function}
+	 *      "onerror"     {Function}
+	 *      "onloadend"   {Function}
+	 *      "readAs"    : "text", // text|binary|dataURL|arrayBuffer
+	 *      "encoding"  : "UTF-8"
+	 */
+	function readFile(file, options) {
+
+		var reader, cfg;
+
+		// Accept both object and function as second argument
+		if (typeof options == "function") {
+			options = {
+				onloadend : options
+			};
+		}
+
+		if (!file) {
+			if (options.onerror) {
+				options.onerror(new Error("No file"));
+				return;
+			} else {
+				throw "No file";
+			}
+		}
+
+		cfg = mixin({
+			readAs    : "text", // text|binary|dataURL|arrayBuffer
+			encoding  : "UTF-8",
+			onloadend : noop,
+			onerror   : noop
+		}, options);
+
+		
+		reader = new FileReader();
+
+		// Attach callbacks
+		each([
+			"onloadstart",
+			"onprogress",
+			"onload",
+			"onabort",
+			"onerror",
+			"onloadend"
+		], function (name) {
+			if (isFunction(cfg[name])) {
+				reader[name] = cfg[name];
+			}
+		});
+
+		try {
+			//if (cfg.encoding !== "UTF-8") {
+			//    throw "Only 'UTF-8' encoding is supported for 'readAsText'";
+			//}
+
+			switch (cfg.readAs) {
+				case "text":
+					reader.readAsText(file, cfg.encoding);
+				break;
+				case "binary":
+					reader.readAsBinaryString(file);
+				break;
+				case "dataURL":
+					reader.readAsDataURL(file);
+				break;
+				case "arrayBuffer":
+					reader.readAsArrayBuffer(file);
+				break;
+				default:
+					throw new Error("Invalid argument");
+			}
+		} catch (ex) {
+			console.error(ex);
+			cfg.onerror(ex);
+		}
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+	this.set = function(key, value, next) 
+	{
+		var path  = key + ".json",
+			_next = createNextHandler(next),
+			onError = function(err) {
+				_next(err);
+			};
+
+		getFileSystem(function(fs) {
+			fs.root.getFile(
+				path,
+				{ create: true, exclusive: false },
+				function(fileEntry) {
+					fileEntry.createWriter(function(fileWriter) {
+
+						fileWriter.onwriteend = function(e) {
+							_next(null, value);
+						};
+
+						fileWriter.onerror = function(e) {
+							onError('Write failed: ' + e);
+						};
+
+						var blob = new Blob([String(value)], { type: 'text/plain' });
+
+						fileWriter.write(blob);
+					}, onError);
+				},
+				onError
+			);
+		}, onError);
+	};
+
+	this.get = function(key, next) 
+	{
+		var path  = key + ".json",
+			_next = createNextHandler(next),
+			onError = function(err) {
+				_next(err);
+			};
+
+		getFileSystem(function(fs) {
+			fs.root.getFile(
+				path,
+				{ create: true, exclusive: false },
+				function(fileEntry) {
+					fileEntry.file(function(file) {
+						readFile(file, {
+							readAs    : "text",
+							onerror   : onError,
+							onabort   : onError,
+							onloadend : function(e) {
+								_next(null, e.target.result || null);
+							}
+						});
+					}, onError);
+				},
+				onError
+			);
+		}, onError);
+	};
+
+	this.unset = function(key, next) 
+	{
+		var path  = key + ".json",
+			_next = createNextHandler(next),
+			onError = function(err) {
+				_next(err);
+			};
+
+		getFileSystem(function(fs) {
+			fs.root.getFile(
+				path,
+				{ create: false, exclusive: false },
+				function(fileEntry) {
+					fileEntry.remove(function() {
+						_next(null, null);
+					}, onError);
+				},
+				function() {
+					_next(null, null);
+				}
+			);
+		}, onError);
+	};
+
+	this.setMany = function(map, next) 
+	{
+		var hasError = false,
+			onError = function(err) {
+				hasError = true;
+				next(err);
+			};
+
+		getFileSystem(function(fs) {
+			var pending = [];
+			
+			each(map, function(value, key) {
+				pending.push({ path : key + ".json", value : value });
+			});
+
+			function saveNext() 
+			{
+				if ( hasError )
+					return false;
+
+				if (!pending.length)
+					return next(null);
+
+				var task = pending.shift();
+
+				fs.root.getFile(
+					task.path,
+					{ create: true, exclusive: false },
+					function(fileEntry) {
+						fileEntry.createWriter(function(fileWriter) {
+
+							fileWriter.onwriteend = saveNext;
+
+							fileWriter.onerror = function(e) {
+								onError('Write failed: ' + e);
+							};
+
+							var blob = new Blob(
+								[String(task.value)], 
+								{ type: 'text/plain' }
+							);
+
+							fileWriter.write(blob);
+						}, onError);
+					},
+					onError
+				);
+			}
+
+			saveNext();
+
+		}, onError);
+	};
+
+	this.getMany = function(keys, next) 
+	{
+		var _keys    = keys.slice(),
+			out      = [],
+			hasError = false,
+			onError  = function(err) {
+				hasError = true;
+				next(err);
+			};
+
+		getFileSystem(function(fs) {
+			function getNext() 
+			{
+				if ( hasError )
+					return false;
+
+				if (!_keys.length)
+					return next(null, out);
+
+				fs.root.getFile(
+					_keys.shift() + ".json",
+					{ create: true, exclusive: false },
+					function(fileEntry) {
+						fileEntry.file(function(file) {
+							readFile(file, {
+								readAs    : "text",
+								onerror   : onError,
+								onabort   : onError,
+								onloadend : function(e) {
+									out.push(e.target.result || null);
+									getNext();
+								}
+							});
+						}, onError);
+					},
+					onError
+				);
+			}
+			getNext();
+		}, onError);
+	};
+
+	this.unsetMany = function(keys, next) 
+	{
+		var _keys    = keys.slice(),
+			hasError = false,
+			onError  = function(err) {
+				hasError = true;
+				next(err);
+			};
+
+		getFileSystem(function(fs) {
+			function deleteNext() 
+			{
+				if ( hasError )
+					return false;
+
+				if (!_keys.length)
+					return next(null);
+
+				fs.root.getFile(
+					_keys.shift() + ".json",
+					{ create: false, exclusive: false },
+					function(fileEntry) {
+						fileEntry.remove(deleteNext, onError);
+					},
+					deleteNext
+				);
+			}
+			deleteNext();
+		}, onError);
+	};
+
+}
+
+FileSystemStorage.prototype = Storage.getEnginePrototype();
+FileSystemStorage.prototype.constructor = FileSystemStorage;
+Storage.registerEngine("FileSystemStorage", FileSystemStorage);
 
 
 // -----------------------------------------------------------------------------
@@ -6084,16 +6471,20 @@ Persistable.prototype = {
 	 * @param {Function} onError
 	 * @return {void}
 	 */
-	read : function(onSuccess, onError)
+	read : function(next)
 	{
-		this.storage.get(this.getStorageKey(), function(data) {
+		this.storage.get(this.getStorageKey(), function(err, data) {
+			if (err)
+				return next(err, null);
+
 			try {
-				var result = JSON.parse(data);
-				onSuccess(result);
+				data = JSON.parse(data);
 			} catch (ex) {
-				onError(ex);
+				err = ex;
 			}
-		}, onError);
+			
+			next(err, data);
+		});
 	},
 	
 	/**
@@ -6103,25 +6494,19 @@ Persistable.prototype = {
 	 * @param {Function} onError
 	 * @return {void}
 	 */
-	write : function(data, onSuccess, onError)
+	write : function(data, next)
 	{
-		this.storage.set(
-			this.getStorageKey(), 
-			JSON.stringify(data), 
-			onSuccess, 
-			onError 
-		);
+		this.storage.set( this.getStorageKey(),  JSON.stringify(data), next );
 	},
 	
 	/**
 	 * Deletes the corresponding data from the storage.
-	 * @param {Function} onSuccess
-	 * @param {Function} onError
+	 * @param {Function} onSuccess An "error-first" style callback
 	 * @return {void}
 	 */
-	drop : function(onSuccess, onError)
+	drop : function(next)
 	{
-		this.storage.unset(this.getStorageKey(), onSuccess, onError);
+		return this.storage.unset(this.getStorageKey(), next);
 	},
 	
 	/**
@@ -6130,9 +6515,9 @@ Persistable.prototype = {
 	 * @param {Function} onError
 	 * @return {void}
 	 */
-	save : function(onSuccess, onError) 
+	save : function(next) 
 	{
-		this.write( this.toJSON(), onSuccess, onError );
+		this.write( this.toJSON(), next );
 	},
 	
 	/**
@@ -6141,9 +6526,9 @@ Persistable.prototype = {
 	 * @param {Function} onError
 	 * @return {void}
 	 */
-	load : function(onSuccess, onError)
+	load : function(next)
 	{
-		this.read(onSuccess, onError);
+		this.read(next);
 	}
 };
 
@@ -6205,25 +6590,26 @@ function Server()
 			transaction.destroy();
 			transaction = null;
 		}
-		
 			
-		transaction.on("rollback", function(error) {
-			console.log("Transaction rolled back with error ", error);
+		transaction.on("rollback", function(e, error) {
+			if (CFG.debug) console.warn("Transaction rolled back with error ", error);
 			removeTransaction();
 		});
 
 		transaction.on("complete", function() {
-			console.log("Transaction complete");
+			if (CFG.debug) console.info("Transaction complete");
 			removeTransaction();
 		});
 
-		transaction.on("before:task", function(task, pos) {
-			console.log("Starting task ", task.name);
-		});
-		
-		transaction.on("after:task", function(task, pos) {
-			console.log("Ended task ", task.name);
-		});
+		if (CFG.debug) {
+			transaction.on("before:task", function(e, task, pos) {
+				console.info('Starting task "%s"', task.name);
+			});
+			
+			transaction.on("after:task", function(e, task, pos) {
+				console.info('Ended task "%s"', task.name);
+			});
+		}
 
 		return transaction;
 	};
@@ -6237,20 +6623,17 @@ function Server()
 
 	};
 
-	this.rollbackTransaction = function(done, fail)
+	this.rollbackTransaction = function(next)
 	{
 		if (!transaction) {
-			var err = new SQLRuntimeError("There is no current transaction");
-			if (fail)
-				fail(err);
-			else
-				throw err;
+			next(new SQLRuntimeError("There is no current transaction"));
 		}
 
-		if (done)
-			transaction.one("rollback", done);
-		if (fail)
-			transaction.one("error", fail);
+		if (next) {
+			transaction.one("rollback", function() {
+				next();
+			});
+		}
 
 		transaction.rollback();
 	};
@@ -6282,72 +6665,88 @@ Server.prototype.toJSON = function()
 	return json;
 };
 
-Server.prototype.load = function(onSuccess, onError)
+/**
+ * Loads the server from the storage. This will recursively load the databases,
+ * tables and rows.
+ * @param {Function} next(error, server)
+ * @return {Server}
+ */
+Server.prototype.load = function(next)
 {
-	var inst = this;
-	JSDB.events.dispatch("loadstart:server", inst);
-	this.read(
-		function(json) {
-			if (!json) {
-				JSDB.events.dispatch("load:server", inst);
-				onSuccess.call(inst);
-				return;
+	var server = this,
+		trx = new Transaction({
+			name : "Load Server"
+		}),
+		_next = createNextHandler(next);
+
+	trx.one("complete", function(e) {
+		server.loaded = true;
+		events.dispatch("load:server", server);
+		_next(null, server);
+	});
+
+	trx.one("rollback", function(e, err) {
+		_next(err, server);
+	});
+
+	function createDatabaseLoader(dbName) {
+		trx.add(Transaction.createTask({
+			name : "Load Database '" + dbName + "'",
+			execute : function(next) {
+				var db = new Database(dbName);
+				server.databases[db.name] = db;
+				db.load(next);
+			},
+			undo : function(next) {
+				next(null, server.databases[db.name]);
 			}
+		}));
+	}
 
-			var databases = [], dbName, dbCount = 0, db, i = 0, loaded = 0;
-			
-			function onDatabaseLoad(db)
-			{
-				return function()
-				{
-					inst.databases[db.name] = db;
-					if (++loaded === dbCount) {
-						JSDB.events.dispatch("load:server", inst);
-						inst.loaded = true;
-						onSuccess.call(inst);
-					}
-				};
-			}
+	trx.add(Transaction.createTask({
+		name : "Load Server",
+		execute : function(next) {
+			server.read(function(err, json) {
+				if ( err )
+					return next(err, server);
 
-			// Clear current databases (if any)
-			inst.databases = {};
+				server.databases = {}; // Clear current databases (if any)
 
+				if ( !json || !json.databases )
+					return next(null, server);
 
-			if (json.databases) {
-				for ( dbName in json.databases ) {
-					if (json.databases.hasOwnProperty(dbName)) {
-						db = new Database(dbName);
-						databases[dbCount++] = db;
+				for ( var dbName in json.databases ) {
+					if (json.databases.hasOwnProperty(dbName)) {						
+						createDatabaseLoader(dbName);
 					}
 				}
-			}
 
-			if (dbCount > 0) {
-				for ( i = 0; i < dbCount; i++ ) {
-					db = databases[i];
-					db.load(onDatabaseLoad(db), onError);
-				}
-			} else {
-				inst.loaded = true;
-				JSDB.events.dispatch("load:server", inst);
-				onSuccess.call(inst);
-			}
+				return next(null, server);
+			});
+		}
+	}));
 
-			//inst.save();
-		},
-		onError
-	);
-	//var json = this.read(), db, meta;
-	//if (json) {
-	//	this.databases = {};
-	//	for ( var name in json.databases ) {
-	//		db = new Database(name);
-	//		db.load();
-	//		this.databases[name] = db;
-	//	}
-	//	this.save();
-	//}
-	return this;
+	events.dispatch("loadstart:server", server);
+	trx.start();
+	return server;
+};
+
+Server.prototype.save = function(next) 
+{
+	var server = this,
+		_next = createNextHandler(next);
+
+	events.dispatch("savestart:server", server);
+	
+	Persistable.prototype.save.call(server, function(err) {
+		if (err)
+			return _next(err, null);
+
+		events.dispatch("save:server", server);
+		_next(null, server);
+	});
+
+	return server;
 };
 
 /**
@@ -6355,30 +6754,51 @@ Server.prototype.load = function(onSuccess, onError)
  * @param {String} name The name of the database to create
  * @param {Boolean} ifNotExists Note that an exception will be thrown if such 
  * database exists and this is not set to true.
+ * @param {Function} next(error, server)
  * @return {void}
  */
-Server.prototype.createDatabase = function(name, ifNotExists) 
+Server.prototype.createDatabase = function(name, ifNotExists, next) 
 {
-	if (typeof name != "string") {
-		throw new SQLRuntimeError("Invalid database name");
-	}
+	var _next = createNextHandler(next),
+		server = this;
 
-	if (!name) {
-		throw new SQLRuntimeError("No database name");
-	}
+	if (typeof name != "string")
+		return _next(
+			new SQLRuntimeError("Invalid database name"),
+			null
+		);
+
+	if (!name)
+		return _next(
+			new SQLRuntimeError("No database name"),
+			null
+		);
 
 	if (this.databases.hasOwnProperty(name)) {
 		if (!ifNotExists) {
-			throw new SQLRuntimeError('Database "' + name + '" already exists');
+			return _next(
+				new SQLRuntimeError('Database "' + name + '" already exists'),
+				null
+			);
 		}
-		return this.databases[name];
+		return _next(null, this.databases[name]);
 	}
 
 	var db = new Database(name);
-	db.save();
-	this.databases[name] = db;
-	this.save();
-	return db;
+
+	db.save(function(err) {
+		if (err)
+			return _next(err, db);
+
+		server.databases[name] = db;
+
+		db.save(function(err) {
+			if (err)
+				return _next(err, db);
+
+			_next(null, db);
+		});
+	});
 };
 
 /**
@@ -6388,24 +6808,34 @@ Server.prototype.createDatabase = function(name, ifNotExists)
  * database does not exists and this is not set to true.
  * @return {void}
  */
-Server.prototype.dropDatabase = function(name, ifExists, done, fail) 
+Server.prototype.dropDatabase = function(name, ifExists, next) 
 {
-	if (this.databases.hasOwnProperty(name)) {
-		if (this.currentDatabase === this.databases[name])
-			this.currentDatabase = null;
-		this.databases[name].drop();
-		delete this.databases[name];
-		this.save(done, fail);
+	var _next = createNextHandler(next),
+		server = this;
+
+	if (server.databases.hasOwnProperty(name)) {
+		
+		server.databases[name].drop(function(err, db) {
+			if (err)
+				return _next(err, server);
+
+			if (server.currentDatabase === db)
+				server.currentDatabase = null;
+
+			delete server.databases[name];
+
+			server.save(function(err) {
+				_next(err, server);
+			});
+		});
+		
 	} else {
-		if (!ifExists) {
-			var err = new SQLRuntimeError('Database "' + name + '" does not exist');
-			if (fail)
-				return fail(err);
-			else 
-				throw err;
-		}
-		if (done)
-			done();
+		_next(
+			ifExists ? 
+				null : 
+				new SQLRuntimeError('Database "' + name + '" does not exist'), 
+			server
+		);
 	}
 };
 
@@ -6457,7 +6887,7 @@ Server.prototype.getCurrentDatabase = function()
 
 /**
  * @constructor
- * @classdesc The Server class is used to create databses which are persistable 
+ * @classdesc The Server class is used to create databases which are persistable 
  * collections of tables.
  * @extends {Persistable}
  */
@@ -6484,84 +6914,173 @@ Database.prototype.getStorageKey = function()
 	return NS + "." + this.name;
 };
 
-Database.prototype.drop = function()
+Database.prototype.drop = function(next)
 {
-	for ( var tableName in this.tables ) {//debugger; 
-		this.tables[tableName].drop();
+	var _next = createNextHandler(next),
+		db = this,
+		tx = new Transaction({
+			name : "Drop Database"
+		}),
+		name;
+
+	function addDropTableTask(table) {
+		tx.add(Transaction.createTask({
+			name : 'Drop Table "' + table.name + '"',
+			execute : function(next) {
+				delete db.tables[table.name];
+				table.drop(next);
+			},
+			undo : function(next) {
+				db.tables[table.name] = table;
+				next();
+			}
+		}));
 	}
-	Persistable.prototype.drop.call(this);
+
+	tx.one("complete", function(e) {
+		_next(null, db);
+	});
+
+	tx.one("rollback", function(e) {
+		_next(e, db);
+	});
+	
+	for ( name in db.tables ) {
+		addDropTableTask( db.tables[name] );
+	}
+
+	tx.add(Transaction.createTask({
+		name : 'Drop Database "' + db.name + '"',
+		execute : function(next) {
+			delete SERVER.databases[db.name];
+			Persistable.prototype.drop.call(db, next);
+		},
+		undo : function(next) {
+			SERVER.databases[db.name] = db;
+			next();
+		}
+	}));
+	
+	tx.start();
 };
 
-Database.prototype.load = function(onSuccess, onError) 
+Database.prototype.load = function(next) 
 {
-	var db = this;
-	JSDB.events.dispatch("loadstart:database", db);
-	db.read(function(json) {
-		var table, 
-			tables = [], 
-			tableName,
-			loaded = 0, 
-			tableCount = 0, i;
+	var db    = this,
+		tx    = new Transaction({
+			name : "Load Database"
+		}),
+		_next = createNextHandler(next);
 
-		function onTableLoad(table)
-		{
-			return function()
-			{
-				db.tables[table.name] = table;
-				if (++loaded === tableCount) {
-					JSDB.events.dispatch("load:database", db);
-					if (onSuccess) onSuccess(db);
-				}
-			};
-		}
-
-		db.tables = {};
-
-		for ( var name in json.tables ) {
-			table = new Table(name, db);
-			tables[tableCount++] = table;
-		}
-
-		if (tableCount) {
-			for ( i = 0; i < tableCount; i++ ) {
-				table = tables[i];
-				table.load(onTableLoad(table), onError);
+	function addLoadTableTask(table) {
+		tx.add(Transaction.createTask({
+			name : 'Load Table "' + table.name + '"',
+			execute : function(next) {
+				table.load(next);
+			},
+			undo : function(next) {
+				next(null, table);
 			}
-		} else {
-			JSDB.events.dispatch("load:database", db);
-			if (onSuccess) onSuccess(db);
-		}
+		}));
+	}
 
-	}, onError);
-	
+	events.dispatch("loadstart:database", db);
+
+	tx.one("complete", function(e) {
+		events.dispatch("load:database", db);
+		_next(null);
+	});
+
+	tx.one("rollback", function(e, err) {
+		_next(err);
+	});
+
+	tx.add(Transaction.createTask({
+		name : "Create DB Tables",
+		execute : function(next) {
+			db.read(function(err, json) {
+				if (err)
+					return next(err, db);
+
+				db.tables = {};
+
+				if (!json || !json.tables)
+					return next(null, db);
+
+				for ( var name in json.tables ) {
+					var table = new Table(name, db);
+					db.tables[table.name] = table;
+					addLoadTableTask(table);
+				}
+
+				return next(null, db);
+			});
+		},
+		undo : function(next) {
+			console.warn("Undoing Create DB Tables task");
+			next();
+		}
+	}));
+
+	tx.start();
+
 	return db;
 };
 
-Database.prototype.save = function(onComplete, onError) 
+Database.prototype.save = function(next) 
 {
-	Persistable.prototype.save.call(this, function() {
-		SERVER.save(onComplete, onError);
-	}, onError);
-	return this;
+	var db = this,
+		_next = createNextHandler(next);
+
+	events.dispatch("savestart:database", db);
+	
+	Persistable.prototype.save.call(db, function(err) {
+		if (err)
+			return _next(err, null);
+
+		SERVER.save(function(err) {
+			if (err)
+				return _next(err, null);
+
+			events.dispatch("save:database", db);
+			return _next(null, db);
+		});
+	});
+
+	return db;
 };
 
-Database.prototype.createTable = function(name, fields, ifNotExists)
+/**
+ * @param {Function} next(err, table)
+ */
+Database.prototype.createTable = function(name, fields, ifNotExists, next)
 {
-	if (this.tables.hasOwnProperty(name)) {
-		if (!ifNotExists) {
-			throw new SQLRuntimeError('Table "%s" already exists', name);
-		}
+	var _next = createNextHandler(next),
+		db = this,
+		table, col;
+
+	if (db.tables.hasOwnProperty(name) && !ifNotExists) {
+		return _next(new SQLRuntimeError('Table "%s" already exists', name), null);
 	}
 
-	var table = new Table(name, this), col;
+	table = new Table(name, this);
+	
 	for (col = 0; col < fields.length; col++) {
 		table.addColumn(fields[col]);
 	}
 	
-	table.save();
-	this.tables[name] = table;
-	this.save();
-	return table;
+	table.save(function(err) {
+		if (err) 
+			return _next(err, null);
+
+		db.tables[name] = table;
+		db.save(function(err) {
+			if (err) 
+				return _next(err, null);
+
+			_next(null, table);
+		});
+	});
 };
 
 /**
@@ -6796,30 +7315,51 @@ Table.prototype.addColumn = function(props)
  * @emits savestart:table - Before the save procedure is started
  * @emits save:table - If the save finishes successfully
  */
-Table.prototype.save = function(onComplete, onError) 
+Table.prototype.save = function(next) 
 {
-	var db = this._db, table = this;
-	JSDB.events.dispatch("savestart:table", table);
-	Persistable.prototype.save.call(this, function() {
-		db.save(function() {
-			JSDB.events.dispatch("save:table", table);
-			if ( isFunction(onComplete) ) {
-				onComplete();
+	var db = this._db, table = this, _next = createNextHandler(next);
+	
+	events.dispatch("savestart:table", table);
+	
+	Persistable.prototype.save.call(this, function(err) {
+		if (err) {
+			return _next(err);
+		}
+
+		db.save(function(err) {
+			if (err) {
+				return _next(err);
 			}
-		}, onError);	
-	}, onError);
+
+			events.dispatch("save:table", table);
+			
+			_next(null, table);
+		});	
+	});
+
 	return this;
 };
 
-Table.prototype.load = function(onComplete, onError) 
+Table.prototype.load = function(next) 
 {
-	var table = this;
-	JSDB.events.dispatch("loadstart:table", table);
-	table.read(function(json) {
-		var colCount = 0, 
-			name;
+	var table = this, _next = createNextHandler(next);
 
-		function onRowLoad(row) {
+	JSDB.events.dispatch("loadstart:table", table);
+	
+	table.read(function(err, json) {
+		var colCount = 0, 
+			name,
+			done;
+
+		function onRowLoad(err, row) {
+			if (err) {
+				if (!done) {
+					done = true;
+					_next(err, null);
+				}
+				return false;
+			}
+
 			for (var ki in table.keys) {
 				table.keys[ki].beforeInsert(row);
 			}
@@ -6829,10 +7369,10 @@ Table.prototype.load = function(onComplete, onError)
 			table._row_seq.push(row.id);
 			if (--colCount === 0) {
 				JSDB.events.dispatch("load:table", table);
-				if (onComplete) onComplete(table);
+				_next(null, table);
 			}
 		}
-
+		//console.log(err, json);
 		if (json) {
 			table.cols = {};
 			table.rows = {};
@@ -6862,57 +7402,84 @@ Table.prototype.load = function(onComplete, onError)
 			// Load rows data
 			if (colCount) {
 				for ( key in table.rows ) {
-					table.rows[key].load(onRowLoad, onError);
+					table.rows[key].load(onRowLoad);
 				}
 			} else {
 				JSDB.events.dispatch("load:table", table);
-				if (onComplete) onComplete(table);
+				_next(null, table);
 			}
-
-
-			
-			//this.save();
 		}
-	}, onError);
+	});
 };
 
-Table.prototype.insert = function(keys, values) 
+Table.prototype.insert = function(keys, values, next) 
 {
-	
+	var table = this, 
+		_next = createNextHandler(next),
+		trx   = new Transaction({ name : "Insert into table " + table.name }),
+		kl    = keys.length,
+		rl    = values.length;
 
-	var kl = keys.length,
-		rl = values.length,
-		cl = this._col_seq.length,
-		ki, // user key index 
-		ri, // user row index
-		ci, // table column index
-		row, 
-		col, 
-		key;
+	function createRowInserter(idx) {
+		var insertID;
+		trx.add(Transaction.createTask({
+			name : "Insert row " + idx,
+			execute : function(next) {
+				var row = new TableRow(table, table._ai),
+					ki;
 
-	// for each input row
-	for (ri = 0; ri < rl; ri++) {
-		row = new TableRow(this, this._ai);
-		
-		// for each user-specified column
-		for (ki = 0; ki < kl; ki++) {
-			row.setCellValue(keys[ki], values[ri][ki]);
-		}
-		//console.dir(row);
+				// for each user-specified column
+				for (ki = 0; ki < kl; ki++) {
+					row.setCellValue(keys[ki], values[idx][ki]);
+				}
 
-		for (ki in this.keys) {
-			this.keys[ki].beforeInsert(row);
-		}
-		
-		this.rows[this._ai++] = row;
-		this._length++;
-		this._row_seq.push(this._ai - 1);
-		row.save();
+				for (ki in table.keys) {
+					table.keys[ki].beforeInsert(row);
+				}
+
+				insertID = table._ai++;
+				table.rows[insertID] = row;
+				table._length++;
+				table._row_seq.push(insertID);
+				row.save(next);
+			},
+			undo : function(next) {
+				if (insertID)
+					return table.rows[insertID].drop(next);
+				next();
+			}
+		}));
 	}
 
-	this.save();
+	trx.one("complete", function(e) {
+		_next(null, table);
+	});
 
-	//console.dir(this.toJSON());
+	trx.one("rollback", function(e, err) {
+		_next(err, null);
+	});
+
+	trx.add(Transaction.createTask({
+		name : "insert",
+		execute : function(next) {
+			for (var i = 0; i < rl; i++) {
+				createRowInserter(i);
+			}
+			next();
+		},
+		undo : function(next) {
+			next();
+		}
+	}));
+
+	trx.add(Transaction.createTask({
+		name : "Save table after inserts",
+		execute : function(next) {
+			table.save(next);
+		}
+	}));
+
+	trx.start();
 };
 
 /**
@@ -6922,11 +7489,11 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 {
 	// The UPDATE can be canceled if a "beforeupdate:table" listener returns false 
 	if (!JSDB.events.dispatch("beforeupdate:table", this)) {
-		onError(new SQLRuntimeError(
-			'The UPDATE procedure of table "%s" was canceled by a "beforeupdate:table" event listener',
+		return onError(null, strf(
+			'The UPDATE procedure of table "%s" was canceled by a ' + 
+			'"beforeupdate:table" event listener',
 			this.getStorageKey()
 		));
-		return;
 	}
 	
 	var table = this, 
@@ -6935,16 +7502,27 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 			autoRollback : false,
 			onError      : handleConflict,
 			onComplete   : function() {
-				table.save(function() {
+				table.save(function(err) {
+					if (err)
+						return onError(err);
 					JSDB.events.dispatch("update:table", table);
 					onSuccess();
-				}, onError);
+				});
 			}
-		});
+		}),
+		conflictHandled = false;
 
 	// ROLLBACK|ABORT|REPLACE|FAIL|IGNORE
 	function handleConflict(error)
 	{
+		if (conflictHandled)
+			return true;
+
+		// This function might be called more than once because of transaction 
+		// timeout errors, so make sure that those will not result in multiple 
+		// callback invokations!
+		conflictHandled = true;
+		
 		if (error && error instanceof SQLConstraintError) 
 		{
 			switch (alt) {
@@ -7021,39 +7599,44 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 	{
 		var rowBackUp = row.toJSON(), task = Transaction.createTask({
 			name : "Update row " + row.getStorageKey(),
-			execute : function(done, fail)
+			execute : function(next)
 			{
 				var name;
 
-				// Create the updated version of the row
-				for ( name in map )
-				{
-					newRow[name] = executeCondition(map[name], newRow);
+				try {
+
+					// Create the updated version of the row
+					for ( name in map )
+					{
+						newRow[name] = executeCondition(map[name], newRow);
+					}
+
+					// The UPDATE can be canceled on row level if a 
+					// "beforeupdate:row" listener returns false 
+					if (!JSDB.events.dispatch("beforeupdate:row", row))
+					{
+						return next(null);
+					}
+
+					// Update table indexes
+					for (var ki in table.keys) 
+					{
+						table.keys[ki].beforeUpdate(row, newRow);
+					}
+
+					// Update the actual row
+					for ( name in map )
+					{
+						row.setCellValue( name, newRow[name] );
+					}
+
+					JSDB.events.dispatch("update:row", row);
+
+					next(null);
+
+				} catch (ex) {
+					next(ex);
 				}
-
-				// The UPDATE can be canceled on row level if a 
-				// "beforeupdate:row" listener returns false 
-				if (!JSDB.events.dispatch("beforeupdate:row", row))
-				{
-					done();
-					return true;
-				}
-
-				// Update table indexes
-				for (var ki in table.keys) 
-				{
-					table.keys[ki].beforeUpdate(row, newRow);
-				}
-
-				// Update the actual row
-				for ( name in map )
-				{
-					row.setCellValue( name, newRow[name] );
-				}
-
-				JSDB.events.dispatch("update:row", row);
-
-				done();
 			},
 			undo : function(done)
 			{
@@ -7093,31 +7676,46 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 
 
 
-
-Table.prototype.drop = function(onComplete, onError) 
+/**
+ * Deletes the table
+ * @param {Function} next(err, table)
+ * @return {void}
+ */
+Table.prototype.drop = function(next) 
 {
 	var table     = this, 
 		keyPrefix = table.getStorageKey(),
 		rowIds    = [],
+		_next     = createNextHandler(next),
 		id;
 
-	if (JSDB.events.dispatch("before_delete:table", table)) {
-		for ( id in table.rows ) {
-			rowIds.push(keyPrefix + "." + id);
-		}
-
+	if (!events.dispatch("before_delete:table", table))
+		return _next(strf('"%s" event  canceled', "before_delete:table"), table);
 		
-		table.storage.unsetMany(rowIds, function() {
-			Persistable.prototype.drop.call(table, function() {
-				delete table._db.tables[table.name];
-				table._db.save(function() {
-					JSDB.events.dispatch("after_delete:table", table);
-					if (onComplete) 
-						onComplete();
-				}, onError);
-			}, onError);
-		}, onError);
-	}
+	for ( id in table.rows )
+		rowIds.push(keyPrefix + "." + id);
+	
+	// Delete all the rows
+	table.storage.unsetMany(rowIds, function(err) {
+		if (err) 
+			return _next(err, table);
+		
+		// Delete the table
+		Persistable.prototype.drop.call(table, function(err) {
+			if (err)
+				return _next(err, table);
+
+			// Update the database
+			delete table._db.tables[table.name];
+			table._db.save(function(err) {
+				if (err)
+					return _next(err, table);
+
+				events.dispatch("after_delete:table", table);
+				_next(null, table);
+			});
+		});
+	});
 };
 
 /**
@@ -7201,14 +7799,14 @@ Table.prototype.getRows = function(filter)
  *   <li>TableRow - The row to be deleted</li>
  *   <li>Array    - Array of row keys to delete multiple rows</li>
  * </ul>
- * @param {Function} onSuccess
- * @param {Function} onError
+ * @param {Function} next(err) Optional
  * @return {void}
  */
-Table.prototype.deleteRows = function(rows, onComplete, onError)
+Table.prototype.deleteRows = function(rows, next)
 {
 	var table = this,
-		keys  = [];
+		keys  = [],
+		_next = createNextHandler(next);
 	
 	rows = makeArray(rows);
 
@@ -7217,7 +7815,10 @@ Table.prototype.deleteRows = function(rows, onComplete, onError)
 	});
 
 	// Delete row from the storage
-	table.storage.unsetMany(keys, function() {
+	table.storage.unsetMany(keys, function(err) {
+
+		if (err)
+			return _next(err);
 		
 		// Delete row from memory
 		each(rows, function(row) {
@@ -7236,11 +7837,10 @@ Table.prototype.deleteRows = function(rows, onComplete, onError)
 
 		keys = null;
 
-		table.save(function() {
-			if (onComplete) 
-				onComplete();
-		}, onError);
-	}, onError);
+		table.save(function(err) {
+			_next(err);
+		});
+	});
 };
 
 
@@ -8325,24 +8925,30 @@ TableRow.prototype.getStorageKey = function()
  * @emits load:row - If the load was successfully completed
  * @return {void} This method is async. Use the callback instead of relying on 
  * 		return value.
- * @param {Function} onSuccess - The callback to be invoced upon successfull 
- * load. It will be called with the row object as a single argument.
- * @param {Function} onError - The callback to be invoced upon failure. It will
- *		be called with the Error object as a single argument.
+ * @param {Function} next(err, row) - The callback to be invoked after the 
+ * 		loading is complete (successful or not). Optional.
  */
-TableRow.prototype.load = function(onSuccess, onError)
+TableRow.prototype.load = function(next)
 {
-	var row = this;
-	JSDB.events.dispatch("loadstart:row", row);
-	this.read(function(json) {
+	var row   = this, 
+		_next = createNextHandler(next);
+	
+	events.dispatch("loadstart:row", row);
+	
+	row.read(function(err, json) {
+		if (err)
+			return _next(err, null);
+
 		if (json) {
 			for (var i = 0; i < row.length; i++) {
 				row._data[i] = row.table.cols[row.table._col_seq[i]].set(json[i]);
 			}
 		}
+
 		JSDB.events.dispatch("load:row", row);
-		onSuccess(row);
-	}, onError);
+		
+		_next(null, row);
+	});
 };
 
 /**
@@ -8351,19 +8957,23 @@ TableRow.prototype.load = function(onSuccess, onError)
  * @emits save:row - If the save was successfully completed
  * @return {void} This method is async. Use the callback instead of relying on 
  * 		return value.
- * @param {Function} onSuccess - The callback to be invoced upon successfull 
- * load. It will be called with the row object as a single argument.
- * @param {Function} onError - The callback to be invoced upon failure. It will
- *		be called with the Error object as a single argument.
+ * @param {Function} next(err, row) - The callback to be invoked after the 
+ * 		saving is complete (successful or not). Optional.
  */
-TableRow.prototype.save = function(onSuccess, onError)
+TableRow.prototype.save = function(next)
 {
-	var row = this;
-	JSDB.events.dispatch("savestart:row", row);
-	row.write( this._data, function() {
-		JSDB.events.dispatch("save:row", row);
-		if (onSuccess) onSuccess(row);
-	}, onError );
+	var row = this, _next = createNextHandler(next);
+
+	events.dispatch("savestart:row", row);
+
+	row.write( this._data, function(err) {
+		if (err) 
+			return _next(err, null);
+		
+		events.dispatch("save:row", row);
+		
+		_next(null, row);
+	});
 };
 
 /**
@@ -8923,9 +9533,9 @@ CreateDatabaseQuery.prototype.generateSQL = function()
  * Executes the query.
  * @return {void}
  */
-CreateDatabaseQuery.prototype.execute = function() 
+CreateDatabaseQuery.prototype.execute = function(next) 
 {
-	SERVER.createDatabase(this._name, this._ifNotExists);
+	SERVER.createDatabase(this._name, this._ifNotExists, next);
 };
 
 /**
@@ -9070,18 +9680,33 @@ CreateTableQuery.prototype.addConstraint = function(constraint)
  * Executes the query.
  * @return {void}
  */
-CreateTableQuery.prototype.execute = function() 
+CreateTableQuery.prototype.execute = function(next) 
 {
-	var table = createTable(
-		this.name(), 
-		this.columns, //fields
-		this.ifNotExists(), 
-		null //database
+	var q = this;
+
+	createTable(
+		q.name(), 
+		q.columns, //fields
+		q.ifNotExists(), 
+		null, //database
+		function(err, table) {
+			if (err)
+				return next(err, null);
+
+			var l = q.constraints.length, i;
+			
+			if (!l)
+				return next(null, table);
+
+			for (i = 0; i < l; i++) {
+				table.addConstraint(q.constraints[i]);
+			}
+
+			table.save(next);
+		}
 	);
 
-	for (var i = 0, l = this.constraints.length; i < l; i++) {
-		table.addConstraint(this.constraints[i]);
-	}
+	
 };
 
 
@@ -9132,6 +9757,8 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		crossJoin2       : crossJoin2,
 		executeCondition : executeCondition,
 		Transaction      : Transaction,
+		Storage          : Storage,
+		LocalStorage     : LocalStorage,
 
 		SQLConstraintError : SQLConstraintError,
 		SQLRuntimeError    : SQLRuntimeError,
@@ -9694,6 +10321,9 @@ var API = {
 	getDatabase : function(dbName) {
 		return getDatabase(dbName, true);
 	},
+	getCurrentDatabase : function() {
+		return SERVER.getCurrentDatabase();
+	},
 	getTable : function(tableName, dbName) {
 		return getTable(tableName, dbName, true);
 	}
@@ -9757,5 +10387,5 @@ window.jsSQL = jsSQL;
 	//console.dir(SERVER);
 })();
 
-jsSQL.version = '0.0.48';
+jsSQL.version = '0.0.303';
 })(window);

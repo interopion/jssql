@@ -83,9 +83,9 @@ function Transaction(options)
 		//onError      : noop, // args: Error error|String error message
 		//beforeTask   : noop, // args: task, pos
 		//afterTask    : noop, // args: task, pos
-		beforeUndo   : noop, // args: task, pos
-		afterUndo    : noop, // args: task, pos
-		onProgress   : noop, // args: q, task, pos
+		//beforeUndo   : noop, // args: task, pos
+		//afterUndo    : noop, // args: task, pos
+		//onProgress   : noop, // args: q, task, pos
 		timeout      : 1000, // For any single task
 		delay        : 0,
 		name         : "Anonymous transaction",
@@ -155,16 +155,37 @@ function Transaction(options)
 	 */
 	events = new Observer();
 
-	if (isFunction(config.onComplete))
-		events.on("complete", config.onComplete);
-	if (isFunction(config.onRollback))
-		events.on("rollback", config.onRollback);
-	if (isFunction(config.onError))
-		events.on("error", config.onError);
-	if (isFunction(config.beforeTask))
-		events.on("before:task", config.beforeTask);
-	if (isFunction(config.afterTask))
-		events.on("after:task", config.afterTask);
+	if (CFG.debug) {
+		events.on("error", function(e, err) {
+			console.error(err);
+		});
+		events.on("before:task", function(e, task, pos) {
+			console.info("Starting task ", config.name, "->", task.name);
+		});
+		//events.on("after:task", function(e, task, pos) {
+		//	console.info(e, "(" + pos + ")", config.name, "->", task.name);
+		//});
+		events.on("complete", function(e) {
+			console.info('Transaction complete "%s"', config.name);
+		});
+	}
+
+	var eventMap = {
+		"onComplete" : "complete",
+		"onRollback" : "rollback",
+		"onError"    : "error",
+		"beforeTask" : "before:task",
+		"afterTask"  : "after:task",
+		"beforeUndo" : "before:undo",
+		"afterUndo"  : "after:undo",
+		"onProgress" : "progress"
+	};
+
+	for (var handler in eventMap) {
+		if (isFunction(config[handler])) {
+			events.on(eventMap[handler], config[handler]);
+		}
+	}
 
 	function destroy()
 	{
@@ -260,15 +281,19 @@ function Transaction(options)
 			
 			task = Transaction.createTask({
 				name : "Nested transaction",
-				execute : function(done, fail) 
+				execute : function(next) 
 				{
-					tx.on("complete", done);
-					tx.on("error", fail);
+					tx.on("complete", next);
+					tx.on("error", next);
 					tx.start();
 				},
-				undo : function(done) 
+				undo : function(next) 
 				{
-					tx.on("rollback", done);
+					tx.on("rollback", function() {
+						var args = Array.prototype.slice.call(arguments);
+						args.unshift(null);
+						next.apply(tx, args);
+					});
 					tx.rollback();
 				}
 			});
@@ -323,21 +348,18 @@ function Transaction(options)
 				try {
 					events.dispatch("before:task", task, pos);
 					task.execute(
-						function() {
+						
+						function(err) {
 							if (pos === position) {
-								events.dispatch("progress", getProgress(), task, pos);
-								config.onProgress(getProgress(), task, pos);
-								events.dispatch("after:task", task, pos);
-								delay = setTimeout(next, config.delay);
-								//next();
-							} 
-						}, 
-						function(e) {
-							if (pos === position) {
-								lastError = e || "Task '" + task.name + "' failed.";
-								events.dispatch("error", lastError);
-								if (config.autoRollback) 
-									undo(pos);
+								if (err) {
+									lastError = err || "Task '" + task.name + "' failed.";
+									events.dispatch("error", lastError);
+									if (config.autoRollback) undo(pos);
+								} else {
+									events.dispatch("progress", getProgress(), task, pos);
+									events.dispatch("after:task", task, pos);
+									delay = setTimeout(next, config.delay);
+								}
 							}
 						}
 					);
@@ -375,21 +397,20 @@ function Transaction(options)
 			try {
 				var task = tasks[position--];
 				events.dispatch("before:undo", task, position + 1);
-				config.beforeUndo(task, position + 1);
-				task.undo(function() {
-					events.dispatch("progress", getProgress(), task, position + 1);
-					config.onProgress(getProgress(), task, position + 1);
-					events.dispatch("after:undo", task, position + 1);
-					config.afterUndo(task, position + 1);
-					undo();
-				}, function(error) {
-					events.dispatch("progress", getProgress(), task, position + 1);
-					config.onProgress(getProgress(), task, position + 1);
-					events.dispatch("after:undo", task, position + 1);
-					config.afterUndo(task, position + 1);
-					events.dispatch("error", error || "Task '" + task.name + "' failed to undo");
-					undo();
-				});
+				task.undo(
+					function(err) {
+						if (err) {
+							events.dispatch("progress", getProgress(), task, position + 1);
+							events.dispatch("after:undo", task, position + 1);
+							events.dispatch("error", err || "Task '" + task.name + "' failed to undo");
+							undo();
+						} else {
+							events.dispatch("progress", getProgress(), task, position + 1);
+							events.dispatch("after:undo", task, position + 1);
+							undo();
+						}
+					}
+				);
 			} catch (ex) {
 				events.dispatch("error", ex);
 				undo();
@@ -535,17 +556,6 @@ function Transaction(options)
 	};
 
 	this.next = next;
-
-	this.setTaskProgress = function(q) {
-		if (position > -1) {
-			var task = tasks[position];
-			config.onProgress(
-				getProgress() - (1 - q) * (task.weight || 1) / weight, 
-				task, 
-				position
-			);
-		}
-	};
 }
 
 /**
@@ -592,12 +602,12 @@ Task.prototype = {
 	 *		failed
 	 * @return {void}
 	 */
-	execute : function(done, fail) {
+	execute : function(next) {
 		console.warn(
 			"The 'execute' method for task '" + this.name + 
 			"' is not implemented!"
 		);
-		done();
+		next();
 	},
 
 	/**
@@ -608,12 +618,12 @@ Task.prototype = {
 	 *		failed
 	 * @return {void}
 	 */
-	undo : function(done, fail) {
+	undo : function(next) {
 		console.warn(
 			"The 'undo' method for task '" + this.name + 
 			"' is not implemented!"
 		);
-		done();
+		next();
 	}
 };
 
@@ -634,7 +644,7 @@ Task.prototype = {
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Sat Aug 23 2014 08:04:16 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:17 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

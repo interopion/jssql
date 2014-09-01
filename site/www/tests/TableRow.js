@@ -4,11 +4,22 @@
 
 	module("TableRow", {
 		setup : function() {
-			DB = JSDB.SERVER.createDatabase("unitTestingDB", true);
+			QUnit.stop();
+			JSDB.SERVER.createDatabase("unitTestingDB", true, function(err, db) {
+				if (err)
+					throw err;
+				DB = db;
+				QUnit.start();
+			});
 		},
 		teardown : function() {
-			JSDB.SERVER.dropDatabase("unitTestingDB", true);
-			DB = null;
+			QUnit.stop();
+			JSDB.SERVER.dropDatabase("unitTestingDB", true, function(err) {
+				if (err)
+					throw err;
+				DB = null;
+				QUnit.start();
+			});
 		}
 	});
 

@@ -46,6 +46,7 @@ elseif (isset($_GET['view'])) {
 	}
 }
 
+$title = 'Download';
 require('header.php');
 ?>
 

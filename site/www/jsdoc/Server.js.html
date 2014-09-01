@@ -78,25 +78,26 @@ function Server()
 			transaction.destroy();
 			transaction = null;
 		}
-		
 			
-		transaction.on("rollback", function(error) {
-			console.log("Transaction rolled back with error ", error);
+		transaction.on("rollback", function(e, error) {
+			if (CFG.debug) console.warn("Transaction rolled back with error ", error);
 			removeTransaction();
 		});
 
 		transaction.on("complete", function() {
-			console.log("Transaction complete");
+			if (CFG.debug) console.info("Transaction complete");
 			removeTransaction();
 		});
 
-		transaction.on("before:task", function(task, pos) {
-			console.log("Starting task ", task.name);
-		});
-		
-		transaction.on("after:task", function(task, pos) {
-			console.log("Ended task ", task.name);
-		});
+		if (CFG.debug) {
+			transaction.on("before:task", function(e, task, pos) {
+				console.info('Starting task "%s"', task.name);
+			});
+			
+			transaction.on("after:task", function(e, task, pos) {
+				console.info('Ended task "%s"', task.name);
+			});
+		}
 
 		return transaction;
 	};
@@ -110,20 +111,17 @@ function Server()
 
 	};
 
-	this.rollbackTransaction = function(done, fail)
+	this.rollbackTransaction = function(next)
 	{
 		if (!transaction) {
-			var err = new SQLRuntimeError("There is no current transaction");
-			if (fail)
-				fail(err);
-			else
-				throw err;
+			next(new SQLRuntimeError("There is no current transaction"));
 		}
 
-		if (done)
-			transaction.one("rollback", done);
-		if (fail)
-			transaction.one("error", fail);
+		if (next) {
+			transaction.one("rollback", function() {
+				next();
+			});
+		}
 
 		transaction.rollback();
 	};
@@ -155,72 +153,88 @@ Server.prototype.toJSON = function()
 	return json;
 };
 
-Server.prototype.load = function(onSuccess, onError)
+/**
+ * Loads the server from the storage. This will recursively load the databases,
+ * tables and rows.
+ * @param {Function} next(error, server)
+ * @return {Server}
+ */
+Server.prototype.load = function(next)
 {
-	var inst = this;
-	JSDB.events.dispatch("loadstart:server", inst);
-	this.read(
-		function(json) {
-			if (!json) {
-				JSDB.events.dispatch("load:server", inst);
-				onSuccess.call(inst);
-				return;
+	var server = this,
+		trx = new Transaction({
+			name : "Load Server"
+		}),
+		_next = createNextHandler(next);
+
+	trx.one("complete", function(e) {
+		server.loaded = true;
+		events.dispatch("load:server", server);
+		_next(null, server);
+	});
+
+	trx.one("rollback", function(e, err) {
+		_next(err, server);
+	});
+
+	function createDatabaseLoader(dbName) {
+		trx.add(Transaction.createTask({
+			name : "Load Database '" + dbName + "'",
+			execute : function(next) {
+				var db = new Database(dbName);
+				server.databases[db.name] = db;
+				db.load(next);
+			},
+			undo : function(next) {
+				next(null, server.databases[db.name]);
 			}
+		}));
+	}
 
-			var databases = [], dbName, dbCount = 0, db, i = 0, loaded = 0;
-			
-			function onDatabaseLoad(db)
-			{
-				return function()
-				{
-					inst.databases[db.name] = db;
-					if (++loaded === dbCount) {
-						JSDB.events.dispatch("load:server", inst);
-						inst.loaded = true;
-						onSuccess.call(inst);
-					}
-				};
-			}
+	trx.add(Transaction.createTask({
+		name : "Load Server",
+		execute : function(next) {
+			server.read(function(err, json) {
+				if ( err )
+					return next(err, server);
 
-			// Clear current databases (if any)
-			inst.databases = {};
+				server.databases = {}; // Clear current databases (if any)
 
+				if ( !json || !json.databases )
+					return next(null, server);
 
-			if (json.databases) {
-				for ( dbName in json.databases ) {
-					if (json.databases.hasOwnProperty(dbName)) {
-						db = new Database(dbName);
-						databases[dbCount++] = db;
+				for ( var dbName in json.databases ) {
+					if (json.databases.hasOwnProperty(dbName)) {						
+						createDatabaseLoader(dbName);
 					}
 				}
-			}
 
-			if (dbCount > 0) {
-				for ( i = 0; i &lt; dbCount; i++ ) {
-					db = databases[i];
-					db.load(onDatabaseLoad(db), onError);
-				}
-			} else {
-				inst.loaded = true;
-				JSDB.events.dispatch("load:server", inst);
-				onSuccess.call(inst);
-			}
+				return next(null, server);
+			});
+		}
+	}));
 
-			//inst.save();
-		},
-		onError
-	);
-	//var json = this.read(), db, meta;
-	//if (json) {
-	//	this.databases = {};
-	//	for ( var name in json.databases ) {
-	//		db = new Database(name);
-	//		db.load();
-	//		this.databases[name] = db;
-	//	}
-	//	this.save();
-	//}
-	return this;
+	events.dispatch("loadstart:server", server);
+	trx.start();
+	return server;
+};
+
+Server.prototype.save = function(next) 
+{
+	var server = this,
+		_next = createNextHandler(next);
+
+	events.dispatch("savestart:server", server);
+	
+	Persistable.prototype.save.call(server, function(err) {
+		if (err)
+			return _next(err, null);
+
+		events.dispatch("save:server", server);
+		_next(null, server);
+	});
+
+	return server;
 };
 
 /**
@@ -228,30 +242,51 @@ Server.prototype.load = function(onSuccess, onError)
  * @param {String} name The name of the database to create
  * @param {Boolean} ifNotExists Note that an exception will be thrown if such 
  * database exists and this is not set to true.
+ * @param {Function} next(error, server)
  * @return {void}
  */
-Server.prototype.createDatabase = function(name, ifNotExists) 
+Server.prototype.createDatabase = function(name, ifNotExists, next) 
 {
-	if (typeof name != "string") {
-		throw new SQLRuntimeError("Invalid database name");
-	}
+	var _next = createNextHandler(next),
+		server = this;
 
-	if (!name) {
-		throw new SQLRuntimeError("No database name");
-	}
+	if (typeof name != "string")
+		return _next(
+			new SQLRuntimeError("Invalid database name"),
+			null
+		);
+
+	if (!name)
+		return _next(
+			new SQLRuntimeError("No database name"),
+			null
+		);
 
 	if (this.databases.hasOwnProperty(name)) {
 		if (!ifNotExists) {
-			throw new SQLRuntimeError('Database "' + name + '" already exists');
+			return _next(
+				new SQLRuntimeError('Database "' + name + '" already exists'),
+				null
+			);
 		}
-		return this.databases[name];
+		return _next(null, this.databases[name]);
 	}
 
 	var db = new Database(name);
-	db.save();
-	this.databases[name] = db;
-	this.save();
-	return db;
+
+	db.save(function(err) {
+		if (err)
+			return _next(err, db);
+
+		server.databases[name] = db;
+
+		db.save(function(err) {
+			if (err)
+				return _next(err, db);
+
+			_next(null, db);
+		});
+	});
 };
 
 /**
@@ -261,24 +296,34 @@ Server.prototype.createDatabase = function(name, ifNotExists)
  * database does not exists and this is not set to true.
  * @return {void}
  */
-Server.prototype.dropDatabase = function(name, ifExists, done, fail) 
+Server.prototype.dropDatabase = function(name, ifExists, next) 
 {
-	if (this.databases.hasOwnProperty(name)) {
-		if (this.currentDatabase === this.databases[name])
-			this.currentDatabase = null;
-		this.databases[name].drop();
-		delete this.databases[name];
-		this.save(done, fail);
+	var _next = createNextHandler(next),
+		server = this;
+
+	if (server.databases.hasOwnProperty(name)) {
+		
+		server.databases[name].drop(function(err, db) {
+			if (err)
+				return _next(err, server);
+
+			if (server.currentDatabase === db)
+				server.currentDatabase = null;
+
+			delete server.databases[name];
+
+			server.save(function(err) {
+				_next(err, server);
+			});
+		});
+		
 	} else {
-		if (!ifExists) {
-			var err = new SQLRuntimeError('Database "' + name + '" does not exist');
-			if (fail)
-				return fail(err);
-			else 
-				throw err;
-		}
-		if (done)
-			done();
+		_next(
+			ifExists ? 
+				null : 
+				new SQLRuntimeError('Database "' + name + '" does not exist'), 
+			server
+		);
 	}
 };
 
@@ -333,7 +378,7 @@ Server.prototype.getCurrentDatabase = function()
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Sat Aug 23 2014 08:04:16 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:16 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

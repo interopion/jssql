@@ -590,7 +590,7 @@ IMPORTANT: Must me treated as read-only
         <dl>
             
 <dt>
-    <h4 class="name" id="drop"><span class="type-signature"></span>drop<span class="signature">(onSuccess, onError)</span><span class="type-signature"> &rarr; {void}</span></h4>
+    <h4 class="name" id="drop"><span class="type-signature"></span>drop<span class="signature">(onSuccess)</span><span class="type-signature"> &rarr; {void}</span></h4>
     
     
 </dt>
@@ -648,30 +648,7 @@ IMPORTANT: Must me treated as read-only
             
             
             
-            <td class="description last"></td>
-        </tr>
-	
-	
-	
-        <tr>
-            
-                <td class="name"><code>onError</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last"></td>
+            <td class="description last">An "error-first" style callback</td>
         </tr>
 	
 	
@@ -707,7 +684,7 @@ IMPORTANT: Must me treated as read-only
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Persistable.js.html">Persistable.js</a>, <a href="Persistable.js.html#line83">line 83</a>
+        <a href="Persistable.js.html">Persistable.js</a>, <a href="Persistable.js.html#line81">line 81</a>
     </li></ul></dd>
     
     
@@ -794,7 +771,7 @@ IMPORTANT: Must me treated as read-only
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line151">line 151</a>
+        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line161">line 161</a>
     </li></ul></dd>
     
     
@@ -893,7 +870,7 @@ IMPORTANT: Must me treated as read-only
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line162">line 162</a>
+        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line172">line 172</a>
     </li></ul></dd>
     
     
@@ -1043,7 +1020,7 @@ IMPORTANT: Must me treated as read-only
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line205">line 205</a>
+        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line215">line 215</a>
     </li></ul></dd>
     
     
@@ -1193,7 +1170,7 @@ returns the key to be used as storage key.
         
             
 <dt>
-    <h4 class="name" id="load"><span class="type-signature"></span>load<span class="signature">(onSuccess, onError)</span><span class="type-signature"> &rarr; {void}</span></h4>
+    <h4 class="name" id="load"><span class="type-signature"></span>load<span class="signature">(next(err,)</span><span class="type-signature"> &rarr; {void}</span></h4>
     
     
 </dt>
@@ -1235,7 +1212,7 @@ returns the key to be used as storage key.
 	
         <tr>
             
-                <td class="name"><code>onSuccess</code></td>
+                <td class="name"><code>next(err,</code></td>
             
             
             <td class="type">
@@ -1251,32 +1228,8 @@ returns the key to be used as storage key.
             
             
             
-            <td class="description last">The callback to be invoced upon successfull 
-load. It will be called with the row object as a single argument.</td>
-        </tr>
-	
-	
-	
-        <tr>
-            
-                <td class="name"><code>onError</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last">The callback to be invoced upon failure. It will
-		be called with the Error object as a single argument.</td>
+            <td class="description last">row) - The callback to be invoked after the 
+		loading is complete (successful or not). Optional.</td>
         </tr>
 	
 	
@@ -1307,7 +1260,7 @@ load. It will be called with the row object as a single argument.</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line80">line 80</a>
+        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line78">line 78</a>
     </li></ul></dd>
     
     
@@ -1529,7 +1482,7 @@ the storage and parse it to JS Object
         
             
 <dt>
-    <h4 class="name" id="save"><span class="type-signature"></span>save<span class="signature">(onSuccess, onError)</span><span class="type-signature"> &rarr; {void}</span></h4>
+    <h4 class="name" id="save"><span class="type-signature"></span>save<span class="signature">(next(err,)</span><span class="type-signature"> &rarr; {void}</span></h4>
     
     
 </dt>
@@ -1571,7 +1524,7 @@ the storage and parse it to JS Object
 	
         <tr>
             
-                <td class="name"><code>onSuccess</code></td>
+                <td class="name"><code>next(err,</code></td>
             
             
             <td class="type">
@@ -1587,32 +1540,8 @@ the storage and parse it to JS Object
             
             
             
-            <td class="description last">The callback to be invoced upon successfull 
-load. It will be called with the row object as a single argument.</td>
-        </tr>
-	
-	
-	
-        <tr>
-            
-                <td class="name"><code>onError</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last">The callback to be invoced upon failure. It will
-		be called with the Error object as a single argument.</td>
+            <td class="description last">row) - The callback to be invoked after the 
+		saving is complete (successful or not). Optional.</td>
         </tr>
 	
 	
@@ -1643,7 +1572,7 @@ load. It will be called with the row object as a single argument.</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line106">line 106</a>
+        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line110">line 110</a>
     </li></ul></dd>
     
     
@@ -1793,7 +1722,7 @@ load. It will be called with the row object as a single argument.</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line175">line 175</a>
+        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line185">line 185</a>
     </li></ul></dd>
     
     
@@ -1945,7 +1874,7 @@ instance by analyzing the table columns.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line122">line 122</a>
+        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line132">line 132</a>
     </li></ul></dd>
     
     
@@ -2032,7 +1961,7 @@ instance by analyzing the table columns.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line216">line 216</a>
+        <a href="TableRow.js.html">TableRow.js</a>, <a href="TableRow.js.html#line226">line 226</a>
     </li></ul></dd>
     
     
@@ -2221,7 +2150,7 @@ instance by analyzing the table columns.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Persistable.js.html">Persistable.js</a>, <a href="Persistable.js.html#line67">line 67</a>
+        <a href="Persistable.js.html">Persistable.js</a>, <a href="Persistable.js.html#line71">line 71</a>
     </li></ul></dd>
     
     
@@ -2286,7 +2215,7 @@ instance by analyzing the table columns.
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Sat Aug 23 2014 08:04:17 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:18 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

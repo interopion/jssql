@@ -31,6 +31,7 @@ module.exports = function(grunt) {
 		'src/storage/StorageBase.js',
 		'src/storage/LocalStorage.js',
 		'src/storage/MemoryStorage.js',
+		'src/storage/FileSystemStorage.js',
 		'src/Persistable.js',
 		'src/Server.js',
 		'src/Database.js',
