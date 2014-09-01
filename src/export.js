@@ -42,6 +42,8 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		crossJoin2       : crossJoin2,
 		executeCondition : executeCondition,
 		Transaction      : Transaction,
+		Storage          : Storage,
+		LocalStorage     : LocalStorage,
 
 		SQLConstraintError : SQLConstraintError,
 		SQLRuntimeError    : SQLRuntimeError,

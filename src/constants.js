@@ -20,7 +20,9 @@ NS = "JSDB",
  */
 JSDB = {},
 
-CFG = {},
+CFG = {
+	debug : false
+},
 
 // Token type constants --------------------------------------------------------
 TOKEN_TYPE_UNKNOWN             = 0,

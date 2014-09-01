@@ -233,32 +233,6 @@ function getTokens(sql, options)
 	return tokens;
 }
 
-function createTable(name, fields, ifNotExists, database)
-{
-	database = database || CURRENT_DATABASE;
-	if (!database) {
-		throw new SQLRuntimeError("No database selected");
-	}
-	
-	return database.createTable(name, fields, ifNotExists);
-}
-
-function dropTable(name, ifExists, database) 
-{
-	database = database || CURRENT_DATABASE;
-	if (!database) {
-		throw new SQLRuntimeError("No database selected");
-	}
-
-	if (!database.tables.hasOwnProperty(name)) {
-		if (!ifExists) {
-			throw new SQLRuntimeError('Table "%s" does not exist', name);
-		}
-	}
-
-	delete database.tables[name];
-}
-
 function each(o, callback, scope)
 {
 	var key, len, argLen = arguments.length;
@@ -394,21 +368,20 @@ function getDatabase(dbName, throwError)
 {
 	var database;
 	if (!dbName) {
-		if (throwError === false)
-			return null;
 		database = SERVER.currentDatabase;
 		if (!database) {
-			throw new SQLRuntimeError('No database selected.');
+			if (throwError === false)
+				return null;
+
+			throw new SQLRuntimeError( 'No database selected.' );
 		}
 	} else {
 		database = SERVER.databases[dbName];
 		if (!database) {
 			if (throwError === false)
 				return null;
-			throw new SQLRuntimeError(
-				'No such database "%s"',
-				dbName
-			);
+			
+			throw new SQLRuntimeError( 'No such database "%s"', dbName );
 		}
 	}
 	
@@ -417,14 +390,16 @@ function getDatabase(dbName, throwError)
 
 function getTable(tableName, dbName, throwError)
 {			
-	var database = getDatabase(dbName), table;
+	var database = getDatabase(dbName, throwError), table;
 
 	if (!database) return null;
 	
 	table = database.tables[tableName];
 
 	if (!table) {
-		if (throwError === false) return null;
+		if (throwError === false) 
+			return null;
+		
 		throw new SQLRuntimeError(
 			'No such table "%s" in database "%s"',
 			tableName,
@@ -433,6 +408,17 @@ function getTable(tableName, dbName, throwError)
 	}
 	
 	return table;
+}
+
+function createTable(name, fields, ifNotExists, database, next)
+{
+	database = database || SERVER.currentDatabase;
+	
+	if (!database) {
+		throw new SQLRuntimeError("No database selected");
+	}
+	
+	return database.createTable(name, fields, ifNotExists, next);
 }
 
 function isArray(x) 
@@ -530,8 +516,15 @@ function assert(condition, msg) {
 
 function defaultErrorHandler(e) 
 {
-	if (window.console && console.error) 
+	if (CFG.debug && window.console && console.error) 
 		console.error(e);
+}
+
+function createNextHandler(fn) {
+	return isFunction(fn) ? fn : function(err) {
+		if (err)
+			throw err;
+	};
 }
 
 function mixin()

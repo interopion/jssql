@@ -207,30 +207,51 @@ Table.prototype.addColumn = function(props)
  * @emits savestart:table - Before the save procedure is started
  * @emits save:table - If the save finishes successfully
  */
-Table.prototype.save = function(onComplete, onError) 
+Table.prototype.save = function(next) 
 {
-	var db = this._db, table = this;
-	JSDB.events.dispatch("savestart:table", table);
-	Persistable.prototype.save.call(this, function() {
-		db.save(function() {
-			JSDB.events.dispatch("save:table", table);
-			if ( isFunction(onComplete) ) {
-				onComplete();
+	var db = this._db, table = this, _next = createNextHandler(next);
+	
+	events.dispatch("savestart:table", table);
+	
+	Persistable.prototype.save.call(this, function(err) {
+		if (err) {
+			return _next(err);
+		}
+
+		db.save(function(err) {
+			if (err) {
+				return _next(err);
 			}
-		}, onError);	
-	}, onError);
+
+			events.dispatch("save:table", table);
+			
+			_next(null, table);
+		});	
+	});
+
 	return this;
 };
 
-Table.prototype.load = function(onComplete, onError) 
+Table.prototype.load = function(next) 
 {
-	var table = this;
-	JSDB.events.dispatch("loadstart:table", table);
-	table.read(function(json) {
-		var colCount = 0, 
-			name;
+	var table = this, _next = createNextHandler(next);
 
-		function onRowLoad(row) {
+	JSDB.events.dispatch("loadstart:table", table);
+	
+	table.read(function(err, json) {
+		var colCount = 0, 
+			name,
+			done;
+
+		function onRowLoad(err, row) {
+			if (err) {
+				if (!done) {
+					done = true;
+					_next(err, null);
+				}
+				return false;
+			}
+
 			for (var ki in table.keys) {
 				table.keys[ki].beforeInsert(row);
 			}
@@ -240,10 +261,10 @@ Table.prototype.load = function(onComplete, onError)
 			table._row_seq.push(row.id);
 			if (--colCount === 0) {
 				JSDB.events.dispatch("load:table", table);
-				if (onComplete) onComplete(table);
+				_next(null, table);
 			}
 		}
-
+		//console.log(err, json);
 		if (json) {
 			table.cols = {};
 			table.rows = {};
@@ -273,57 +294,84 @@ Table.prototype.load = function(onComplete, onError)
 			// Load rows data
 			if (colCount) {
 				for ( key in table.rows ) {
-					table.rows[key].load(onRowLoad, onError);
+					table.rows[key].load(onRowLoad);
 				}
 			} else {
 				JSDB.events.dispatch("load:table", table);
-				if (onComplete) onComplete(table);
+				_next(null, table);
 			}
-
-
-			
-			//this.save();
 		}
-	}, onError);
+	});
 };
 
-Table.prototype.insert = function(keys, values) 
+Table.prototype.insert = function(keys, values, next) 
 {
-	
+	var table = this, 
+		_next = createNextHandler(next),
+		trx   = new Transaction({ name : "Insert into table " + table.name }),
+		kl    = keys.length,
+		rl    = values.length;
 
-	var kl = keys.length,
-		rl = values.length,
-		cl = this._col_seq.length,
-		ki, // user key index 
-		ri, // user row index
-		ci, // table column index
-		row, 
-		col, 
-		key;
+	function createRowInserter(idx) {
+		var insertID;
+		trx.add(Transaction.createTask({
+			name : "Insert row " + idx,
+			execute : function(next) {
+				var row = new TableRow(table, table._ai),
+					ki;
 
-	// for each input row
-	for (ri = 0; ri < rl; ri++) {
-		row = new TableRow(this, this._ai);
-		
-		// for each user-specified column
-		for (ki = 0; ki < kl; ki++) {
-			row.setCellValue(keys[ki], values[ri][ki]);
-		}
-		//console.dir(row);
+				// for each user-specified column
+				for (ki = 0; ki < kl; ki++) {
+					row.setCellValue(keys[ki], values[idx][ki]);
+				}
 
-		for (ki in this.keys) {
-			this.keys[ki].beforeInsert(row);
-		}
-		
-		this.rows[this._ai++] = row;
-		this._length++;
-		this._row_seq.push(this._ai - 1);
-		row.save();
+				for (ki in table.keys) {
+					table.keys[ki].beforeInsert(row);
+				}
+
+				insertID = table._ai++;
+				table.rows[insertID] = row;
+				table._length++;
+				table._row_seq.push(insertID);
+				row.save(next);
+			},
+			undo : function(next) {
+				if (insertID)
+					return table.rows[insertID].drop(next);
+				next();
+			}
+		}));
 	}
 
-	this.save();
+	trx.one("complete", function(e) {
+		_next(null, table);
+	});
 
-	//console.dir(this.toJSON());
+	trx.one("rollback", function(e, err) {
+		_next(err, null);
+	});
+
+	trx.add(Transaction.createTask({
+		name : "insert",
+		execute : function(next) {
+			for (var i = 0; i < rl; i++) {
+				createRowInserter(i);
+			}
+			next();
+		},
+		undo : function(next) {
+			next();
+		}
+	}));
+
+	trx.add(Transaction.createTask({
+		name : "Save table after inserts",
+		execute : function(next) {
+			table.save(next);
+		}
+	}));
+
+	trx.start();
 };
 
 /**
@@ -333,11 +381,11 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 {
 	// The UPDATE can be canceled if a "beforeupdate:table" listener returns false 
 	if (!JSDB.events.dispatch("beforeupdate:table", this)) {
-		onError(new SQLRuntimeError(
-			'The UPDATE procedure of table "%s" was canceled by a "beforeupdate:table" event listener',
+		return onError(null, strf(
+			'The UPDATE procedure of table "%s" was canceled by a ' + 
+			'"beforeupdate:table" event listener',
 			this.getStorageKey()
 		));
-		return;
 	}
 	
 	var table = this, 
@@ -346,16 +394,27 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 			autoRollback : false,
 			onError      : handleConflict,
 			onComplete   : function() {
-				table.save(function() {
+				table.save(function(err) {
+					if (err)
+						return onError(err);
 					JSDB.events.dispatch("update:table", table);
 					onSuccess();
-				}, onError);
+				});
 			}
-		});
+		}),
+		conflictHandled = false;
 
 	// ROLLBACK|ABORT|REPLACE|FAIL|IGNORE
 	function handleConflict(error)
 	{
+		if (conflictHandled)
+			return true;
+
+		// This function might be called more than once because of transaction 
+		// timeout errors, so make sure that those will not result in multiple 
+		// callback invokations!
+		conflictHandled = true;
+		
 		if (error && error instanceof SQLConstraintError) 
 		{
 			switch (alt) {
@@ -432,39 +491,44 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 	{
 		var rowBackUp = row.toJSON(), task = Transaction.createTask({
 			name : "Update row " + row.getStorageKey(),
-			execute : function(done, fail)
+			execute : function(next)
 			{
 				var name;
 
-				// Create the updated version of the row
-				for ( name in map )
-				{
-					newRow[name] = executeCondition(map[name], newRow);
+				try {
+
+					// Create the updated version of the row
+					for ( name in map )
+					{
+						newRow[name] = executeCondition(map[name], newRow);
+					}
+
+					// The UPDATE can be canceled on row level if a 
+					// "beforeupdate:row" listener returns false 
+					if (!JSDB.events.dispatch("beforeupdate:row", row))
+					{
+						return next(null);
+					}
+
+					// Update table indexes
+					for (var ki in table.keys) 
+					{
+						table.keys[ki].beforeUpdate(row, newRow);
+					}
+
+					// Update the actual row
+					for ( name in map )
+					{
+						row.setCellValue( name, newRow[name] );
+					}
+
+					JSDB.events.dispatch("update:row", row);
+
+					next(null);
+
+				} catch (ex) {
+					next(ex);
 				}
-
-				// The UPDATE can be canceled on row level if a 
-				// "beforeupdate:row" listener returns false 
-				if (!JSDB.events.dispatch("beforeupdate:row", row))
-				{
-					done();
-					return true;
-				}
-
-				// Update table indexes
-				for (var ki in table.keys) 
-				{
-					table.keys[ki].beforeUpdate(row, newRow);
-				}
-
-				// Update the actual row
-				for ( name in map )
-				{
-					row.setCellValue( name, newRow[name] );
-				}
-
-				JSDB.events.dispatch("update:row", row);
-
-				done();
 			},
 			undo : function(done)
 			{
@@ -504,31 +568,46 @@ Table.prototype.update = function(map, alt, where, onSuccess, onError)
 
 
 
-
-Table.prototype.drop = function(onComplete, onError) 
+/**
+ * Deletes the table
+ * @param {Function} next(err, table)
+ * @return {void}
+ */
+Table.prototype.drop = function(next) 
 {
 	var table     = this, 
 		keyPrefix = table.getStorageKey(),
 		rowIds    = [],
+		_next     = createNextHandler(next),
 		id;
 
-	if (JSDB.events.dispatch("before_delete:table", table)) {
-		for ( id in table.rows ) {
-			rowIds.push(keyPrefix + "." + id);
-		}
-
+	if (!events.dispatch("before_delete:table", table))
+		return _next(strf('"%s" event  canceled', "before_delete:table"), table);
 		
-		table.storage.unsetMany(rowIds, function() {
-			Persistable.prototype.drop.call(table, function() {
-				delete table._db.tables[table.name];
-				table._db.save(function() {
-					JSDB.events.dispatch("after_delete:table", table);
-					if (onComplete) 
-						onComplete();
-				}, onError);
-			}, onError);
-		}, onError);
-	}
+	for ( id in table.rows )
+		rowIds.push(keyPrefix + "." + id);
+	
+	// Delete all the rows
+	table.storage.unsetMany(rowIds, function(err) {
+		if (err) 
+			return _next(err, table);
+		
+		// Delete the table
+		Persistable.prototype.drop.call(table, function(err) {
+			if (err)
+				return _next(err, table);
+
+			// Update the database
+			delete table._db.tables[table.name];
+			table._db.save(function(err) {
+				if (err)
+					return _next(err, table);
+
+				events.dispatch("after_delete:table", table);
+				_next(null, table);
+			});
+		});
+	});
 };
 
 /**
@@ -612,14 +691,14 @@ Table.prototype.getRows = function(filter)
  *   <li>TableRow - The row to be deleted</li>
  *   <li>Array    - Array of row keys to delete multiple rows</li>
  * </ul>
- * @param {Function} onSuccess
- * @param {Function} onError
+ * @param {Function} next(err) Optional
  * @return {void}
  */
-Table.prototype.deleteRows = function(rows, onComplete, onError)
+Table.prototype.deleteRows = function(rows, next)
 {
 	var table = this,
-		keys  = [];
+		keys  = [],
+		_next = createNextHandler(next);
 	
 	rows = makeArray(rows);
 
@@ -628,7 +707,10 @@ Table.prototype.deleteRows = function(rows, onComplete, onError)
 	});
 
 	// Delete row from the storage
-	table.storage.unsetMany(keys, function() {
+	table.storage.unsetMany(keys, function(err) {
+
+		if (err)
+			return _next(err);
 		
 		// Delete row from memory
 		each(rows, function(row) {
@@ -647,9 +729,8 @@ Table.prototype.deleteRows = function(rows, onComplete, onError)
 
 		keys = null;
 
-		table.save(function() {
-			if (onComplete) 
-				onComplete();
-		}, onError);
-	}, onError);
+		table.save(function(err) {
+			_next(err);
+		});
+	});
 };

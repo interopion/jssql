@@ -72,24 +72,30 @@ TableRow.prototype.getStorageKey = function()
  * @emits load:row - If the load was successfully completed
  * @return {void} This method is async. Use the callback instead of relying on 
  * 		return value.
- * @param {Function} onSuccess - The callback to be invoced upon successfull 
- * load. It will be called with the row object as a single argument.
- * @param {Function} onError - The callback to be invoced upon failure. It will
- *		be called with the Error object as a single argument.
+ * @param {Function} next(err, row) - The callback to be invoked after the 
+ * 		loading is complete (successful or not). Optional.
  */
-TableRow.prototype.load = function(onSuccess, onError)
+TableRow.prototype.load = function(next)
 {
-	var row = this;
-	JSDB.events.dispatch("loadstart:row", row);
-	this.read(function(json) {
+	var row   = this, 
+		_next = createNextHandler(next);
+	
+	events.dispatch("loadstart:row", row);
+	
+	row.read(function(err, json) {
+		if (err)
+			return _next(err, null);
+
 		if (json) {
 			for (var i = 0; i < row.length; i++) {
 				row._data[i] = row.table.cols[row.table._col_seq[i]].set(json[i]);
 			}
 		}
+
 		JSDB.events.dispatch("load:row", row);
-		onSuccess(row);
-	}, onError);
+		
+		_next(null, row);
+	});
 };
 
 /**
@@ -98,19 +104,23 @@ TableRow.prototype.load = function(onSuccess, onError)
  * @emits save:row - If the save was successfully completed
  * @return {void} This method is async. Use the callback instead of relying on 
  * 		return value.
- * @param {Function} onSuccess - The callback to be invoced upon successfull 
- * load. It will be called with the row object as a single argument.
- * @param {Function} onError - The callback to be invoced upon failure. It will
- *		be called with the Error object as a single argument.
+ * @param {Function} next(err, row) - The callback to be invoked after the 
+ * 		saving is complete (successful or not). Optional.
  */
-TableRow.prototype.save = function(onSuccess, onError)
+TableRow.prototype.save = function(next)
 {
-	var row = this;
-	JSDB.events.dispatch("savestart:row", row);
-	row.write( this._data, function() {
-		JSDB.events.dispatch("save:row", row);
-		if (onSuccess) onSuccess(row);
-	}, onError );
+	var row = this, _next = createNextHandler(next);
+
+	events.dispatch("savestart:row", row);
+
+	row.write( this._data, function(err) {
+		if (err) 
+			return _next(err, null);
+		
+		events.dispatch("save:row", row);
+		
+		_next(null, row);
+	});
 };
 
 /**

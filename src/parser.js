@@ -12,8 +12,10 @@ QueryList.prototype = [];
  */
 function getQueries(sql)
 {
+	sql = normalizeQueryList(sql);
+
 	var queries = new QueryList(),
-		tokens  = getTokens(normalizeQueryList(sql), {
+		tokens  = getTokens(sql, {
 			skipComments : true,
 			skipSpace    : true,
 			skipEol      : true,
@@ -85,7 +87,7 @@ function query2(sql, callback)
 	query(sql, function(result, idx) {
 		callback(null, result, idx);
 	}, function(err, idx) {
-		var error = error && error instanceof Error ?
+		var error = err && err instanceof Error ?
 			err : 
 			new Error(String(err || "Unknown error"));
 		callback(error, null, idx);
@@ -134,70 +136,58 @@ function query(sql, onSuccess, onError)
 			var fn = STATEMENTS[name],
 				tx = SERVER.getTransaction(),
 				result = new Result(),
-				task, ignoreError;
+				task;
 			
 			if (tx) 
 			{
 				tx.add(Transaction.createTask({
 					name : name,
-					execute : function(done, fail) {
+					execute : function(next) {
 						var _result = new Result(), _task;
-						//try {
+						try {
 							_task = fn(walker);
-							_task.execute(
-								function(r) { 
-									_result.setData(r);
+							_task.execute(function(err, res) {
+								if (err) {
+									_task.undo(function() {
+										next(err);
+									});
+								} else {
+									_result.setData(res);
 									onResult(_result, queryIndex);
-									done();
-								}, 
-								function(err) {
-									//ignoreError = true;
-									_task.undo(noop, fail);
-									fail(err);
-									//ignoreError = false;
+									next();
 								}
-							);
-						//} catch (ex) {
-						//	if (!ignoreError) {
-						//		if (_task) {
-						//			_task.undo(noop, fail);
-						//		}
-						//		fail(ex);
-						//	}
-						//}
+							});
+						} catch (ex) {
+							next(ex);
+						}
 					},
 					undo : function(done, fail) {
 						done();
 					}
 				}));
+
 				result.setData(name + " query added to the transaction");
 				onResult(result, queryIndex);
 				next();
 			}
 			else
 			{
-				//ignoreError = false;
 				try {
 					task = fn(walker);
 					task.execute(
-						function(r) {
-							result.setData(r);
-							onResult(result, queryIndex);
-							next();
-						}, 
-						function(e) {
-							//result = null;
-							onFailure(e, queryIndex);
-							task.undo(noop, function(err) {
-								//ignoreError = true;
-							//	onFailure("Undo failed: " + err, queryIndex);
-								//ignoreError = false;
-							});
+						function(err, r) {
+							if (err) {
+								onFailure(err, queryIndex);
+								task.undo(noop, noop);
+							} else {
+								result.setData(r);
+								onResult(result, queryIndex);
+								next();
+							}
 						}
 					);
 				} catch (err) {
-				//	if ( !ignoreError )
-						onFailure(err, queryIndex);
+					onFailure(err, queryIndex);
 				}
 			}
 		};

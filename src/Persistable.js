@@ -45,16 +45,20 @@ Persistable.prototype = {
 	 * @param {Function} onError
 	 * @return {void}
 	 */
-	read : function(onSuccess, onError)
+	read : function(next)
 	{
-		this.storage.get(this.getStorageKey(), function(data) {
+		this.storage.get(this.getStorageKey(), function(err, data) {
+			if (err)
+				return next(err, null);
+
 			try {
-				var result = JSON.parse(data);
-				onSuccess(result);
+				data = JSON.parse(data);
 			} catch (ex) {
-				onError(ex);
+				err = ex;
 			}
-		}, onError);
+			
+			next(err, data);
+		});
 	},
 	
 	/**
@@ -64,25 +68,19 @@ Persistable.prototype = {
 	 * @param {Function} onError
 	 * @return {void}
 	 */
-	write : function(data, onSuccess, onError)
+	write : function(data, next)
 	{
-		this.storage.set(
-			this.getStorageKey(), 
-			JSON.stringify(data), 
-			onSuccess, 
-			onError 
-		);
+		this.storage.set( this.getStorageKey(),  JSON.stringify(data), next );
 	},
 	
 	/**
 	 * Deletes the corresponding data from the storage.
-	 * @param {Function} onSuccess
-	 * @param {Function} onError
+	 * @param {Function} onSuccess An "error-first" style callback
 	 * @return {void}
 	 */
-	drop : function(onSuccess, onError)
+	drop : function(next)
 	{
-		this.storage.unset(this.getStorageKey(), onSuccess, onError);
+		return this.storage.unset(this.getStorageKey(), next);
 	},
 	
 	/**
@@ -91,9 +89,9 @@ Persistable.prototype = {
 	 * @param {Function} onError
 	 * @return {void}
 	 */
-	save : function(onSuccess, onError) 
+	save : function(next) 
 	{
-		this.write( this.toJSON(), onSuccess, onError );
+		this.write( this.toJSON(), next );
 	},
 	
 	/**
@@ -102,9 +100,9 @@ Persistable.prototype = {
 	 * @param {Function} onError
 	 * @return {void}
 	 */
-	load : function(onSuccess, onError)
+	load : function(next)
 	{
-		this.read(onSuccess, onError);
+		this.read(next);
 	}
 };
 

@@ -83,9 +83,9 @@ CreateDatabaseQuery.prototype.generateSQL = function()
  * Executes the query.
  * @return {void}
  */
-CreateDatabaseQuery.prototype.execute = function() 
+CreateDatabaseQuery.prototype.execute = function(next) 
 {
-	SERVER.createDatabase(this._name, this._ifNotExists);
+	SERVER.createDatabase(this._name, this._ifNotExists, next);
 };
 
 /**
@@ -230,16 +230,31 @@ CreateTableQuery.prototype.addConstraint = function(constraint)
  * Executes the query.
  * @return {void}
  */
-CreateTableQuery.prototype.execute = function() 
+CreateTableQuery.prototype.execute = function(next) 
 {
-	var table = createTable(
-		this.name(), 
-		this.columns, //fields
-		this.ifNotExists(), 
-		null //database
+	var q = this;
+
+	createTable(
+		q.name(), 
+		q.columns, //fields
+		q.ifNotExists(), 
+		null, //database
+		function(err, table) {
+			if (err)
+				return next(err, null);
+
+			var l = q.constraints.length, i;
+			
+			if (!l)
+				return next(null, table);
+
+			for (i = 0; i < l; i++) {
+				table.addConstraint(q.constraints[i]);
+			}
+
+			table.save(next);
+		}
 	);
 
-	for (var i = 0, l = this.constraints.length; i < l; i++) {
-		table.addConstraint(this.constraints[i]);
-	}
+	
 };
