@@ -155,27 +155,13 @@ jQuery(function($) {
 		var wh = $(window).height(),
 			oh = $out.outerHeight();
 			h  = Math.max(wh - oh, $in[0].scrollHeight, 30);
-		//if (h < 30) {
-		//    h = wh/2;//$in[0].scrollHeight;
-		//}
+		
 		$in.css({
 			top    : oh,
-			height : h,
-			//minHeight : h
-		});//[0].scrollIntoViewIfNeeded();
-		//.css("minHeight", $in[0].scrollHeight)
-		//[0]
-		//[$in[0].scrollIntoViewIfNeeded ? 
-		//    "scrollIntoViewIfNeeded" :
-		//    "scrollIntoView"]
-		//()
-		;
+			height : h
+		});
+
 		$("body")[0].scrollTop = $("body")[0].scrollHeight;
-		//setTimeout(function() {
-		 //   $in.css({
-		 //       minHeight : $in[0].scrollHeight 
-		 //   });
-		//}, 0);
 	}
 	
 	$(window).on("resize", resizeUI);
