@@ -676,7 +676,7 @@ STATEMENTS.SELECT = function(walker) {
 
 	return new Task({
 		name : "SELECT Query",
-		execute : function(done, fail) {//console.log("WALK SELECT");
+		execute : function(next) {//console.log("WALK SELECT");
 			//debugger;
 			var query = {
 				fields : [],
@@ -707,14 +707,14 @@ STATEMENTS.SELECT = function(walker) {
 			.commit(function() {//console.log("EXEC SELECT");
 				//console.dir(query);
 				var result = execute(query);
-				done({
+				next(null, {
 					cols : result.cols,
 					rows : result.rows
 				});
 			});
 		},
-		undo : function(done, fail) {
-			done(); // There is nothing to undo after select
+		undo : function(next) {
+			next(); // There is nothing to undo after select
 		}
 	});
 };

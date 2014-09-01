@@ -76,7 +76,7 @@ STATEMENTS.INSERT = function(walker) {
 	
 	return new Task({
 		name : "Insert Query",
-		execute : function(done, fail) {
+		execute : function(next) {
 			walker
 			// TODO: with-clause
 			
@@ -132,12 +132,13 @@ STATEMENTS.INSERT = function(walker) {
 					valueSets : valueSets,
 					columns   : columns
 				});*/
-				table.insert(columns, valueSets);
-				done(valueSets.length + ' rows inserted.');
+				table.insert(columns, valueSets, function(err) {
+					next(err, err ? null : valueSets.length + ' rows inserted');
+				});
 			});
 		},
-		undo : function(done, fail) {
-			fail("undo not implemented for INSERT queries!");
+		undo : function(next) {
+			next("undo not implemented for INSERT queries!");
 		}
 	});
 };

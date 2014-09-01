@@ -8,16 +8,16 @@
 STATEMENTS.SHOW_DATABASES = function(walker) {
 	return new Task({
 		name : "Show databases",
-		execute : function(done, fail) {
+		execute : function(next) {
 			walker.errorUntil(";").commit(function() {
-				done({
+				next(null, {
 					cols : ["Databases"],
 					rows : keys(SERVER.databases).map(makeArray)
 				});
 			});
 		},
-		undo : function(done, fail) {
-			done(); // Nothing to undo here...
+		undo : function(next) {
+			next(); // Nothing to undo here...
 		}
 	});
 };

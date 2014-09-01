@@ -8,7 +8,7 @@
 STATEMENTS.DROP_DATABASE = function(walker) {
 	return new Task({
 		name : "Drop Database",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var q = {};
 			walker.optional("IF EXISTS", function() {
 				q.ifExists = true;
@@ -18,12 +18,13 @@ STATEMENTS.DROP_DATABASE = function(walker) {
 			}, "for the database name")
 			.errorUntil(";")
 			.commit(function() {
-				SERVER.dropDatabase(q.name, q.ifExists);
-				done('Database "' + q.name + '" deleted.');
+				SERVER.dropDatabase(q.name, q.ifExists, function(err) {
+					next(err, err ? null : 'Database "' + q.name + '" deleted.');
+				});
 			});
 		},
-		undo : function(done, fail) {
-			fail ("undo is not implemented for the DROP DATABASE queries");
+		undo : function(next) {
+			next("undo is not implemented for the DROP DATABASE queries");
 		}
 	});
 };

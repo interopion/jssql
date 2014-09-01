@@ -2,7 +2,7 @@
 STATEMENTS.SOURCE = function(walker) {
 	return new Task({
 		name : "SOURCE Command",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var start = walker.current()[2],
 				xhr,
 				end,
@@ -36,17 +36,17 @@ STATEMENTS.SOURCE = function(walker) {
 									len = queries.length;
 								query(queries, function(result, idx) {
 									if (idx === len - 1) {
-										done(strf(
+										next(null, strf(
 											'%s queries executed successfuly from file "%s"',
 											len,
 											url
 										));
 									}
 								}, function(e, idx) {
-									fail(e + " (query: " + queries[idx].sql + ")");
+									next(e + " (query: " + queries[idx].sql + ")", null);
 								});
 							} else {
-								fail(xhr.statusText);
+								next(xhr.statusText, null);
 							}
 						}
 					};
@@ -54,9 +54,10 @@ STATEMENTS.SOURCE = function(walker) {
 				}
 			});
 		},
-		undo : function(done, fail) {
-			console.warn("The SOURCE command cannot be undone!");
-			done();
+		undo : function(next) {
+			if (CFG.debug)
+				console.warn("The SOURCE command cannot be undone!");
+			next();
 		}
 	});
 };

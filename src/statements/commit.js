@@ -17,7 +17,7 @@
 STATEMENTS.COMMIT = function(walker) {
 	return new Task({
 		name : "Commit transaction",
-		execute : function(done, fail) {
+		execute : function(next) {
 			if (walker.is("TRANSACTION"))
 				walker.forward();
 			
@@ -25,11 +25,11 @@ STATEMENTS.COMMIT = function(walker) {
 
 			walker.commit(function() {
 				SERVER.commitTransaction();
-				done();
+				next();
 			});
 		},
-		undo : function(done, fail) {
-			SERVER.rollbackTransaction(done, fail);
+		undo : function(next) {
+			SERVER.rollbackTransaction(next);
 		}
 	});
 };

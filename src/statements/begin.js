@@ -47,7 +47,7 @@
 STATEMENTS.BEGIN = function(walker) {
 	return new Task({
 		name : "Begin transaction",
-		execute : function(done, fail) {
+		execute : function(next) {
 			
 			var type = "DEFERRED";
 
@@ -64,11 +64,11 @@ STATEMENTS.BEGIN = function(walker) {
 
 			walker.commit(function() {
 				SERVER.beginTransaction({ type : type });
-				done("Transaction created");
+				next(null, "Transaction created");
 			});
 		},
-		undo : function(done, fail) {
-			SERVER.rollbackTransaction(done, fail);
+		undo : function(next) {
+			SERVER.rollbackTransaction(next);
 		}
 	});
 };

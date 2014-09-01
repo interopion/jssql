@@ -26,7 +26,7 @@ STATEMENTS.DELETE = function(walker) {
 
 	return new Task({
 		name : "Delete Query",
-		execute : function(done, fail)
+		execute : function(next)
 		{
 			var tableName, dbName, start = 0, end = 0, where = "";
 
@@ -128,19 +128,20 @@ STATEMENTS.DELETE = function(walker) {
 
 				if ( len ) 
 				{
-					
-					table.deleteRows(rowIds, function() {
-						done(len + " rows deleted");
-					}, fail);
+					table.deleteRows(rowIds, function(err) {
+						next(err, err ? null : len + " rows deleted");
+					});
 				}
 				else
 				{
-					done(len + " rows deleted");
+					next(null, len + " rows deleted");
 				}
 			});
 		},
-		undo : function(done, fail) {
-			fail("undo not implemented for DELETE queries!");
+		undo : function(next) {
+			if (CFG.debug)
+				console.warn("undo not implemented for DELETE queries!");
+			next();
 		}
 	});
 };

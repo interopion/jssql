@@ -17,7 +17,7 @@
 STATEMENTS.ROLLBACK = function(walker) {
 	return new Task({
 		name : "Rollback transaction",
-		execute : function(done, fail) {
+		execute : function(next) {
 			if (walker.is("TRANSACTION"))
 				walker.forward();
 			
@@ -25,12 +25,12 @@ STATEMENTS.ROLLBACK = function(walker) {
 
 			walker.commit(function() {
 				SERVER.rollbackTransaction();
-				done();
+				next();
 			});
 		},
-		undo : function() {
+		undo : function(next) {
 			SERVER.commitTransaction();
-			done();
+			next();
 		}
 	});
 };

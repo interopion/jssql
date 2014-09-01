@@ -31,7 +31,7 @@ STATEMENTS.SHOW_TABLES = function(walker)
 {
 	return new Task({
 		name : "Show tables",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var db = SERVER.getCurrentDatabase(), dbName;
 
 			if ( walker.is("FROM|IN") ) 
@@ -46,20 +46,20 @@ STATEMENTS.SHOW_TABLES = function(walker)
 			walker.nextUntil(";").commit(function() {
 				if (!db) {
 					if (dbName) {
-						fail(new SQLRuntimeError('No such database "%s"', dbName));
+						next(new SQLRuntimeError('No such database "%s"', dbName), null);
 					} else {
-						fail(new SQLRuntimeError('No database selected'));
+						next(new SQLRuntimeError('No database selected'), null);
 					}
 				} else {
-					done({
+					next(null, {
 						cols : ['Tables in database "' + db.name + '"'],
 						rows : keys(db.tables).map(makeArray)
 					});
 				}
 			});
 		},
-		undo : function(done, fail) {
-			done();// Nothing to undo here...
+		undo : function(next) {
+			next();// Nothing to undo here...
 		}
 	});
 };

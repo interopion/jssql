@@ -47,7 +47,7 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 			
 	return new Task({
 		name : "Show columns",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var dbName, tableName;
 
 			walker.pick({
@@ -75,9 +75,9 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 				
 				if (!database) {
 					if ( dbName ) {
-						return fail(new SQLRuntimeError('No such database "%s"', dbName));
+						return next(new SQLRuntimeError('No such database "%s"', dbName), null);
 					} else {
-						return fail(new SQLRuntimeError('No database selected'));
+						return next(new SQLRuntimeError('No database selected'), null);
 					}
 				}
 				
@@ -85,11 +85,11 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 
 				if (!table)
 				{
-					return fail(new SQLRuntimeError(
+					return next(new SQLRuntimeError(
 						'No such table "%s" in databse "%s"',
 						tableName,
 						database.name
-					));
+					), null);
 				}
 				
 				var result = {
@@ -113,11 +113,11 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 					]);
 				});	
 
-				done(result);
+				next(null, result);
 			});
 		},
-		undo : function(done, fail) {
-			done(); // Nothing to undo here....
+		undo : function(next) {
+			next(); // Nothing to undo here....
 		}
 	});
 };

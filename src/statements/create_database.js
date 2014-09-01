@@ -10,17 +10,17 @@ STATEMENTS.CREATE_DATABASE = function(walker) {
 	// remember the databse name here so that we can undo
 	var dbName;
 
-	function undo(done, fail) {
+	function undo(next) {
 		if (dbName) {
-			SERVER.dropDatabase(dbName, true, done, fail);
+			SERVER.dropDatabase(dbName, true, next);
 		} else {
-			done();
+			next();
 		}
 	}
 
 	return new Task({
 		name : "Create Database",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var q = new CreateDatabaseQuery();
 
 			// Make sure to reset this in case it stores something from 
@@ -37,12 +37,11 @@ STATEMENTS.CREATE_DATABASE = function(walker) {
 			.nextUntil(";")
 			.commit(function() {
 				dbName = q.name();
-				q.execute();
-				done('Database "' + q.name() + '" created.');
+				q.execute(function(err) {
+					next(err, err ? null : 'Database "' + q.name() + '" created.');
+				});
 			});
 		},
-		undo : function(done, fail) {
-			undo(done, fail);
-		}
+		undo : undo
 	});
 };

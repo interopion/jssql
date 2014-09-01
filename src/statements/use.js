@@ -10,31 +10,33 @@ STATEMENTS.USE = function(walker) {
 	// Remember the last used DB here so that we can undo
 	var lastUsedDB = SERVER.getCurrentDatabase();
 
-	function undo(done, fail) {
+	function undo(next) {
 		if (lastUsedDB) {
 			SERVER.setCurrentDatabase(lastUsedDB.name);
-			done('Current database restored to "' + lastUsedDB.name + '".');
+			next(null, 'Current database restored to "' + lastUsedDB.name + '".');
 		} else {
-			done();
+			next();
 		}
 	}
 	
 	return new Task({
 		name : "Use Database",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var dbName;
 			walker.someType(WORD_OR_STRING, function(token) {
 				dbName = token[0];
 			})
 			.errorUntil(";")
 			.commit(function() {
+				var err = null, out = null;
 				try {
 					SERVER.setCurrentDatabase(dbName);
 					lastUsedDB = SERVER.getCurrentDatabase();
-					done('Database "' + dbName + '" selected.');
-				} catch (err) {
-					fail(err);
+					out = 'Database "' + dbName + '" selected.';
+				} catch (ex) {
+					err = ex;
 				}
+				next(err, out);
 			});
 		},
 		undo : undo

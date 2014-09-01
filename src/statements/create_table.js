@@ -10,20 +10,20 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 	// remember the table name here so that we can undo
 	var tableName;
 
-	function undo(done, fail) 
+	function undo(next) 
 	{
 		if (tableName) {
 			var db = SERVER.getCurrentDatabase();
 			if (db) {
 				var table = db.tables[tableName];
 				if (table) {
-					fail("Droping tables is not fully implemented yet!");
+					next("Droping tables is not fully implemented yet!");
 				}
 			}
 			//SERVER.dropDatabase(dbName, true, done, fail);
-			done();
+			next();
 		} else {
-			done();
+			next();
 		}
 	}
 	
@@ -228,7 +228,7 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 	
 	return new Task({
 		name : "Create Table",
-		execute : function(done, fail) {
+		execute : function(next) {
 			var q = new CreateTableQuery();
 
 			// Make sure to reset this in case it stores something from 
@@ -250,18 +250,11 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 			})
 			.nextUntil(";")
 			.commit(function() {
-				//console.log("CreateTableQuery:");
-				//console.dir(q);
-				try {
-					q.execute();
-					done('Table "' + q.name() + '" created.');
-				} catch (err) {
-					fail(err);
-				}
+				q.execute(function(err) {
+					next(err, err ? null : 'Table "' + q.name() + '" created');
+				});
 			});
 		},
-		undo : function(done, fail) {
-			undo(done, fail);
-		}
+		undo : undo
 	});
 };

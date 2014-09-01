@@ -12,7 +12,7 @@ STATEMENTS.DROP_TABLE = function(walker) {
 	
 	return new Task({
 		name : "Drop Table",
-		execute : function(done, fail) {
+		execute : function(next) {
 			
 			walker.optional("IF EXISTS", function() {
 				ifExists = true;
@@ -51,27 +51,33 @@ STATEMENTS.DROP_TABLE = function(walker) {
 				table = database.tables[tableName];
 				if (!table) {
 					if (ifExists) {
-						return done(
-							'Table "' + database.name + '.' + tableName + '" does not exist.'
+						return next(
+							null,
+							'Table "' + database.name + '.' + tableName + 
+							'" does not exist.'
 						);
 					}
 					
-					throw new SQLRuntimeError(
+					return next(new SQLRuntimeError(
 						'No such table "%s" in databse "%s"',
 						tableName,
 						database.name
-					);
+					), null);
 				}
 				
-				table.drop(function() {
-					done(
+				table.drop(function(err) {
+					if (err)
+						return next(err, null);
+					
+					next(
+						null,
 						'Table "' + database.name + '.' + table.name + '" deleted.'
 					);
-				}, fail);
+				});
 			});
 		},
-		undo : function(done, fail) {
-			fail("undo is not implemented for the DROP TABLE queries");
+		undo : function(next) {
+			next(null, "undo is not implemented for the DROP TABLE queries");
 		}
 	});
 };
