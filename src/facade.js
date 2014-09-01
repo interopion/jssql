@@ -8,6 +8,9 @@ var API = {
 	getDatabase : function(dbName) {
 		return getDatabase(dbName, true);
 	},
+	getCurrentDatabase : function() {
+		return SERVER.getCurrentDatabase();
+	},
 	getTable : function(tableName, dbName) {
 		return getTable(tableName, dbName, true);
 	}
