@@ -21,7 +21,9 @@ NS = "JSDB",
 JSDB = {},
 
 CFG = {
-	debug : false
+	debug         : false,
+	storageEngine : "LocalStorage",
+	socketIoPath  : "http://Vladimirs-MacBook-Pro.local:3001"
 },
 
 // Token type constants --------------------------------------------------------

@@ -1,7 +1,9 @@
 function SocketIOStorage() {
 
+	if (!CFG.socketIoPath)
+		throw new Errror("You have to provide the 'socketIoPath' configuration option");
+
 	if (!window.io || typeof io.connect != "function") {
-		//throw new Errror("You have to include the socketIO client script first");
 		var head = document.getElementsByTagName("head")[0],
 			scr  = document.createElement("script");
 
@@ -11,7 +13,8 @@ function SocketIOStorage() {
 			throw new Errror("You have to include the socketIO client script first");	
 		}
 	}
-	console.log("io: ", window.io);
+
+	//console.log("io: ", window.io);
 	
 	var rpc = io.connect(CFG.socketIoPath), inst = this;
 
