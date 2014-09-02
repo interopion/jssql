@@ -1,12 +1,11 @@
 /**
  * The event system
- * @namespace events
+ * @namespace events 
  * @type {Object}
  */
 function Observer() {
 	
-	var listeners = {},
-		inst = this;
+	var listeners = {};
 
 	function returnFalse()
 	{
@@ -21,7 +20,7 @@ function Observer() {
 	 * returns false.
 	 * @return {Function} The bound event handler
 	 */
-	function bind(eType, handler) 
+	this.bind = function(eType, handler) 
 	{
 		if (handler === false)
 			handler = returnFalse;
@@ -31,7 +30,7 @@ function Observer() {
 		
 		listeners[eType].push(handler);
 		return handler;
-	}
+	};
 
 	/**
 	 * Adds an event listener that removes itself after the first call to it
@@ -41,20 +40,19 @@ function Observer() {
 	 * returns false.
 	 * @return {Function} The bound event handler
 	 */
-	function one(eType, handler) 
+	this.one = function(eType, handler) 
 	{
 		if (handler === false)
 			handler = returnFalse;
 
-		function fn() {
+		var inst = this, fn = function() {
 			var out = handler.apply(inst, arguments);
-			unbind(eType, fn);
+			inst.unbind(eType, fn);
 			return out;
-		}
+		};
 
-		bind(eType, fn);
-		return fn;
-	}
+		return inst.bind(eType, fn);
+	};
 
 	/**
 	 * Removes event listener(s)
@@ -66,9 +64,9 @@ function Observer() {
 	 * @param {String} eType The event type
 	 * @param {Function|Boolean} handler The function to be removed. Can also be 
 	 * a false to remove the generic "returnFalse" listeners.
-	 * @return {void}
+	 * @return {Observer} Returns the instance
 	 */
-	function unbind(eType, handler) 
+	this.unbind = function(eType, handler) 
 	{
 		if (handler === false)
 			handler = returnFalse;
@@ -85,26 +83,34 @@ function Observer() {
 				}
 			}
 		}
-	}
+
+		return this;
+	};
 
 	this.dispatch = function(e) 
 	{
 		var handlers = listeners[e] || [], 
-			l = handlers.length, 
-			i, 
+			l        = handlers.length, 
 			canceled = false,
-			args = Array.prototype.slice.call(arguments, 0);
-
-		//console.info("dispatch: ", e, data);
+			args     = Array.prototype.slice.call(arguments, 0),
+			bubbleTarget,
+			i;
 
 		for (i = 0; i < l; i++) {
-			if (handlers[i].apply(this, arguments) === false) {
+			if (handlers[i].apply(this, args) === false) {
 				canceled = true; 
 				break;
 			}
 		}
 
-		if (e != "*") {
+		// Event bubbling
+		if (!canceled) {
+			bubbleTarget = this.bubbleTarget;
+			if (bubbleTarget && e != "*")
+				canceled = bubbleTarget.dispatch.apply(bubbleTarget, args);
+		}
+
+		if (!bubbleTarget && e != "*") {
 			args.unshift("*");
 			this.dispatch.apply(this, args);
 		}
@@ -112,12 +118,9 @@ function Observer() {
 		return !canceled;
 	};
 
-	this.bind     = bind;
-	this.unbind   = unbind;
-	this.one      = one;
-	this.on       = bind;
-	this.off      = unbind;
-
+	// some aliases
+	this.on  = this.bind;
+	this.off = this.unbind;
 }
 
 var events = new Observer();
