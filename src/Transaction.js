@@ -66,12 +66,6 @@ function Transaction(options)
 	}, options),
 
 	/**
-	 * Local reference to the instance
-	 * @type {Transaction}
-	 */
-	inst = this,
-
-	/**
 	 * The task queue
 	 * @type {Array}
 	 * @private
@@ -97,13 +91,13 @@ function Transaction(options)
 	 * The timeout that executes the current task
 	 * @private
 	 */
-	timer = null,
+	timer = 0,
 	
 	/**
 	 * The delay timeout
 	 * @private
 	 */
-	delay = null,
+	delay = 0,
 
 	/**
 	 * The total weight of the transaction. This is computed as the sum of the
@@ -119,26 +113,21 @@ function Transaction(options)
 	 * @type {String}
 	 * @private
 	 */
-	lastError = "",
+	lastError = "";
 
-	/**
-	 * The transaction observer
-	 * @type {Object}
-	 * @private
-	 */
-	events = new Observer();
+	Observer.call(this);
 
 	if (CFG.debug) {
-		events.on("error", function(e, err) {
+		this.on("error", function(e, err) {
 			console.error(err);
 		});
-		events.on("before:task", function(e, task, pos) {
+		this.on("before:task", function(e, task, pos) {
 			console.info("Starting task ", config.name, "->", task.name);
 		});
-		//events.on("after:task", function(e, task, pos) {
+		//this.on("after:task", function(e, task, pos) {
 		//	console.info(e, "(" + pos + ")", config.name, "->", task.name);
 		//});
-		events.on("complete", function(e) {
+		this.on("complete", function(e) {
 			console.info('Transaction complete "%s"', config.name);
 		});
 	}
@@ -156,249 +145,14 @@ function Transaction(options)
 
 	for (var handler in eventMap) {
 		if (isFunction(config[handler])) {
-			events.on(eventMap[handler], config[handler]);
+			this.on(eventMap[handler], config[handler]);
 		}
 	}
 
-	function destroy()
-	{
-		reset(true);
-		events.off();
-	}
-
-	/**
-	 * Resets the transaction
-	 * @throws {Error} if the transaction is currently running
-	 * @return {void}
-	 */
-	function reset(silent) 
-	{
-		if (isStarted() && !isComplete()) 
-			throw new Error("Cannot reset a transacion while it is runing");
-		
-		if (timer) clearTimeout(timer);
-		if (delay) clearTimeout(delay);
-		
-		tasks     = [];
-		length    = 0;
-		position  = -1;
-		timer     = null;
-		weight    = 0;
-		lastError = "";
-
-		if (!silent)
-			events.dispatch("reset");
-	}
-
-	/**
-	 * Calculates and returns the current position as a floating point number.
-	 * This tipically represents ho many of the available tasks are complete,
-	 * but can also be more complicated because each task can have it's own 
-	 * weight defined which affects this number.
-	 * @return {Number}
-	 */
-	function getProgress() 
-	{
-		var cur = 0, i;
-		for (i = 0; i <= position; i++) {
-			cur += tasks[i].weight || 1;
-		}
-		return cur / weight;
-	}
-
-	/**
-	 * Checks if the transaction has been started
-	 * @return {Boolean}
-	 */
-	function isStarted() 
-	{
-		return position > -1;
-	}
-
-	/**
-	 * Checks if the transaction is empty
-	 * @return {Boolean}
-	 */
-	function isEmpty() 
-	{
-		return length === 0;
-	}
-
-	/**
-	 * Checks if the transaction is complete
-	 * @return {Boolean}
-	 */
-	function isComplete() 
-	{
-		return !isEmpty() && position === length - 1;
-	}
 	
-	/**
-	 * Appends new task to the transaction queue.
-	 * @param {Task|Transaction} task The task or sub-transaction to 
-	 * 		add to the queue
-	 * @throws {Error} If the transaction has already been started
-	 * @return {void}
-	 * @todo Allow for adding Transaction objects to create nested transactions
-	 */
-	function add(task) 
-	{
-		//if (isStarted()) 
-		//	throw "The transaction has already ran";
-
-		// Add nested transaction. In this case create new generic task that 
-		// wraps the entire nested transaction
-		if (task && task instanceof Transaction)
-		{
-			var tx = task;
-			
-			task = Transaction.createTask({
-				name : "Nested transaction",
-				execute : function(next) 
-				{
-					tx.on("complete", next);
-					tx.on("error", next);
-					tx.start();
-				},
-				undo : function(next) 
-				{
-					tx.on("rollback", function() {
-						var args = Array.prototype.slice.call(arguments);
-						args.unshift(null);
-						next.apply(tx, args);
-					});
-					tx.rollback();
-				}
-			});
-
-			tx.parentTransaction = inst;
-
-			weight += tx.getWeight();
-		}
-		else
-		{
-			weight += task.weight || 1;
-			if (inst.parentTransaction) {
-				inst.parentTransaction.setWeight(
-					inst.parentTransaction.getWeight() + (task.weight || 1)
-				);
-			}
-		}
-
-		task.transaction = inst;
-		length = tasks.push(task);
-		task.name += " (at position " + length + ")";
-	}
-
-	/**
-	 * The function that attempts to invoke the next task in the queue
-	 */
-	function next(callerPosition) 
-	{
-		// clear times if needed
-		if (timer) clearTimeout(timer);
-		if (delay) clearTimeout(delay);
-
-		// Such a call might come from within a task that has already been 
-		// "outdated" due to timeout
-		if (callerPosition !== undefined && callerPosition !== position) {
-			return;
-		}
-
-		if (!isComplete() && !isEmpty()) {
-			(function worker(task, pos) {
-				var _timeout = "timeout" in task ? task.timeout : config.timeout;
-				
-				if ( _timeout > 0 ) {
-					timer = setTimeout(function() {
-						lastError = "Task '" + task.name + "' timed out!.";
-						events.dispatch("error", lastError);
-						if (config.autoRollback) 
-							undo(pos);
-					}, _timeout + config.delay);
-				}
-
-				try {
-					events.dispatch("before:task", task, pos);
-					task.execute(
-						
-						function(err) {
-							if (pos === position) {
-								if (err) {
-									lastError = err || "Task '" + task.name + "' failed.";
-									events.dispatch("error", lastError);
-									if (config.autoRollback) undo(pos);
-								} else {
-									events.dispatch("progress", getProgress(), task, pos);
-									events.dispatch("after:task", task, pos);
-									delay = setTimeout(next, config.delay);
-								}
-							}
-						}
-					);
-				} catch (ex) {
-					events.dispatch("error", ex);
-					if (config.autoRollback) 
-						undo(pos);
-				}
-			})(tasks[++position], position);
-		} else {
-			events.dispatch("complete");
-		}
-	}
-
-	/**
-	 * Undoes all the completed actions on failure.
-	 * @return {void}
-	 */
-	function undo(callerPosition) {
-		if (timer) 
-			clearTimeout(timer);
-
-		if (delay) 
-			clearTimeout(delay);
-		
-		// Such a call might come from within a task that has already been 
-		// "outdated" due to timeout
-		if (callerPosition !== undefined && callerPosition !== position) {
-			return;
-		}
-
-		if (position < 0) {
-			events.dispatch("rollback", lastError);
-		} else {
-			try {
-				var task = tasks[position--];
-				events.dispatch("before:undo", task, position + 1);
-				task.undo(
-					function(err) {
-						if (err) {
-							events.dispatch("progress", getProgress(), task, position + 1);
-							events.dispatch("after:undo", task, position + 1);
-							events.dispatch("error", err || "Task '" + task.name + "' failed to undo");
-							undo();
-						} else {
-							events.dispatch("progress", getProgress(), task, position + 1);
-							events.dispatch("after:undo", task, position + 1);
-							undo();
-						}
-					}
-				);
-			} catch (ex) {
-				events.dispatch("error", ex);
-				undo();
-			}
-		}
-	}
-
 	// Instance methods --------------------------------------------------------
 	
-	this.bind   = events.bind;
-	this.on     = events.on;
-	this.one    = events.one;
-	this.unbind = events.unbind;
-	this.off    = events.off;
-
+	
 	/**
 	 * Returns the length of the task queue
 	 * @return {Number}
@@ -430,15 +184,15 @@ function Transaction(options)
 	 */
 	this.start = function() 
 	{
-		//if (isEmpty()) 
+		//if (this.isEmpty()) 
 		//	throw new Error("The transaction has no tasks");
-		if (isComplete()) 
+		if (this.isComplete()) 
 			throw new Error("The transaction is already complete");
-		if (isStarted()) 
+		if (this.isStarted()) 
 			throw new Error("The transaction is already running");
 		
-		events.dispatch("start");
-		next();
+		this.dispatch("start");
+		this.next();
 	};
 
 	/**
@@ -448,62 +202,174 @@ function Transaction(options)
 	 * @method reset
 	 * @memberof Transaction.prototype
 	 */
-	this.reset = reset;
+	this.reset = function(silent) 
+	{
+		if (this.isStarted() && !this.isComplete()) 
+			throw new Error("Cannot reset a transacion while it is runing");
+		
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
+		
+		tasks.splice(0, length);
 
-	this.destroy = destroy;
+		length    = tasks.length;
+		position  = length - 1;
+		weight    = 0;
+		lastError = "";
+
+		if (!silent)
+			this.dispatch("reset");
+	};
+
+	this.destroy = function()
+	{
+		this.reset(true);
+		this.off();
+	};
 
 	/**
 	 * Appends new task to the transaction queue.
-	 * @param {Task} task The task to add
+	 * @param {Task|Transaction} task The task or sub-transaction to 
+	 * 		add to the queue
 	 * @throws {Error} If the transaction has already been started
 	 * @return {void}
-	 * @method add
-	 * @memberof Transaction.prototype
+	 * @todo Allow for adding Transaction objects to create nested transactions
 	 */
-	this.add = add;
+	this.add = function add(task) 
+	{
+		//if (this.isStarted()) 
+		//	throw "The transaction has already ran";
+
+		// Add nested transaction. In this case create new generic task that 
+		// wraps the entire nested transaction
+		if (task && task instanceof Transaction)
+		{
+			var tx = task;
+			
+			task = Transaction.createTask({
+				name : "Nested transaction",
+				execute : function(next) 
+				{
+					tx.on("complete", next);
+					tx.on("error", next);
+					tx.start();
+				},
+				undo : function(next) 
+				{
+					tx.on("rollback", function() {
+						var args = Array.prototype.slice.call(arguments);
+						args.unshift(null);
+						next.apply(tx, args);
+					});
+					tx.rollback();
+				}
+			});
+
+			tx.parentTransaction = this;
+
+			weight += tx.getWeight();
+		}
+		else
+		{
+			weight += task.weight || 1;
+			if (this.parentTransaction) {
+				this.parentTransaction.setWeight(
+					this.parentTransaction.getWeight() + (task.weight || 1)
+				);
+			}
+		}
+
+		task.transaction = this;
+		length = tasks.push(task);
+		task.name += " (at position " + length + ")";
+	};
 
 	/**
 	 * Undoes all the completed actions on failure.
 	 * @return {void}
-	 * @method rollback
-	 * @memberof Transaction.prototype
 	 */
-	this.rollback = undo;
+	this.rollback = function(callerPosition) {
+		if (timer) 
+			clearTimeout(timer);
+
+		if (delay) 
+			clearTimeout(delay);
+		
+		// Such a call might come from within a task that has already been 
+		// "outdated" due to timeout
+		if (callerPosition !== undefined && callerPosition !== position) {
+			return;
+		}
+
+		if (position < 0) {
+			this.dispatch("rollback", lastError);
+		} else {
+			try {
+				var task = tasks[position--], inst = this;
+				this.dispatch("before:undo", task, position + 1);
+				task.undo(
+					function(err) {
+						if (err) {
+							inst.dispatch("progress", inst.getProgress(), task, position + 1);
+							inst.dispatch("after:undo", task, position + 1);
+							inst.dispatch("error", err || "Task '" + task.name + "' failed to undo");
+							inst.rollback();
+						} else {
+							inst.dispatch("progress", inst.getProgress(), task, position + 1);
+							inst.dispatch("after:undo", task, position + 1);
+							inst.rollback();
+						}
+					}
+				);
+			} catch (ex) {
+				this.dispatch("error", ex);
+				this.rollback();
+			}
+		}
+	};
 
 	/**
 	 * Checks if the transaction has been started
 	 * @return {Boolean}
-	 * @method isStarted
-	 * @memberof Transaction.prototype
 	 */
-	this.isStarted = isStarted;
+	this.isStarted = function() 
+	{
+		return position > -1;
+	};
 
 	/**
 	 * Checks if the transaction is complete
 	 * @return {Boolean}
-	 * @method isComplete
-	 * @memberof Transaction.prototype
 	 */
-	this.isComplete = isComplete;
+	this.isComplete = function() 
+	{
+		return !this.isEmpty() && position === length - 1;
+	};
 	
 	/**
 	 * Checks if the transaction is empty
 	 * @return {Boolean}
-	 * @method isEmpty
-	 * @memberof Transaction.prototype
 	 */
-	this.isEmpty = isEmpty;
+	this.isEmpty = function() 
+	{
+		return length === 0;
+	};
 
 	/**
-	 * Calculates and returns the current position as a floating point 
-	 * number. This tipically represents ho many of the available tasks are 
-	 * complete, but can also be more complicated because each task can have 
-	 * it's own weight defined which affects this number.
+	 * Calculates and returns the current position as a floating point number.
+	 * This tipically represents ho many of the available tasks are complete,
+	 * but can also be more complicated because each task can have it's own 
+	 * weight defined which affects this number.
 	 * @return {Number}
-	 * @method getProgress
-	 * @memberof Transaction.prototype
 	 */
-	this.getProgress = getProgress;
+	this.getProgress = function() 
+	{
+		var cur = 0, i;
+		for (i = 0; i <= position; i++) {
+			cur += tasks[i].weight || 1;
+		}
+		return cur / weight;
+	};
 
 	/**
 	 * Set the value of the configuration option identified by name
@@ -528,7 +394,64 @@ function Transaction(options)
 		return config[name];
 	};
 
-	this.next = next;
+	/**
+	 * The function that attempts to invoke the next task in the queue
+	 */
+	this.next = function(callerPosition) 
+	{
+		// clear times if needed
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
+
+		// Such a call might come from within a task that has already been 
+		// "outdated" due to timeout
+		if (callerPosition !== undefined && callerPosition !== position) {
+			return;
+		}
+
+		if (!this.isComplete() && !this.isEmpty()) {
+			(function worker(task, pos, inst) {
+				var _timeout = "timeout" in task ? task.timeout : config.timeout;
+				
+				if ( _timeout > 0 ) {
+					timer = setTimeout(function() {
+						lastError = "Task '" + task.name + "' timed out!.";
+						inst.dispatch("error", lastError);
+						if (config.autoRollback) 
+							inst.rollback(pos);
+					}, _timeout + config.delay);
+				}
+
+				try {
+					inst.dispatch("before:task", task, pos);
+					task.execute(
+						
+						function(err) {
+							if (pos === position) {
+								if (err) {
+									lastError = err || "Task '" + task.name + "' failed.";
+									inst.dispatch("error", lastError);
+									if (config.autoRollback) inst.rollback(pos);
+								} else {
+									inst.dispatch("progress", inst.getProgress(), task, pos);
+									inst.dispatch("after:task", task, pos);
+									delay = setTimeout(function() {
+										inst.next();
+									}, config.delay);
+								}
+							}
+						}
+					);
+				} catch (ex) {
+					inst.dispatch("error", ex);
+					if (config.autoRollback) 
+						inst.rollback(pos);
+				}
+			})(tasks[++position], position, this);
+		} else {
+			this.dispatch("complete");
+		}
+	};
 }
 
 /**
