@@ -17,6 +17,7 @@ var JSDB_EXPORT_FOR_TESTING = true;
 <script type="text/javascript" src="/js/jssql.js"></script>
 
 <script src="tests/unit-tests-2.js"></script>
+<script src="tests/test.getQueries.js"></script>
 <script src="tests/Walker.js"></script>
 <script src="tests/Columns.js"></script>
 <script src="tests/TableRow.js"></script>
