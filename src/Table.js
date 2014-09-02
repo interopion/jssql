@@ -588,7 +588,7 @@ Table.prototype.drop = function(next)
 		rowIds.push(keyPrefix + "." + id);
 	
 	// Delete all the rows
-	table.storage.unsetMany(rowIds, function(err) {
+	table.getStorage().unsetMany(rowIds, function(err) {
 		if (err) 
 			return _next(err, table);
 		
@@ -707,7 +707,7 @@ Table.prototype.deleteRows = function(rows, next)
 	});
 
 	// Delete row from the storage
-	table.storage.unsetMany(keys, function(err) {
+	table.getStorage().unsetMany(keys, function(err) {
 
 		if (err)
 			return _next(err);
