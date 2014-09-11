@@ -210,12 +210,20 @@ function getTokens(sql, options)
 		level  = 0,
 		i      = 0;
 
+	options = options || {};
+
 	function openBlock() { 
 		level++; 
+		if (options.onBlockOpen) 
+			options.onBlockOpen(level);
 	}
+
 	function closeBlock() { 
 		level--; 
+		if (options.onBlockClose) 
+			options.onBlockClose(level);
 	}
+
 	function handleToken(tok)
 	{
 		tokens[i++] = tok;
@@ -224,10 +232,11 @@ function getTokens(sql, options)
 	tokenize(sql, handleToken, openBlock, closeBlock, options);
 
 	if (level > 0) {
-	//	throw new SyntaxError("Unclosed block");
+		throw new SyntaxError("Unclosed block");
 	}
+
 	if (level < 0) {
-	//	throw new SyntaxError("Extra closing block");
+		throw new SyntaxError("Extra closing block");
 	}
 
 	return tokens;
@@ -915,7 +924,7 @@ function executeInSandbox(options)
 {
 	var args         = [],
 		values       = [],
-		sandbox      = options.sandbox || {},
+		sandbox      = mixin(SQL_FUNCTIONS, options.sandbox),
 		translations = options.translations || {},
 		scope        = options.scope || {},
 		body         = options.code || '',
