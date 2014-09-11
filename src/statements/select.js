@@ -54,32 +54,40 @@ STATEMENTS.SELECT = function(walker) {
 			database : null, 
 			table    : null,
 			field    : null,
-			isExpr   : false
-		};
+			isExpr   : true
+		},
+		name  = identifier,
+		start = walker.current()[2],
+		end   = walker.current()[3];
 
-		var name = identifier;
-		if (options.allowAll) {
+		if (options.allowAll)
 			name += "|*";
-		}
-		if (options.allowIndexes) {
+
+		if (options.allowIndexes)
 			name += "|@" + TOKEN_TYPE_NUMBER;
-		}
 
-		if (options.includeAlias) {
+		if (options.includeAlias)
 			out.alias = null;
-		}
 
-		try {
-			walker.require(name);
+		do {
+			
+			// Field name
+			if (!walker.is(name)) break;
 			out.field = walker.get();
 			walker.forward();
+
+			// Field table
 			if (walker.is(".")) {
-				walker.forward().require(name);
+				walker.forward();
+				if (!walker.is(name)) break;
 				out.table = out.field;
 				out.field = walker.get();
 				walker.forward();
+
+				// Field database
 				if (options.includeDB && walker.is(".")) {
-					walker.forward().require(name);
+					walker.forward();
+					if (!walker.is(name)) break;
 					out.database = out.table;
 					out.table    = out.field;
 					out.field    = walker.get();
@@ -108,18 +116,22 @@ STATEMENTS.SELECT = function(walker) {
 			} else if (isNumeric(out.database)) {
 				throw new SQLParseError('You cannot use number as database name');
 			}
-		} catch(e) {
-			
-			var start = walker.current()[2],
-				end   = walker.current()[3];
 
-			walker.nextUntil(",|AS|FROM|WHERE|GROUP|ORDER|LIMIT|OFFSET|;", function(tok) {
-				end = tok[3];
-			});
+			out.isExpr = false;
 
-			out.field = walker._input.substring(start, end);
+		} while (0);
+
+		// so far the input might appear like a field refference but we can't be
+		// sure yet!
+		walker.nextUntil(",|AS|FROM|WHERE|GROUP|ORDER|LIMIT|OFFSET|;", function(tok) {
+			end = tok[3];
 			out.isExpr = true;
-		}
+		});
+
+		if (out.isExpr)
+			out.field = walker._input.substring(start, end);
+
+		//console.dir(out);
 
 		// now check for an alias or just continue
 		if (options.includeAlias) {
@@ -417,6 +429,7 @@ STATEMENTS.SELECT = function(walker) {
 	 */
 	function execute(query)
 	{//debugger;
+		//console.dir(query.fields);
 		var ENV          = getEnvironment(),
 			rows         = [],
 			cols         = [],
