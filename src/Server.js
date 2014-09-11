@@ -680,11 +680,15 @@ var Server = Persistable.extend({
 	},
 
 	query : function(sql, callback) {
-		var 
+		var queries, len;
 
 		// First we need to split the SQL into queries because the behavior is
 		// very different for single vs multiple queries
-		queries = sql instanceof QueryList ? sql : getQueries(sql),
+		try {
+			queries = sql instanceof QueryList ? sql : getQueries(sql);
+		} catch (err) {
+			return callback(err, null, -1, 0);
+		}
 
 		// The number of SQL queries
 		len = queries.length;
