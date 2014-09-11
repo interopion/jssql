@@ -1,90 +1,13 @@
-/**
- * Simple wrapper for query lists. Its an array but its instanceof QueryList
- * so it is useful for argument polymorphism... For example the 
- * normalizeQueryList can work with strings and arrays but if the input array is
- * a QueryList, then it is considered complete and not processed...
- */
-function QueryList() {}
-QueryList.prototype = [];
 
-/**
- * Parses the string and returns a list of queries
- */
-function getQueries(sql)
-{
-	sql = normalizeQueryList(sql);
-
-	var queries = new QueryList(),
-		tokens  = getTokens(sql, {
-			skipComments : true,
-			skipSpace    : true,
-			skipEol      : true,
-			skipStrQuots : true
-		}),
-		walker = new Walker(tokens, sql),
-		start, end, tokLen = tokens.length, offset = 0, q, tok;
-
-	function onToken(tok) {
-		tok[2] += offset;
-		tok[3] += offset;
-		end = tok[3];
-		q.tokens.push(tok);
-	}
-
-	while (walker._pos < tokLen - 1) {
-		
-		q = { sql : "", tokens : [] };
-
-		// Set both markers to the start of the first token
-		start = end = walker.current()[2];
-
-		walker.nextUntil(";", onToken);
-
-		// If the ";" is missing at the end of the last query consider it 
-		// incomplete and abort the procedure
-		if (!walker.is(";"))
-			break;
-
-		tok = walker.current();
-		tok[2] += offset;
-		end = tok[3];
-		tok[3] += offset;
-		q.tokens.push(tok);
-		q.sql = sql.substring(start, end);
-		if (q.sql && q.sql != ";")
-			queries.push(q);
-		offset = -end-1;
-
-		if ( !walker.next() )
-			break;
-	}
-
-	return queries;
-}
-
-/**
- * Converts the input to normalized SQL string. Appends missing semicolons at 
- * the end, trims, joins multiple queries etc. 
- * @param {String|Array} Can also be an array with nested arrays in which case
- * it will be recursive and produce a flat query list string
- * @return {Array}
- */
-function normalizeQueryList(input) {
-	return isArray(input) ? 
-			input instanceof QueryList ?
-				input : 
-				input.map(normalizeQueryList).join("").trim() : 
-			String(input).trim().replace(/(.*?);*?$/, "$1;");
-}
 
 /**
  * Executes the given SQL query and invokes the callback function which has the
  * "error-first" signature "function(error, result, queryIndex)".
  * @param {String} sql The SQL query (or multiple queries as string or as array)
- */
+ *//*
 function query2(sql, callback) 
 {
-	query(sql, function(result, idx) {
+	query(SERVER, sql, function(result, idx) {
 		callback(null, result, idx);
 	}, function(err, idx) {
 		var error = err && err instanceof Error ?
@@ -94,7 +17,7 @@ function query2(sql, callback)
 	});
 }
 
-function query(sql, onSuccess, onError) 
+function query(SERVER, sql, onSuccess, onError) 
 {
 	var 
 
@@ -316,5 +239,5 @@ function query(sql, onSuccess, onError)
 	} else {
 		onSuccess(new Result("No queries executed"));
 	}
-}
+}*/
 

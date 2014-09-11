@@ -1,11 +1,11 @@
 {
   "name": "socket_server",
   "version": "0.0.0",
-  "description": "",
+  "description": "For socket.io debugging use DEBUG=socket.io* node server.js",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "DEBUG=socket.io* node server.js"
+    "start": "node server.js"
   },
   "author": "",
   "license": "ISC",

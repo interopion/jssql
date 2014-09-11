@@ -1,8 +1,9 @@
 GLOBAL[NS] = JSDB;
+GLOBAL.jsSQL = jsSQL;
 
-JSDB.query  = query;
+//JSDB.query  = query;
 JSDB.Result = Result;
-JSDB.query2 = query2;
+//JSDB.query2 = query2;
 
 if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 	mixin(GLOBAL.JSDB, {
@@ -32,7 +33,7 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		//parse            : parse,
 		Table              : Table,
 		TableIndex         : TableIndex,
-		SERVER             : SERVER,
+		//SERVER             : SERVER,
 		Column             : Column,
 		TableRow           : TableRow,
 		//TableCell        : TableCell,
@@ -44,12 +45,17 @@ if ( GLOBAL.JSDB_EXPORT_FOR_TESTING ) {
 		crossJoin2         : crossJoin2,
 		executeCondition   : executeCondition,
 		Transaction        : Transaction,
-		Storage            : Storage,
-		LocalStorage       : LocalStorage,
+		//Storage            : Storage,
+		//LocalStorage       : LocalStorage,
 
 		SQLConstraintError : SQLConstraintError,
 		SQLRuntimeError    : SQLRuntimeError,
-		SQLParseError      : SQLParseError
+		SQLParseError      : SQLParseError,
+
+		parseDate    : parseDate,
+		strftime     : strftime,
+		parseISO8601 : parseISO8601,
+		prependZero  : prependZero
 
 	});
 }

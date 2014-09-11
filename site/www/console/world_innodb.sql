@@ -14,7 +14,7 @@
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
+-- begin;
 --
 -- Table structure for table `City`
 --
@@ -58,4 +58,85 @@ INSERT INTO `City` VALUES (16,'Haarlem','NLD','Noord-Holland',148772);
 INSERT INTO `City` VALUES (17,'Almere','NLD','Flevoland',142465);
 
 
---SELECT a from f; -- intentional error
+CREATE TABLE "Dates" (
+  `Date`        DATE          NULL,
+  "DateTime"    DATETIME('%Y/%m/%d %H:%M:%f') NULL,
+  "Time"        TIME          NULL,
+  "Timestamp4"  TIMESTAMP(4)  NULL,
+  "Timestamp6"  TIMESTAMP(6)  NULL,
+  "Timestamp8"  TIMESTAMP(8)  NULL,
+  "Timestamp10" TIMESTAMP(10) NULL,
+  "Timestamp12" TIMESTAMP(12) NULL,
+  "Timestamp14" TIMESTAMP(14) NULL,
+  "Timestamp"   TIMESTAMP     NULL,
+  "Year"        YEAR          NULL
+);
+
+INSERT INTO `Dates` VALUES (
+	143856643067, 
+	143856643067,
+	143856643067,
+	143856643067,
+	143856643067,
+	143856643067,
+	143856643067,
+	143856643067,
+	143856643067,
+	143856643067,
+	143856643067
+);
+INSERT INTO `Dates` VALUES (
+	'Wed Jul 24 1974 02:10:43.067', -- invalid format
+	'1974-24-07T02:10:43.067',      -- ISO-8601
+	'Wed Jul 24 1974 02:10:43',     -- rfc2822
+	'Wed Jul 24 1974 02:10:43',
+	'Wed Jul 24 1974 02:10:43',
+	'Wed Jul 24 1974 02:10:43',
+	'Wed Jul 24 1974 02:10:43',
+	'Wed Jul 24 1974 02:10:43',
+	'Wed Jul 24 1974 02:10:43',
+	'Wed Jul 24 1974 02:10:43',
+	'Wed Jul 24 1974 02:10:43'
+);
+INSERT INTO `Dates` VALUES (
+	'1974-07-24 02:10:43.067',  -- ISO-8601
+	'1974-07-24 02:10:43.067',
+	'1974-07-24 02:10:43.067',
+	'1974-07-24 02:10:43.067',
+	'1974-07-24 02:10:43.067',
+	'1974-07-24 02:10:43.067',
+	'1974-07-24 02:10:43.067',
+	'1974-07-24 02:10:43.067',
+	'1974-07-24 02:10:43.067',
+	'1974-07-24 02:10:43.067',
+	'1974-07-24 02:10:43.067'
+);
+INSERT INTO `Dates` VALUES (
+	'NOW', 
+	'NOW',
+	'NOW',
+	'NOW',
+	'NOW',
+	'NOW',
+	'NOW',
+	'NOW',
+	'NOW',
+	'NOW',
+	'NOW'
+);
+
+INSERT INTO `Dates` VALUES (
+	NULL, 
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL
+);
+
+-- commit;

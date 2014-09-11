@@ -25,10 +25,11 @@ function Observer() {
 		if (handler === false)
 			handler = returnFalse;
 
-		if (!listeners[eType])
-			listeners[eType] = [];
+		var c = listeners[eType];
+		if (!c)
+			c = listeners[eType] = [];
 		
-		listeners[eType].push(handler);
+		c.push(handler);
 		return handler;
 	};
 
@@ -43,15 +44,12 @@ function Observer() {
 	this.one = function(eType, handler) 
 	{
 		if (handler === false)
-			handler = returnFalse;
+			handler = function() {
+				return false;
+			};
 
-		var inst = this, fn = function() {
-			var out = handler.apply(inst, arguments);
-			inst.unbind(eType, fn);
-			return out;
-		};
-
-		return inst.bind(eType, fn);
+		handler.__one_time_listener__ = true;
+		return this.bind(eType, handler);
 	};
 
 	/**
@@ -68,9 +66,6 @@ function Observer() {
 	 */
 	this.unbind = function(eType, handler) 
 	{
-		if (handler === false)
-			handler = returnFalse;
-
 		if (!eType) {
 			listeners = {};
 		} else if (!handler) {
@@ -79,25 +74,33 @@ function Observer() {
 			var a = listeners[eType] || [], l = a.length;
 			while (l--) {
 				if (a[l] === handler) {
-					listeners[eType].splice(l, 1);
+					a.splice(l, 1);
 				}
 			}
 		}
-
+		
 		return this;
 	};
 
 	this.dispatch = function(e) 
 	{
 		var handlers = listeners[e] || [], 
-			l        = handlers.length, 
 			canceled = false,
 			args     = Array.prototype.slice.call(arguments, 0),
+			len      = handlers.length,
 			bubbleTarget,
-			i;
+			i, fn, out;
 
-		for (i = 0; i < l; i++) {
-			if (handlers[i].apply(this, args) === false) {
+		for (i = 0; i < len; i++) {
+			fn  = handlers[i]; 
+			out = fn.apply(this, args);
+
+			if (fn.__one_time_listener__) {
+				handlers.splice(i--, 1);
+				len--;
+			}
+
+			if (out === false) {
 				canceled = true; 
 				break;
 			}
@@ -106,21 +109,19 @@ function Observer() {
 		// Event bubbling
 		if (!canceled) {
 			bubbleTarget = this.bubbleTarget;
-			if (bubbleTarget && e != "*")
-				canceled = bubbleTarget.dispatch.apply(bubbleTarget, args);
+			if (bubbleTarget)
+				canceled = bubbleTarget.dispatch.apply(bubbleTarget, args) === false;
 		}
-
-		if (!bubbleTarget && e != "*") {
-			args.unshift("*");
-			this.dispatch.apply(this, args);
-		}
-
+		
 		return !canceled;
 	};
 
 	// some aliases
-	this.on  = this.bind;
-	this.off = this.unbind;
+	this.on      = this.bind;
+	this.off     = this.unbind;
+	this.once    = this.one;
+	this.emit    = this.dispatch;
+	this.trigger = this.dispatch;
 }
 
-var events = new Observer();
+//var events = new Observer();

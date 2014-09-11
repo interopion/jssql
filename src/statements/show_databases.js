@@ -12,7 +12,7 @@ STATEMENTS.SHOW_DATABASES = function(walker) {
 			walker.errorUntil(";").commit(function() {
 				next(null, {
 					cols : ["Databases"],
-					rows : keys(SERVER.databases).map(makeArray)
+					rows : keys(walker.server.databases).map(makeArray)
 				});
 			});
 		},

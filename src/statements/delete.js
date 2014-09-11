@@ -28,6 +28,7 @@ STATEMENTS.DELETE = function(walker) {
 		name : "Delete Query",
 		execute : function(next)
 		{
+			//console.log(walker._input);
 			var tableName, dbName, start = 0, end = 0, where = "";
 
 			/**
@@ -79,7 +80,7 @@ STATEMENTS.DELETE = function(walker) {
 				start = walker.current()[2];
 				end   = start;
 				walker.nextUntil(";");
-				end   = walker.current()[2];
+				end   = walker.current()[3];
 				where = walker._input.substring(start, end);
 			}
 			else 
@@ -90,8 +91,8 @@ STATEMENTS.DELETE = function(walker) {
 			walker.commit(function() {
 
 				var db = dbName ?
-						SERVER.getDatabase(dbName) :
-						SERVER.getCurrentDatabase(),
+						walker.server.getDatabase(dbName) :
+						walker.server.getCurrentDatabase(),
 					table,
 					rows,
 					rowIds = [],
@@ -118,13 +119,14 @@ STATEMENTS.DELETE = function(walker) {
 				//	"where    : ", where, "\n",
 				//	"rows     : ", rows
 				//);
-
-				each(rows, function(row, rowId, allRows) {
-					if ( !where || executeCondition( where, row.toJSON(true) ) )
+				
+				each(rows, function(row, rowId, allRows) {//console.log(where, row.toJSON(true));
+					if ( !where || executeCondition( where, row.toJSON("mixed") ) )
 					{
 						len = rowIds.push(row);
 					}
 				});
+				//console.log(2, rowIds, rows);
 
 				if ( len ) 
 				{
@@ -139,7 +141,7 @@ STATEMENTS.DELETE = function(walker) {
 			});
 		},
 		undo : function(next) {
-			if (CFG.debug)
+			if (walker.server.options.debug)
 				console.warn("undo not implemented for DELETE queries!");
 			next();
 		}

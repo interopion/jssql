@@ -4,10 +4,9 @@ module.exports = function(grunt) {
 		'src/constants.js',
 		'src/utils.js',
 		'src/errors.js',
-		'src/events.js',
+		'src/Observer.js',
 		'src/tokenizer.js',
 		'src/Walker.js',
-		//'src/BinaryTree.js',
 		'src/Transaction.js',
 		'src/statements/conflict-clause.js',
 		'src/statements/indexed-column.js',
@@ -27,25 +26,20 @@ module.exports = function(grunt) {
 		'src/statements/commit.js',
 		'src/statements/rollback.js',
 		'src/statements/source.js',
-		'src/parser.js',
 		'src/storage/StorageBase.js',
 		'src/storage/LocalStorage.js',
-		'src/storage/MemoryStorage.js',
-		'src/storage/FileSystemStorage.js',
-		'src/storage/SocketIOStorage.js',
+		//'src/storage/MemoryStorage.js',
+		//'src/storage/FileSystemStorage.js',
+		//'src/storage/SocketIOStorage.js',
 		'src/Persistable.js',
 		'src/Server.js',
 		'src/Database.js',
 		'src/Table.js',
 		'src/Column.js',
 		'src/TableRow.js',
-		//'src/TableCell.js',
 		'src/TableIndex.js',
-		'src/query.js',
 		'src/export.js',
-		'src/Result.js',
-		'src/facade.js',
-		'src/init.js'
+		'src/Result.js'
 	];
 
 	// Project configuration.
@@ -72,7 +66,7 @@ module.exports = function(grunt) {
 				banner       : '/**\n' + 
 							   ' * jsSQL version <%= pkg.version %>\n' + 
 							   ' */\n' + 
-							   '(function(GLOBAL,undefined){\n"use strict";\n',
+							   '(function(GLOBAL, undefined) {\n"use strict";\n',
 				footer       : "\njsSQL.version = '<%= pkg.version %>';\n})(window);\n",
 				stripBanners : false,
 				process      : function(src, filepath) {

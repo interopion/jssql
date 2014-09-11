@@ -12,7 +12,7 @@ STATEMENTS.CREATE_DATABASE = function(walker) {
 
 	function undo(next) {
 		if (dbName) {
-			SERVER.dropDatabase(dbName, true, next);
+			walker.server.dropDatabase(dbName, true, next);
 		} else {
 			next();
 		}
@@ -21,24 +21,24 @@ STATEMENTS.CREATE_DATABASE = function(walker) {
 	return new Task({
 		name : "Create Database",
 		execute : function(next) {
-			var q = new CreateDatabaseQuery();
-
+			var ifNotExists = false, name = "";
+			
 			// Make sure to reset this in case it stores something from 
 			// previous query
 			dbName = null;
 
 			walker
 			.optional("IF NOT EXISTS", function() {
-				q.ifNotExists(true);
+				ifNotExists = true;
 			})
 			.someType(WORD_OR_STRING, function(token) {
-				q.name(token[0]);
+				name = token[0];
 			})
 			.nextUntil(";")
 			.commit(function() {
-				dbName = q.name();
-				q.execute(function(err) {
-					next(err, err ? null : 'Database "' + q.name() + '" created.');
+				dbName = name;
+				walker.server.createDatabase(name, ifNotExists, function(err) {
+					next(err, err ? null : 'Database "' + name + '" created.');
 				});
 			});
 		},

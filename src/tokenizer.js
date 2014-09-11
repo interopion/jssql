@@ -13,7 +13,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 		start = 0,
 		i     = 0,
 		cfg   = options || {},
-		token, cur, next, inStream;
+		token, cur, next, inStream, tmp;
 
 	var SKIP_SPACE     = !!cfg.skipSpace;
 	var SKIP_EOL       = !!cfg.skipEol;
@@ -235,6 +235,10 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 						state = TOKEN_TYPE_PUNCTOATOR;
 						commit();
 						state = TOKEN_TYPE_SINGLE_QUOTE_STRING;
+						
+						while (sql[pos] && sql[pos] != "'" && sql[pos+1] != "'") {
+							buf += sql[pos++];
+						}
 					}
 				}
 			break;
@@ -278,6 +282,10 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 						state = TOKEN_TYPE_PUNCTOATOR;
 						commit();
 						state = TOKEN_TYPE_DOUBLE_QUOTE_STRING;
+
+						while (sql[pos] && sql[pos] != '"' && sql[pos+1] != '"') {
+							buf += sql[pos++];
+						}
 					}
 				}
 			break;
@@ -321,6 +329,10 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 						state = TOKEN_TYPE_PUNCTOATOR;
 						commit();
 						state = TOKEN_TYPE_BACK_TICK_STRING;
+
+						while (sql[pos] && sql[pos] != '`' && sql[pos+1] != '`') {
+							buf += sql[pos++];
+						}
 					}
 				}
 			break;

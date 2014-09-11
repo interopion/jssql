@@ -89,14 +89,9 @@ function Transaction(options)
 		timeout      : 1000, // For any single task
 		delay        : 0,
 		name         : "Anonymous transaction",
-		autoRollback : true
+		autoRollback : true,
+		debug        : false
 	}, options),
-
-	/**
-	 * Local reference to the instance
-	 * @type {Transaction}
-	 */
-	inst = this,
 
 	/**
 	 * The task queue
@@ -124,13 +119,13 @@ function Transaction(options)
 	 * The timeout that executes the current task
 	 * @private
 	 */
-	timer = null,
+	timer = 0,
 	
 	/**
 	 * The delay timeout
 	 * @private
 	 */
-	delay = null,
+	delay = 0,
 
 	/**
 	 * The total weight of the transaction. This is computed as the sum of the
@@ -146,26 +141,21 @@ function Transaction(options)
 	 * @type {String}
 	 * @private
 	 */
-	lastError = "",
+	lastError = "";
 
-	/**
-	 * The transaction observer
-	 * @type {Object}
-	 * @private
-	 */
-	events = new Observer();
+	Observer.call(this);
 
-	if (CFG.debug) {
-		events.on("error", function(e, err) {
+	if (config.debug) {
+		this.on("error", function(e, err) {
 			console.error(err);
 		});
-		events.on("before:task", function(e, task, pos) {
+		this.on("before:task", function(e, task, pos) {
 			console.info("Starting task ", config.name, "->", task.name);
 		});
-		//events.on("after:task", function(e, task, pos) {
+		//this.on("after:task", function(e, task, pos) {
 		//	console.info(e, "(" + pos + ")", config.name, "->", task.name);
 		//});
-		events.on("complete", function(e) {
+		this.one("complete", function(e) {
 			console.info('Transaction complete "%s"', config.name);
 		});
 	}
@@ -183,249 +173,14 @@ function Transaction(options)
 
 	for (var handler in eventMap) {
 		if (isFunction(config[handler])) {
-			events.on(eventMap[handler], config[handler]);
+			this.on(eventMap[handler], config[handler]);
 		}
 	}
 
-	function destroy()
-	{
-		reset(true);
-		events.off();
-	}
-
-	/**
-	 * Resets the transaction
-	 * @throws {Error} if the transaction is currently running
-	 * @return {void}
-	 */
-	function reset(silent) 
-	{
-		if (isStarted() && !isComplete()) 
-			throw new Error("Cannot reset a transacion while it is runing");
-		
-		if (timer) clearTimeout(timer);
-		if (delay) clearTimeout(delay);
-		
-		tasks     = [];
-		length    = 0;
-		position  = -1;
-		timer     = null;
-		weight    = 0;
-		lastError = "";
-
-		if (!silent)
-			events.dispatch("reset");
-	}
-
-	/**
-	 * Calculates and returns the current position as a floating point number.
-	 * This tipically represents ho many of the available tasks are complete,
-	 * but can also be more complicated because each task can have it's own 
-	 * weight defined which affects this number.
-	 * @return {Number}
-	 */
-	function getProgress() 
-	{
-		var cur = 0, i;
-		for (i = 0; i &lt;= position; i++) {
-			cur += tasks[i].weight || 1;
-		}
-		return cur / weight;
-	}
-
-	/**
-	 * Checks if the transaction has been started
-	 * @return {Boolean}
-	 */
-	function isStarted() 
-	{
-		return position > -1;
-	}
-
-	/**
-	 * Checks if the transaction is empty
-	 * @return {Boolean}
-	 */
-	function isEmpty() 
-	{
-		return length === 0;
-	}
-
-	/**
-	 * Checks if the transaction is complete
-	 * @return {Boolean}
-	 */
-	function isComplete() 
-	{
-		return !isEmpty() && position === length - 1;
-	}
 	
-	/**
-	 * Appends new task to the transaction queue.
-	 * @param {Task|Transaction} task The task or sub-transaction to 
-	 * 		add to the queue
-	 * @throws {Error} If the transaction has already been started
-	 * @return {void}
-	 * @todo Allow for adding Transaction objects to create nested transactions
-	 */
-	function add(task) 
-	{
-		//if (isStarted()) 
-		//	throw "The transaction has already ran";
-
-		// Add nested transaction. In this case create new generic task that 
-		// wraps the entire nested transaction
-		if (task && task instanceof Transaction)
-		{
-			var tx = task;
-			
-			task = Transaction.createTask({
-				name : "Nested transaction",
-				execute : function(next) 
-				{
-					tx.on("complete", next);
-					tx.on("error", next);
-					tx.start();
-				},
-				undo : function(next) 
-				{
-					tx.on("rollback", function() {
-						var args = Array.prototype.slice.call(arguments);
-						args.unshift(null);
-						next.apply(tx, args);
-					});
-					tx.rollback();
-				}
-			});
-
-			tx.parentTransaction = inst;
-
-			weight += tx.getWeight();
-		}
-		else
-		{
-			weight += task.weight || 1;
-			if (inst.parentTransaction) {
-				inst.parentTransaction.setWeight(
-					inst.parentTransaction.getWeight() + (task.weight || 1)
-				);
-			}
-		}
-
-		task.transaction = inst;
-		length = tasks.push(task);
-		task.name += " (at position " + length + ")";
-	}
-
-	/**
-	 * The function that attempts to invoke the next task in the queue
-	 */
-	function next(callerPosition) 
-	{
-		// clear times if needed
-		if (timer) clearTimeout(timer);
-		if (delay) clearTimeout(delay);
-
-		// Such a call might come from within a task that has already been 
-		// "outdated" due to timeout
-		if (callerPosition !== undefined && callerPosition !== position) {
-			return;
-		}
-
-		if (!isComplete() && !isEmpty()) {
-			(function worker(task, pos) {
-				var _timeout = "timeout" in task ? task.timeout : config.timeout;
-				
-				if ( _timeout > 0 ) {
-					timer = setTimeout(function() {
-						lastError = "Task '" + task.name + "' timed out!.";
-						events.dispatch("error", lastError);
-						if (config.autoRollback) 
-							undo(pos);
-					}, _timeout + config.delay);
-				}
-
-				try {
-					events.dispatch("before:task", task, pos);
-					task.execute(
-						
-						function(err) {
-							if (pos === position) {
-								if (err) {
-									lastError = err || "Task '" + task.name + "' failed.";
-									events.dispatch("error", lastError);
-									if (config.autoRollback) undo(pos);
-								} else {
-									events.dispatch("progress", getProgress(), task, pos);
-									events.dispatch("after:task", task, pos);
-									delay = setTimeout(next, config.delay);
-								}
-							}
-						}
-					);
-				} catch (ex) {
-					events.dispatch("error", ex);
-					if (config.autoRollback) 
-						undo(pos);
-				}
-			})(tasks[++position], position);
-		} else {
-			events.dispatch("complete");
-		}
-	}
-
-	/**
-	 * Undoes all the completed actions on failure.
-	 * @return {void}
-	 */
-	function undo(callerPosition) {
-		if (timer) 
-			clearTimeout(timer);
-
-		if (delay) 
-			clearTimeout(delay);
-		
-		// Such a call might come from within a task that has already been 
-		// "outdated" due to timeout
-		if (callerPosition !== undefined && callerPosition !== position) {
-			return;
-		}
-
-		if (position &lt; 0) {
-			events.dispatch("rollback", lastError);
-		} else {
-			try {
-				var task = tasks[position--];
-				events.dispatch("before:undo", task, position + 1);
-				task.undo(
-					function(err) {
-						if (err) {
-							events.dispatch("progress", getProgress(), task, position + 1);
-							events.dispatch("after:undo", task, position + 1);
-							events.dispatch("error", err || "Task '" + task.name + "' failed to undo");
-							undo();
-						} else {
-							events.dispatch("progress", getProgress(), task, position + 1);
-							events.dispatch("after:undo", task, position + 1);
-							undo();
-						}
-					}
-				);
-			} catch (ex) {
-				events.dispatch("error", ex);
-				undo();
-			}
-		}
-	}
-
 	// Instance methods --------------------------------------------------------
 	
-	this.bind   = events.bind;
-	this.on     = events.on;
-	this.one    = events.one;
-	this.unbind = events.unbind;
-	this.off    = events.off;
-
+	
 	/**
 	 * Returns the length of the task queue
 	 * @return {Number}
@@ -457,15 +212,15 @@ function Transaction(options)
 	 */
 	this.start = function() 
 	{
-		//if (isEmpty()) 
+		//if (this.isEmpty()) 
 		//	throw new Error("The transaction has no tasks");
-		if (isComplete()) 
+		if (this.isComplete()) 
 			throw new Error("The transaction is already complete");
-		if (isStarted()) 
+		if (this.isStarted()) 
 			throw new Error("The transaction is already running");
 		
-		events.dispatch("start");
-		next();
+		this.emit("start");
+		this.next();
 	};
 
 	/**
@@ -475,62 +230,169 @@ function Transaction(options)
 	 * @method reset
 	 * @memberof Transaction.prototype
 	 */
-	this.reset = reset;
+	this.reset = function(silent) 
+	{
+		if (this.isStarted() && !this.isComplete()) 
+			throw new Error("Cannot reset a transacion while it is runing");
+		
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
+		
+		tasks.splice(0, length);
 
-	this.destroy = destroy;
+		length    = tasks.length;
+		position  = length - 1;
+		weight    = 0;
+		lastError = "";
+
+		if (!silent)
+			this.emit("reset");
+	};
+
+	this.destroy = function()
+	{
+		this.reset(true);
+		this.off();
+	};
 
 	/**
 	 * Appends new task to the transaction queue.
-	 * @param {Task} task The task to add
+	 * @param {Task|Transaction} task The task or sub-transaction to 
+	 * 		add to the queue
 	 * @throws {Error} If the transaction has already been started
 	 * @return {void}
-	 * @method add
-	 * @memberof Transaction.prototype
+	 * @todo Allow for adding Transaction objects to create nested transactions
 	 */
-	this.add = add;
+	this.add = function add(task) 
+	{
+		//if (this.isStarted()) 
+		//	throw "The transaction has already ran";
+
+		// Add nested transaction. In this case create new generic task that 
+		// wraps the entire nested transaction
+		if (task && task instanceof Transaction)
+		{
+			var tx = task;
+			
+			task = Transaction.createTask({
+				name : "Nested transaction",
+				execute : function(next) 
+				{
+					tx.on("complete", next);
+					tx.on("error", next);
+					tx.start();
+				},
+				undo : function(next) 
+				{
+					tx.on("rollback", function() {
+						var args = Array.prototype.slice.call(arguments);
+						args.unshift(null);
+						next.apply(tx, args);
+					});
+					tx.rollback();
+				}
+			});
+
+			tx.parentTransaction = this;
+
+			weight += tx.getWeight();
+		}
+		else
+		{
+			weight += task.weight || 1;
+			if (this.parentTransaction) {
+				this.parentTransaction.setWeight(
+					this.parentTransaction.getWeight() + (task.weight || 1)
+				);
+			}
+		}
+
+		task.transaction = this;
+		length = tasks.push(task);
+		task.name += " (at position " + length + ")";
+	};
 
 	/**
 	 * Undoes all the completed actions on failure.
 	 * @return {void}
-	 * @method rollback
-	 * @memberof Transaction.prototype
 	 */
-	this.rollback = undo;
+	this.rollback = function(callerPosition) {
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
+		
+		// Such a call might come from within a task that has already been 
+		// "outdated" due to timeout
+		if (callerPosition !== undefined && callerPosition !== position) {
+			return;
+		}
+
+		if (position &lt; 0) {
+			this.emit("rollback", lastError);
+			return;
+		}
+
+		var task = tasks[position--], inst = this;
+		function onTaskUndo(err) {
+			inst.emit("progress", inst.getProgress(), task, position + 1);
+			inst.emit("after:undo", task, position + 1);
+			if (err) {
+				inst.emit("error", err || "Task '" + task.name + "' failed to undo");
+			}
+			inst.rollback();
+		}
+
+		this.emit("before:undo", task, position + 1);
+
+		try {
+			task.undo(onTaskUndo);
+		} catch (ex) {
+			this.emit("error", ex);
+			this.rollback();
+		}
+	};
 
 	/**
 	 * Checks if the transaction has been started
 	 * @return {Boolean}
-	 * @method isStarted
-	 * @memberof Transaction.prototype
 	 */
-	this.isStarted = isStarted;
+	this.isStarted = function() 
+	{
+		return position > -1;
+	};
 
 	/**
 	 * Checks if the transaction is complete
 	 * @return {Boolean}
-	 * @method isComplete
-	 * @memberof Transaction.prototype
 	 */
-	this.isComplete = isComplete;
+	this.isComplete = function() 
+	{
+		return !this.isEmpty() && position === length - 1;
+	};
 	
 	/**
 	 * Checks if the transaction is empty
 	 * @return {Boolean}
-	 * @method isEmpty
-	 * @memberof Transaction.prototype
 	 */
-	this.isEmpty = isEmpty;
+	this.isEmpty = function() 
+	{
+		return length === 0;
+	};
 
 	/**
-	 * Calculates and returns the current position as a floating point 
-	 * number. This tipically represents ho many of the available tasks are 
-	 * complete, but can also be more complicated because each task can have 
-	 * it's own weight defined which affects this number.
+	 * Calculates and returns the current position as a floating point number.
+	 * This tipically represents ho many of the available tasks are complete,
+	 * but can also be more complicated because each task can have it's own 
+	 * weight defined which affects this number.
 	 * @return {Number}
-	 * @method getProgress
-	 * @memberof Transaction.prototype
 	 */
-	this.getProgress = getProgress;
+	this.getProgress = function() 
+	{
+		var cur = 0, i;
+		for (i = 0; i &lt;= position; i++) {
+			cur += tasks[i].weight || 1;
+		}
+		return cur / weight;
+	};
 
 	/**
 	 * Set the value of the configuration option identified by name
@@ -555,7 +417,70 @@ function Transaction(options)
 		return config[name];
 	};
 
-	this.next = next;
+	/**
+	 * The function that attempts to invoke the next task in the queue
+	 */
+	this.next = function(callerPosition) 
+	{
+		// clear times if needed
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
+
+		// Such a call might come from within a task that has already been 
+		// "outdated" due to timeout
+		if (callerPosition !== undefined && callerPosition !== position) {
+			return;
+		}
+
+		if (!this.isComplete() && !this.isEmpty()) {
+			(function worker(task, pos, inst) {
+				var _timeout = "timeout" in task ? task.timeout : config.timeout;
+				
+				if ( _timeout > 0 ) {
+					timer = setTimeout(function() {
+						lastError = "Task '" + task.name + "' timed out!.";
+						inst.emit("error", lastError);
+						if (config.autoRollback) 
+							inst.rollback(pos);
+					}, _timeout + config.delay);
+				}
+
+				function onTaskFinsh(err) {
+					if (pos === position) {
+						if (err) {
+							lastError = err || "Task '" + task.name + "' failed.";
+							inst.emit("error", lastError);
+							if (config.autoRollback) inst.rollback(pos);
+						} else {
+							inst.emit("progress", inst.getProgress(), task, pos);
+							inst.emit("after:task", task, pos);
+
+							if (config.delay) {
+								delay = setTimeout(function() {
+									inst.next();
+								}, config.delay);
+							} else {
+								nextTick(function() {
+									inst.next();
+								});
+							}
+						}
+					}
+				}
+
+				inst.emit("before:task", task, pos);
+				try {
+					task.execute(onTaskFinsh);
+				} catch (ex) {
+					inst.emit("error", ex);
+					if (config.autoRollback) 
+						inst.rollback(pos);
+				}
+			})(tasks[++position], position, this);
+		} else {
+			this.emit("complete");
+		}
+	};
 }
 
 /**
@@ -638,13 +563,13 @@ Task.prototype = {
 </div>
 
 <nav>
-    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="construct.html">construct</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_insertRow">_insertRow</a></li><li><a href="global.html#addConstraint">addConstraint</a></li><li><a href="global.html#beginTransaction">beginTransaction</a></li><li><a href="global.html#bind">bind</a></li><li><a href="global.html#columnDataTypes">columnDataTypes</a></li><li><a href="global.html#create">create</a></li><li><a href="global.html#createDatabase">createDatabase</a></li><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#createTable">createTable</a></li><li><a href="global.html#deleteRows">deleteRows</a></li><li><a href="global.html#drop">drop</a></li><li><a href="global.html#dropDatabase">dropDatabase</a></li><li><a href="global.html#get">get</a></li><li><a href="global.html#getCell">getCell</a></li><li><a href="global.html#getCellAt">getCellAt</a></li><li><a href="global.html#getCellValue">getCellValue</a></li><li><a href="global.html#getCurrentDatabase">getCurrentDatabase</a></li><li><a href="global.html#getDatabase">getDatabase</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#getStorageKey">getStorageKey</a></li><li><a href="global.html#getTable">getTable</a></li><li><a href="global.html#getTransaction">getTransaction</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#isInTransaction">isInTransaction</a></li><li><a href="global.html#key">key</a></li><li><a href="global.html#length">length</a></li><li><a href="global.html#load">load</a></li><li><a href="global.html#name">name</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#nullable">nullable</a></li><li><a href="global.html#one">one</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#read">read</a></li><li><a href="global.html#save">save</a></li><li><a href="global.html#set">set</a></li><li><a href="global.html#setCellValue">setCellValue</a></li><li><a href="global.html#setCurrentDatabase">setCurrentDatabase</a></li><li><a href="global.html#setDefaultValue">setDefaultValue</a></li><li><a href="global.html#setKey">setKey</a></li><li><a href="global.html#setName">setName</a></li><li><a href="global.html#setTable">setTable</a></li><li><a href="global.html#toJSON">toJSON</a></li><li><a href="global.html#type">type</a></li><li><a href="global.html#typeParams">typeParams</a></li><li><a href="global.html#typeToSQL">typeToSQL</a></li><li><a href="global.html#unbind">unbind</a></li><li><a href="global.html#unsetMany">unsetMany</a></li><li><a href="global.html#update">update</a></li><li><a href="global.html#write">write</a></li></ul>
 </nav>
 
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:17 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Thu Sep 11 2014 12:50:11 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

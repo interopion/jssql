@@ -7,12 +7,18 @@
         <link rel="stylesheet" type="text/css" href="console.css"/>
     </head>
     <body>
+        <select id="storage-selector"></select>
+        <div id="overlay"></div>
         <pre id="out"></pre>
         <textarea rows="1" id="in" spellcheck="false" placeholder="Type SQL commads here. Hit Ctrl/Command+Enter to execute."></textarea>
         <script type="text/javascript" src="/js/jquery.min.js"></script>
         <script type="text/javascript">var JSDB_EXPORT_FOR_TESTING = true;</script>
         <!--script type="text/javascript" src="http://Vladimirs-MacBook-Pro.local:3001/socket.io/socket.io.js"></script-->
         <script type="text/javascript" src="/js/jssql.js"></script>
+        <script type="text/javascript" src="/js/jssql.session.storage.js"></script>
+        <script type="text/javascript" src="/js/jssql.memory.storage.js"></script>
+        <script type="text/javascript" src="/js/jssql.socket.io.storage.js"></script>
+        <script type="text/javascript" src="/js/jssql.filesystem.storage.js"></script>
         <script type="text/javascript" src="/google-code-prettify/prettify.js?lang=sql&amp;autoload=true&amp;skin=sunburst" defer="defer"></script>
         <script type="text/javascript" src="console.js"></script>    
     </body>

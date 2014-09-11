@@ -18,7 +18,7 @@ STATEMENTS.DROP_DATABASE = function(walker) {
 			}, "for the database name")
 			.errorUntil(";")
 			.commit(function() {
-				SERVER.dropDatabase(q.name, q.ifExists, function(err) {
+				walker.server.dropDatabase(q.name, q.ifExists, function(err) {
 					next(err, err ? null : 'Database "' + q.name + '" deleted.');
 				});
 			});

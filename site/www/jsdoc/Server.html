@@ -111,7 +111,7 @@ persistable collection of databases.</div>
         <h3 class="subsection-title">Extends</h3>
         
         <ul>
-            <li><a href="Persistable.html">Persistable</a></li>
+            <li>Persistable</li>
         </ul>
     
     
@@ -127,6 +127,70 @@ persistable collection of databases.</div>
         <h3 class="subsection-title">Members</h3>
         
         <dl>
+            
+<dt>
+    <h4 class="name" id="_transaction"><span class="type-signature"></span>_transaction<span class="type-signature"> :<a href="Transaction.html">Transaction</a></span></h4>
+    
+    
+</dt>
+<dd>
+    
+    <div class="description">
+        The current transaction (if any)
+    </div>
+    
+    
+    
+        <h5>Type:</h5>
+        <ul>
+            <li>
+                
+<span class="param-type"><a href="Transaction.html">Transaction</a></span>
+
+
+            </li>
+        </ul>
+    
+
+    
+<dl class="details">
+    
+        
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line13">line 13</a>
+    </li></ul></dd>
+    
+    
+    
+    
+    
+    
+    
+</dl>
+
+    
+    
+</dd>
+
+        
             
 <dt>
     <h4 class="name" id="databases"><span class="type-signature">&lt;private> </span>databases<span class="type-signature"> :Object</span></h4>
@@ -175,7 +239,7 @@ persistable collection of databases.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line16">line 16</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line20">line 20</a>
     </li></ul></dd>
     
     
@@ -193,17 +257,27 @@ persistable collection of databases.</div>
         
             
 <dt>
-    <h4 class="name" id="storage"><span class="type-signature"></span>storage<span class="type-signature"></span></h4>
+    <h4 class="name" id="options"><span class="type-signature"></span>options<span class="type-signature"> :Object</span></h4>
     
     
 </dt>
 <dd>
     
     <div class="description">
-        The storage engine instance used by this object.
+        The configuration options for the instance
     </div>
     
     
+    
+        <h5>Type:</h5>
+        <ul>
+            <li>
+                
+<span class="param-type">Object</span>
+
+
+            </li>
+        </ul>
     
 
     
@@ -214,11 +288,6 @@ persistable collection of databases.</div>
     
     
 
-    
-    <dt class="inherited-from">Inherited From:</dt>
-    <dd class="inherited-from"><ul class="dummy"><li>
-        <a href="Persistable.html#storage">Persistable#storage</a>
-    </li></dd>
     
     
     
@@ -234,7 +303,7 @@ persistable collection of databases.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Persistable.js.html">Persistable.js</a>, <a href="Persistable.js.html#line15">line 15</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line26">line 26</a>
     </li></ul></dd>
     
     
@@ -242,13 +311,6 @@ persistable collection of databases.</div>
     
     
     
-    
-    <dt class="tag-todo">To Do:</dt>
-    <dd class="tag-todo">
-        <ul>
-            <li>This should be configurable!</li>
-        </ul>
-    </dd>
     
 </dl>
 
@@ -306,7 +368,7 @@ persistable collection of databases.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line41">line 41</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line106">line 106</a>
     </li></ul></dd>
     
     
@@ -470,147 +532,7 @@ database exists and this is not set to true.</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line221">line 221</a>
-    </li></ul></dd>
-    
-    
-    
-    
-    
-    
-    
-</dl>
-
-    
-    
-
-    
-
-    
-    
-    
-    
-    
-    <h5>Returns:</h5>
-    
-            
-
-
-<dl>
-	<dt>
-		Type
-	</dt>
-	<dd>
-		
-<span class="param-type">void</span>
-
-
-	</dd>
-</dl>
-
-        
-    
-    
-</dd>
-
-        
-            
-<dt>
-    <h4 class="name" id="drop"><span class="type-signature"></span>drop<span class="signature">(onSuccess)</span><span class="type-signature"> &rarr; {void}</span></h4>
-    
-    
-</dt>
-<dd>
-    
-    
-    <div class="description">
-        Deletes the corresponding data from the storage.
-    </div>
-    
-
-    
-    
-    
-    
-    
-        <h5>Parameters:</h5>
-        
-
-<table class="params">
-    <thead>
-	<tr>
-		
-		<th>Name</th>
-		
-		
-		<th>Type</th>
-		
-		
-		
-		
-		
-		<th class="last">Description</th>
-	</tr>
-	</thead>
-	
-	<tbody>
-	
-	
-        <tr>
-            
-                <td class="name"><code>onSuccess</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last">An "error-first" style callback</td>
-        </tr>
-	
-	
-	</tbody>
-</table>
-    
-    
-    
-<dl class="details">
-    
-        
-    
-    
-    
-
-    
-    <dt class="inherited-from">Inherited From:</dt>
-    <dd class="inherited-from"><ul class="dummy"><li>
-        <a href="Persistable.html#drop">Persistable#drop</a>
-    </li></dd>
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Persistable.js.html">Persistable.js</a>, <a href="Persistable.js.html#line81">line 81</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line313">line 313</a>
     </li></ul></dd>
     
     
@@ -769,7 +691,7 @@ database does not exists and this is not set to true.</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line272">line 272</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line366">line 366</a>
     </li></ul></dd>
     
     
@@ -815,7 +737,7 @@ database does not exists and this is not set to true.</td>
         
             
 <dt>
-    <h4 class="name" id="getCurrentDatabase"><span class="type-signature"></span>getCurrentDatabase<span class="signature">()</span><span class="type-signature"> &rarr; {<a href="Database.html">Database</a>|undefined}</span></h4>
+    <h4 class="name" id="getCurrentDatabase"><span class="type-signature"></span>getCurrentDatabase<span class="signature">()</span><span class="type-signature"> &rarr; {Database|undefined}</span></h4>
     
     
 </dt>
@@ -856,7 +778,7 @@ database does not exists and this is not set to true.</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line334">line 334</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line473">line 473</a>
     </li></ul></dd>
     
     
@@ -888,7 +810,7 @@ database does not exists and this is not set to true.</td>
 	</dt>
 	<dd>
 		
-<span class="param-type"><a href="Database.html">Database</a></span>
+<span class="param-type">Database</span>
 |
 
 <span class="param-type">undefined</span>
@@ -905,7 +827,7 @@ database does not exists and this is not set to true.</td>
         
             
 <dt>
-    <h4 class="name" id="getDatabase"><span class="type-signature"></span>getDatabase<span class="signature">(name)</span><span class="type-signature"> &rarr; {<a href="Database.html">Database</a>|undefined}</span></h4>
+    <h4 class="name" id="getDatabase"><span class="type-signature"></span>getDatabase<span class="signature">(name)</span><span class="type-signature"> &rarr; {Database|undefined}</span></h4>
     
     
 </dt>
@@ -994,7 +916,7 @@ database does not exists and this is not set to true.</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line308">line 308</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line430">line 430</a>
     </li></ul></dd>
     
     
@@ -1026,7 +948,7 @@ database does not exists and this is not set to true.</td>
 	</dt>
 	<dd>
 		
-<span class="param-type"><a href="Database.html">Database</a></span>
+<span class="param-type">Database</span>
 |
 
 <span class="param-type">undefined</span>
@@ -1085,7 +1007,7 @@ inside a key-value based storage.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line111">line 111</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line158">line 158</a>
     </li></ul></dd>
     
     
@@ -1172,7 +1094,7 @@ inside a key-value based storage.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line33">line 33</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line89">line 89</a>
     </li></ul></dd>
     
     
@@ -1262,7 +1184,7 @@ inside a key-value based storage.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line24">line 24</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line79">line 79</a>
     </li></ul></dd>
     
     
@@ -1398,7 +1320,7 @@ tables and rows.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line135">line 135</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line204">line 204</a>
     </li></ul></dd>
     
     
@@ -1431,333 +1353,6 @@ tables and rows.
 	<dd>
 		
 <span class="param-type"><a href="Server.html">Server</a></span>
-
-
-	</dd>
-</dl>
-
-        
-    
-    
-</dd>
-
-        
-            
-<dt>
-    <h4 class="name" id="read"><span class="type-signature"></span>read<span class="signature">(onSuccess, onError)</span><span class="type-signature"> &rarr; {void}</span></h4>
-    
-    
-</dt>
-<dd>
-    
-    
-    <div class="description">
-        This method attempts to read the serialized version of the instance from
-the storage and parse it to JS Object
-    </div>
-    
-
-    
-    
-    
-    
-    
-        <h5>Parameters:</h5>
-        
-
-<table class="params">
-    <thead>
-	<tr>
-		
-		<th>Name</th>
-		
-		
-		<th>Type</th>
-		
-		
-		
-		
-		
-		<th class="last">Description</th>
-	</tr>
-	</thead>
-	
-	<tbody>
-	
-	
-        <tr>
-            
-                <td class="name"><code>onSuccess</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last"></td>
-        </tr>
-	
-	
-	
-        <tr>
-            
-                <td class="name"><code>onError</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last"></td>
-        </tr>
-	
-	
-	</tbody>
-</table>
-    
-    
-    
-<dl class="details">
-    
-        
-    
-    
-    
-
-    
-    <dt class="inherited-from">Inherited From:</dt>
-    <dd class="inherited-from"><ul class="dummy"><li>
-        <a href="Persistable.html#read">Persistable#read</a>
-    </li></dd>
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Persistable.js.html">Persistable.js</a>, <a href="Persistable.js.html#line48">line 48</a>
-    </li></ul></dd>
-    
-    
-    
-    
-    
-    
-    
-</dl>
-
-    
-    
-
-    
-
-    
-    
-    
-    
-    
-    <h5>Returns:</h5>
-    
-            
-
-
-<dl>
-	<dt>
-		Type
-	</dt>
-	<dd>
-		
-<span class="param-type">void</span>
-
-
-	</dd>
-</dl>
-
-        
-    
-    
-</dd>
-
-        
-            
-<dt>
-    <h4 class="name" id="save"><span class="type-signature"></span>save<span class="signature">(onSuccess, onError)</span><span class="type-signature"> &rarr; {void}</span></h4>
-    
-    
-</dt>
-<dd>
-    
-    
-    <div class="description">
-        Saves the instance (as JSON) in the storage.
-    </div>
-    
-
-    
-    
-    
-    
-    
-        <h5>Parameters:</h5>
-        
-
-<table class="params">
-    <thead>
-	<tr>
-		
-		<th>Name</th>
-		
-		
-		<th>Type</th>
-		
-		
-		
-		
-		
-		<th class="last">Description</th>
-	</tr>
-	</thead>
-	
-	<tbody>
-	
-	
-        <tr>
-            
-                <td class="name"><code>onSuccess</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last"></td>
-        </tr>
-	
-	
-	
-        <tr>
-            
-                <td class="name"><code>onError</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last"></td>
-        </tr>
-	
-	
-	</tbody>
-</table>
-    
-    
-    
-<dl class="details">
-    
-        
-    
-    
-    
-
-    
-    <dt class="inherited-from">Inherited From:</dt>
-    <dd class="inherited-from"><ul class="dummy"><li>
-        <a href="Persistable.html#save">Persistable#save</a>
-    </li></dd>
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Persistable.js.html">Persistable.js</a>, <a href="Persistable.js.html#line92">line 92</a>
-    </li></ul></dd>
-    
-    
-    
-    
-    
-    
-    
-</dl>
-
-    
-    
-
-    
-
-    
-    
-    
-    
-    
-    <h5>Returns:</h5>
-    
-            
-
-
-<dl>
-	<dt>
-		Type
-	</dt>
-	<dd>
-		
-<span class="param-type">void</span>
 
 
 	</dd>
@@ -1812,7 +1407,7 @@ the storage and parse it to JS Object
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line320">line 320</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line459">line 459</a>
     </li></ul></dd>
     
     
@@ -1930,7 +1525,7 @@ the storage and parse it to JS Object
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line120">line 120</a>
+        <a href="Server.js.html">Server.js</a>, <a href="Server.js.html#line189">line 189</a>
     </li></ul></dd>
     
     
@@ -1963,195 +1558,6 @@ the storage and parse it to JS Object
 	<dd>
 		
 <span class="param-type">Object</span>
-
-
-	</dd>
-</dl>
-
-        
-    
-    
-</dd>
-
-        
-            
-<dt>
-    <h4 class="name" id="write"><span class="type-signature"></span>write<span class="signature">(data, onSuccess, onError)</span><span class="type-signature"> &rarr; {void}</span></h4>
-    
-    
-</dt>
-<dd>
-    
-    
-    <div class="description">
-        Saves the data in the storage.
-    </div>
-    
-
-    
-    
-    
-    
-    
-        <h5>Parameters:</h5>
-        
-
-<table class="params">
-    <thead>
-	<tr>
-		
-		<th>Name</th>
-		
-		
-		<th>Type</th>
-		
-		
-		
-		
-		
-		<th class="last">Description</th>
-	</tr>
-	</thead>
-	
-	<tbody>
-	
-	
-        <tr>
-            
-                <td class="name"><code>data</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">Object</span>
-|
-
-<span class="param-type">Array</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last">The data to store</td>
-        </tr>
-	
-	
-	
-        <tr>
-            
-                <td class="name"><code>onSuccess</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last"></td>
-        </tr>
-	
-	
-	
-        <tr>
-            
-                <td class="name"><code>onError</code></td>
-            
-            
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-            
-            </td>
-            
-            
-            
-            
-            
-            <td class="description last"></td>
-        </tr>
-	
-	
-	</tbody>
-</table>
-    
-    
-    
-<dl class="details">
-    
-        
-    
-    
-    
-
-    
-    <dt class="inherited-from">Inherited From:</dt>
-    <dd class="inherited-from"><ul class="dummy"><li>
-        <a href="Persistable.html#write">Persistable#write</a>
-    </li></dd>
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="Persistable.js.html">Persistable.js</a>, <a href="Persistable.js.html#line71">line 71</a>
-    </li></ul></dd>
-    
-    
-    
-    
-    
-    
-    
-</dl>
-
-    
-    
-
-    
-
-    
-    
-    
-    
-    
-    <h5>Returns:</h5>
-    
-            
-
-
-<dl>
-	<dt>
-		Type
-	</dt>
-	<dd>
-		
-<span class="param-type">void</span>
 
 
 	</dd>
@@ -2178,13 +1584,13 @@ the storage and parse it to JS Object
 </div>
 
 <nav>
-    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="construct.html">construct</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addConstraint">addConstraint</a></li><li><a href="global.html#bind">bind</a></li><li><a href="global.html#columnDataTypes">columnDataTypes</a></li><li><a href="global.html#create">create</a></li><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#createTable">createTable</a></li><li><a href="global.html#deleteRows">deleteRows</a></li><li><a href="global.html#drop">drop</a></li><li><a href="global.html#getCell">getCell</a></li><li><a href="global.html#getCellAt">getCellAt</a></li><li><a href="global.html#getCellValue">getCellValue</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#getStorageKey">getStorageKey</a></li><li><a href="global.html#getTable">getTable</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#key">key</a></li><li><a href="global.html#length">length</a></li><li><a href="global.html#load">load</a></li><li><a href="global.html#name">name</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#nullable">nullable</a></li><li><a href="global.html#one">one</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#read">read</a></li><li><a href="global.html#save">save</a></li><li><a href="global.html#set">set</a></li><li><a href="global.html#setCellValue">setCellValue</a></li><li><a href="global.html#setDefaultValue">setDefaultValue</a></li><li><a href="global.html#setKey">setKey</a></li><li><a href="global.html#setName">setName</a></li><li><a href="global.html#setTable">setTable</a></li><li><a href="global.html#Storage">Storage</a></li><li><a href="global.html#toJSON">toJSON</a></li><li><a href="global.html#type">type</a></li><li><a href="global.html#typeParams">typeParams</a></li><li><a href="global.html#typeToSQL">typeToSQL</a></li><li><a href="global.html#unbind">unbind</a></li><li><a href="global.html#update">update</a></li><li><a href="global.html#write">write</a></li><li>{Boolean}</li><li>{String}</li></ul>
 </nav>
 
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:18 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Fri Sep 05 2014 15:27:34 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

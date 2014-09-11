@@ -24,12 +24,12 @@ STATEMENTS.COMMIT = function(walker) {
 			walker.errorUntil(";");
 
 			walker.commit(function() {
-				SERVER.commitTransaction();
+				walker.server.commitTransaction();
 				next();
 			});
 		},
 		undo : function(next) {
-			SERVER.rollbackTransaction(next);
+			walker.server.rollbackTransaction(next);
 		}
 	});
 };

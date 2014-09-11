@@ -1,4 +1,5 @@
-(function() {
+//JSDB.events = events;
+/*(function() {
 	JSDB.events = events;
 	JSDB.SERVER = SERVER = new Server();
 	//console.log("Server loading...");
@@ -9,3 +10,4 @@
 	});
 	//console.dir(SERVER);
 })();
+*/

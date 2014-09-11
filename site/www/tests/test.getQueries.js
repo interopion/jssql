@@ -20,5 +20,4 @@ test('getQueries("show databases;source world_innodb.sql")', function(assert) {
 	assert.equal(out.length, 2);
 	assert.deepEqual(out[0].sql, "show databases;");
 	assert.deepEqual(out[1].sql, "source world_innodb.sql;");
-	console.dir(out);
 });

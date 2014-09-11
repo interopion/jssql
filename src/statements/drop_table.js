@@ -31,40 +31,13 @@ STATEMENTS.DROP_TABLE = function(walker) {
 			})
 			.errorUntil(";")
 			.commit(function() {
-				var database, table;
+				var database = walker.server.getDatabase(dbName), 
+					table    = database.getTable(tableName, !ifExists);
 				
-				if (!dbName) {
-					database = CURRENT_DATABASE;
-					if (!database) {
-						throw new SQLRuntimeError('No database selected.');
-					}
-				} else {
-					database = SERVER.databases[dbName];
-					if (!database) {
-						throw new SQLRuntimeError(
-							'No such database "%s"',
-							dbName
-						);
-					}
-				}
-				
-				table = database.tables[tableName];
 				if (!table) {
-					if (ifExists) {
-						return next(
-							null,
-							'Table "' + database.name + '.' + tableName + 
-							'" does not exist.'
-						);
-					}
-					
-					return next(new SQLRuntimeError(
-						'No such table "%s" in databse "%s"',
-						tableName,
-						database.name
-					), null);
+					return next(null, null);
 				}
-				
+
 				table.drop(function(err) {
 					if (err)
 						return next(err, null);

@@ -62,7 +62,8 @@ function Transaction(options)
 		timeout      : 1000, // For any single task
 		delay        : 0,
 		name         : "Anonymous transaction",
-		autoRollback : true
+		autoRollback : true,
+		debug        : false
 	}, options),
 
 	/**
@@ -117,7 +118,7 @@ function Transaction(options)
 
 	Observer.call(this);
 
-	if (CFG.debug) {
+	if (config.debug) {
 		this.on("error", function(e, err) {
 			console.error(err);
 		});
@@ -127,7 +128,7 @@ function Transaction(options)
 		//this.on("after:task", function(e, task, pos) {
 		//	console.info(e, "(" + pos + ")", config.name, "->", task.name);
 		//});
-		this.on("complete", function(e) {
+		this.one("complete", function(e) {
 			console.info('Transaction complete "%s"', config.name);
 		});
 	}
@@ -191,7 +192,7 @@ function Transaction(options)
 		if (this.isStarted()) 
 			throw new Error("The transaction is already running");
 		
-		this.dispatch("start");
+		this.emit("start");
 		this.next();
 	};
 
@@ -218,7 +219,7 @@ function Transaction(options)
 		lastError = "";
 
 		if (!silent)
-			this.dispatch("reset");
+			this.emit("reset");
 	};
 
 	this.destroy = function()
@@ -289,11 +290,8 @@ function Transaction(options)
 	 * @return {void}
 	 */
 	this.rollback = function(callerPosition) {
-		if (timer) 
-			clearTimeout(timer);
-
-		if (delay) 
-			clearTimeout(delay);
+		if (timer) clearTimeout(timer);
+		if (delay) clearTimeout(delay);
 		
 		// Such a call might come from within a task that has already been 
 		// "outdated" due to timeout
@@ -302,29 +300,27 @@ function Transaction(options)
 		}
 
 		if (position < 0) {
-			this.dispatch("rollback", lastError);
-		} else {
-			try {
-				var task = tasks[position--], inst = this;
-				this.dispatch("before:undo", task, position + 1);
-				task.undo(
-					function(err) {
-						if (err) {
-							inst.dispatch("progress", inst.getProgress(), task, position + 1);
-							inst.dispatch("after:undo", task, position + 1);
-							inst.dispatch("error", err || "Task '" + task.name + "' failed to undo");
-							inst.rollback();
-						} else {
-							inst.dispatch("progress", inst.getProgress(), task, position + 1);
-							inst.dispatch("after:undo", task, position + 1);
-							inst.rollback();
-						}
-					}
-				);
-			} catch (ex) {
-				this.dispatch("error", ex);
-				this.rollback();
+			this.emit("rollback", lastError);
+			return;
+		}
+
+		var task = tasks[position--], inst = this;
+		function onTaskUndo(err) {
+			inst.emit("progress", inst.getProgress(), task, position + 1);
+			inst.emit("after:undo", task, position + 1);
+			if (err) {
+				inst.emit("error", err || "Task '" + task.name + "' failed to undo");
 			}
+			inst.rollback();
+		}
+
+		this.emit("before:undo", task, position + 1);
+
+		try {
+			task.undo(onTaskUndo);
+		} catch (ex) {
+			this.emit("error", ex);
+			this.rollback();
 		}
 	};
 
@@ -416,40 +412,46 @@ function Transaction(options)
 				if ( _timeout > 0 ) {
 					timer = setTimeout(function() {
 						lastError = "Task '" + task.name + "' timed out!.";
-						inst.dispatch("error", lastError);
+						inst.emit("error", lastError);
 						if (config.autoRollback) 
 							inst.rollback(pos);
 					}, _timeout + config.delay);
 				}
 
-				try {
-					inst.dispatch("before:task", task, pos);
-					task.execute(
-						
-						function(err) {
-							if (pos === position) {
-								if (err) {
-									lastError = err || "Task '" + task.name + "' failed.";
-									inst.dispatch("error", lastError);
-									if (config.autoRollback) inst.rollback(pos);
-								} else {
-									inst.dispatch("progress", inst.getProgress(), task, pos);
-									inst.dispatch("after:task", task, pos);
-									delay = setTimeout(function() {
-										inst.next();
-									}, config.delay);
-								}
+				function onTaskFinsh(err) {
+					if (pos === position) {
+						if (err) {
+							lastError = err || "Task '" + task.name + "' failed.";
+							inst.emit("error", lastError);
+							if (config.autoRollback) inst.rollback(pos);
+						} else {
+							inst.emit("progress", inst.getProgress(), task, pos);
+							inst.emit("after:task", task, pos);
+
+							if (config.delay) {
+								delay = setTimeout(function() {
+									inst.next();
+								}, config.delay);
+							} else {
+								nextTick(function() {
+									inst.next();
+								});
 							}
 						}
-					);
+					}
+				}
+
+				inst.emit("before:task", task, pos);
+				try {
+					task.execute(onTaskFinsh);
 				} catch (ex) {
-					inst.dispatch("error", ex);
+					inst.emit("error", ex);
 					if (config.autoRollback) 
 						inst.rollback(pos);
 				}
 			})(tasks[++position], position, this);
 		} else {
-			this.dispatch("complete");
+			this.emit("complete");
 		}
 	};
 }

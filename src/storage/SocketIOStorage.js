@@ -1,38 +1,57 @@
-function SocketIOStorage() {
+jsSQL.registerStorageEngine("SocketIOStorage", {
 
-	if (!CFG.socketIoPath)
-		throw new Errror("You have to provide the 'socketIoPath' configuration option");
+	construct : function SocketIOStorage(cfg) {
+		var rpc, inst = this;
 
-	if (!window.io || typeof io.connect != "function") {
-		var head = document.getElementsByTagName("head")[0],
-			scr  = document.createElement("script");
+		this.load = function(cb) {
+			if (!cfg.url) {
+				return cb("You have to provide the 'storageEngine.url' " + 
+					"configuration option", null);
+			}
 
-		scr.src = CFG.socketIoPath.replace(/\/$/, "") + "/socket.io/socket.io.js";
-		head.appendChild(scr);
-		if (!window.io || typeof io.connect != "function") {
-			throw new Errror("You have to include the socketIO client script first");	
-		}
-	}
-
-	//console.log("io: ", window.io);
-	
-	var rpc = io.connect(CFG.socketIoPath), inst = this;
-
-	each(["get", "set", "unset", "getMany", "setMany", "unsetMany"], function(fn) {
-		inst[fn] = function() {
-			var args = makeArray(arguments),
-				next = args.pop();
-			if (rpc.connected) {
-				rpc.emit("rpc", { args : args, cmd : fn }, next);
+			if (!window.io || typeof io.connect != "function") {
+				var script = document.createElement('script');
+				script.type = 'text/javascript';
+				script.async = true;
+				script.onload = function() { 
+					init(cb);
+				};
+				script.src = cfg.url.replace(/\/$/, "") + 
+					"/socket.io/socket.io.js";
+				document.getElementsByTagName('head')[0].appendChild(script);
 			} else {
-				rpc.connect(function() {
-					rpc.emit("rpc", { args : args, cmd : fn }, next);
-				});
+				init(cb);
 			}
 		};
-	});
-}
 
-SocketIOStorage.prototype = Storage.getEnginePrototype();
-SocketIOStorage.prototype.constructor = SocketIOStorage;
-Storage.registerEngine("SocketIOStorage", SocketIOStorage);
+		function init(cb) {
+			rpc = io(cfg.url, { transports : ["websocket", "polling"] });
+
+			rpc.on("ping", function() {
+				rpc.emit("pong");
+			});
+
+			["get", "set", "unset", "getMany", "setMany", "unsetMany"].forEach(function(fn) {
+				inst[fn] = function() {
+					var args = Array.prototype.slice.call(arguments),
+						next = args.pop();
+					//console.info("rpc:%s(%o)", fn, args);
+					rpc.emit(
+						"rpc", 
+						{ args : args, cmd : fn }, 
+						cfg.debug ? 
+						function() {
+							console.warn("rpc:%s(%o)\n\t-> %o", fn, args, arguments);
+							next.apply(this, arguments);
+						} :
+						next
+					);
+				};
+			});
+			
+			cb(null, inst);
+		}
+	}
+}, {
+	label : "Remote Storage"
+});

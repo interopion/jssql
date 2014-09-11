@@ -30,223 +30,290 @@
 //                             Class Database                                 //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+var Database = Persistable.extend({
+	
+	/**
+	 * @constructor
+	 * @classdesc The Server class is used to create databases which are 
+	 * persistable collections of tables.
+	 * @extends {Persistable}
+	 */
+	construct : function(name, server) 
+	{
+		Persistable.prototype.construct.call(this, "database");
+		this.tables  = {};
+		this.name    = name;
+		this.parent = this.server  = server;
+		this.storage = server.storage;
+		this.bubbleTarget = server;
+		this.children = this.tables;
 
-/**
- * @constructor
- * @classdesc The Server class is used to create databases which are persistable 
- * collections of tables.
- * @extends {Persistable}
- */
-function Database(name) 
-{
-	this.tables = {};
-	this.name = name;
-}
+		//Observer.call(this);
+	},
 
-Database.prototype = new Persistable();
-Database.prototype.constructor = Database;
+	/*getPatch : function() 
+	{
+		var hasChanges = false, out = {}, tableName, table, patch;
 
-Database.prototype.toJSON = function() 
-{
-	var out = { name : this.name, tables : {} }, t;
-	for (t in this.tables) {
-		out.tables[t] = [NS, this.name, t].join(".");
-	}
-	return out;
-};
+		if (this._isDirty) {
+			hasChanges = true;
+			out[this.getStorageKey()] = JSON.stringify(this.toJSON());
+		}
 
-Database.prototype.getStorageKey = function() 
-{
-	return NS + "." + this.name;
-};
+		for ( tableName in this.tables) {
+			table = this.tables[tableName];
+			patch = table.getPatch();
+			if (patch) {
+				hasChanges = true;
+				mixin(out, patch);
+			}
+		}
 
-Database.prototype.drop = function(next)
-{
-	var _next = createNextHandler(next),
-		db = this,
-		tx = new Transaction({
-			name : "Drop Database"
-		}),
-		name;
+		return hasChanges ? out : null;
+	},*/
 
-	function addDropTableTask(table) {
+	toJSON : function() 
+	{
+		var out = { name : this.name, tables : {} }, t;
+		for (t in this.tables) {
+			out.tables[t] = [NS, this.name, t].join(".");
+		}
+		return out;
+	},
+
+	getStorageKey : function() 
+	{
+		return NS + "." + this.name;
+	},
+
+	drop : function(next)
+	{
+		var _next = createNextHandler(next),
+			db = this,
+			tx = new Transaction({
+				name : "Drop Database"
+			}),
+			name;
+
+		function addDropTableTask(table) {
+			tx.add(Transaction.createTask({
+				name : 'Drop Table "' + table.name + '"',
+				execute : function(next) {
+					delete db.tables[table.name];
+					table.drop(next);
+				},
+				undo : function(next) {
+					db.tables[table.name] = table;
+					next();
+				}
+			}));
+		}
+
+		tx.one("complete", function(e) {
+			_next(null, db);
+		});
+
+		tx.one("rollback", function(e) {
+			_next(e, db);
+		});
+		
+		for ( name in db.tables ) {
+			addDropTableTask( db.tables[name] );
+		}
+
 		tx.add(Transaction.createTask({
-			name : 'Drop Table "' + table.name + '"',
+			name : 'Drop Database "' + db.name + '"',
 			execute : function(next) {
-				delete db.tables[table.name];
-				table.drop(next);
+				delete db.server.databases[db.name];
+				Persistable.prototype.drop.call(db, next);
 			},
 			undo : function(next) {
-				db.tables[table.name] = table;
+				db.server.databases[db.name] = db;
 				next();
 			}
 		}));
-	}
+		
+		tx.start();
+	},
 
-	tx.one("complete", function(e) {
-		_next(null, db);
-	});
+	load : function(next) 
+	{
+		var db    = this,
+			tx    = new Transaction({
+				name  : "Load Database",
+				debug : !!this.server.options.debug
+			}),
+			_next = createNextHandler(next);
 
-	tx.one("rollback", function(e) {
-		_next(e, db);
-	});
-	
-	for ( name in db.tables ) {
-		addDropTableTask( db.tables[name] );
-	}
-
-	tx.add(Transaction.createTask({
-		name : 'Drop Database "' + db.name + '"',
-		execute : function(next) {
-			delete SERVER.databases[db.name];
-			Persistable.prototype.drop.call(db, next);
-		},
-		undo : function(next) {
-			SERVER.databases[db.name] = db;
-			next();
+		function addLoadTableTask(table) {
+			tx.add(Transaction.createTask({
+				name : 'Load Table "' + table.name + '"',
+				execute : function(next) {
+					table.load(next);
+				},
+				undo : function(next) {
+					next(null, table);
+				}
+			}));
 		}
-	}));
-	
-	tx.start();
-};
 
-Database.prototype.load = function(next) 
-{
-	var db    = this,
-		tx    = new Transaction({
-			name : "Load Database"
-		}),
-		_next = createNextHandler(next);
+		db.emit("loadstart:database", db);
 
-	function addLoadTableTask(table) {
+		tx.one("complete", function(e) {
+			db.emit("load:database", db);
+			_next(null);
+		});
+
+		tx.one("rollback", function(e, err) {
+			_next(err);
+		});
+
 		tx.add(Transaction.createTask({
-			name : 'Load Table "' + table.name + '"',
+			name : "Create DB Tables",
 			execute : function(next) {
-				table.load(next);
+				db.read(function(err, json) {
+					if (err)
+						return next(err, db);
+
+					db.tables = {};
+
+					if (!json || !json.tables)
+						return next(null, db);
+
+					for ( var name in json.tables ) {
+						var table = new Table(name, db);
+						db.tables[table.name] = table;
+						addLoadTableTask(table);
+					}
+
+					db._isDirty = false;
+					return next(null, db);
+				});
 			},
 			undo : function(next) {
-				next(null, table);
+				console.warn("Undoing Create DB Tables task");
+				next();
 			}
 		}));
-	}
 
-	events.dispatch("loadstart:database", db);
+		tx.start();
 
-	tx.one("complete", function(e) {
-		events.dispatch("load:database", db);
-		_next(null);
-	});
+		return db;
+	},
 
-	tx.one("rollback", function(e, err) {
-		_next(err);
-	});
+	/*save : function(next) 
+	{
+		var db = this,
+			_next = createNextHandler(next);
 
-	tx.add(Transaction.createTask({
-		name : "Create DB Tables",
-		execute : function(next) {
-			db.read(function(err, json) {
+		db.emit("savestart:database", db);
+		//console.log("Changes in database %s:\n%s", this.name, JSON.stringify(this.getPatch(), null, 4));
+		//Persistable.prototype.save.call(db, function(err) {
+		//	if (err)
+		//		return _next(err, null);
+
+			db.server.save(function(err) {
 				if (err)
-					return next(err, db);
+					return _next(err, null);
 
-				db.tables = {};
-
-				if (!json || !json.tables)
-					return next(null, db);
-
-				for ( var name in json.tables ) {
-					var table = new Table(name, db);
-					db.tables[table.name] = table;
-					addLoadTableTask(table);
-				}
-
-				return next(null, db);
+				db._isDirty = false;
+				db.emit("save:database", db);
+				return _next(null, db);
 			});
-		},
-		undo : function(next) {
-			console.warn("Undoing Create DB Tables task");
-			next();
+		//});
+
+		return db;
+	},*/
+
+	/**
+	 * { name: "", fields : [], constraints : [], ifNotExists : bool }
+	 */
+	createTable : function(cfg, next) {
+		var _next = createNextHandler(next),
+			db = this,
+			table, 
+			i, l;
+
+		if (db.tables.hasOwnProperty(cfg.name) && !cfg.ifNotExists) {
+			return _next(new SQLRuntimeError(
+				'Table "%s" already exists', 
+				cfg.name
+			), null);
 		}
-	}));
 
-	tx.start();
+		table = new Table(cfg.name, db);
 
-	return db;
-};
+		l = cfg.fields.length;
+		for (i = 0; i &lt; l; i++) {
+			table.addColumn(cfg.fields[i]);
+		}
 
-Database.prototype.save = function(next) 
-{
-	var db = this,
-		_next = createNextHandler(next);
+		l = cfg.constraints.length;
+		for (i = 0; i &lt; l; i++) {
+			table.addConstraint(cfg.constraints[i]);
+		}
 
-	events.dispatch("savestart:database", db);
-	
-	Persistable.prototype.save.call(db, function(err) {
-		if (err)
-			return _next(err, null);
-
-		SERVER.save(function(err) {
-			if (err)
+		db.tables[cfg.name] = table;
+		db._isDirty = true;
+		table.save(function(err) {
+			if (err) {
+				delete db.tables[cfg.name];
 				return _next(err, null);
-
-			events.dispatch("save:database", db);
-			return _next(null, db);
-		});
-	});
-
-	return db;
-};
-
-/**
- * @param {Function} next(err, table)
- */
-Database.prototype.createTable = function(name, fields, ifNotExists, next)
-{
-	var _next = createNextHandler(next),
-		db = this,
-		table, col;
-
-	if (db.tables.hasOwnProperty(name) && !ifNotExists) {
-		return _next(new SQLRuntimeError('Table "%s" already exists', name), null);
-	}
-
-	table = new Table(name, this);
-	
-	for (col = 0; col &lt; fields.length; col++) {
-		table.addColumn(fields[col]);
-	}
-	
-	table.save(function(err) {
-		if (err) 
-			return _next(err, null);
-
-		db.tables[name] = table;
-		db.save(function(err) {
-			if (err) 
-				return _next(err, null);
-
+			}
 			_next(null, table);
 		});
-	});
-};
+	},
 
-/**
- * Get a table by name from the database.
- * @param {String} name - The name of the desired table
- * @return {Table}
- * @throws {SQLRuntimeError} error - If there is no such table
- */
-Database.prototype.getTable = function(tableName)
-{			
-	var table = this.tables[tableName];
-	if (!table) {
-		throw new SQLRuntimeError(
-			'No such table "%s" in database "%s"',
-			tableName,
-			this.name
-		);
+	/**
+	 * @param {Function} next(err, table)
+	 
+	createTable : function(name, fields, ifNotExists, next)
+	{
+		var _next = createNextHandler(next),
+			db = this,
+			table, col;
+
+		if (db.tables.hasOwnProperty(name) && !ifNotExists) {
+			return _next(new SQLRuntimeError('Table "%s" already exists', name), null);
+		}
+
+		table = new Table(name, this);
+		
+		for (col = 0; col &lt; fields.length; col++) {
+			table.addColumn(fields[col]);
+		}
+		
+		db.tables[name] = table;
+		table.save(function(err) {
+			if (err) {
+				delete db.tables[name];
+				return _next(err, null);
+			}
+			_next(null, table);
+		});
+	},*/
+
+	/**
+	 * Get a table by name from the database.
+	 * @param {String} name - The name of the desired table
+	 * @return {Table}
+	 * @throws {SQLRuntimeError} error - If there is no such table
+	 */
+	getTable : function(tableName, throwError)
+	{			
+		var table = this.tables[tableName];
+		if (!table) {
+			if (throwError === false)
+				return null;
+			throw new SQLRuntimeError(
+				'No such table "%s" in database "%s"',
+				tableName,
+				this.name
+			);
+		}
+		return table;
 	}
-	return table;
-};
+});
 </code></pre>
         </article>
     </section>
@@ -257,13 +324,13 @@ Database.prototype.getTable = function(tableName)
 </div>
 
 <nav>
-    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="construct.html">construct</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_insertRow">_insertRow</a></li><li><a href="global.html#addConstraint">addConstraint</a></li><li><a href="global.html#beginTransaction">beginTransaction</a></li><li><a href="global.html#bind">bind</a></li><li><a href="global.html#columnDataTypes">columnDataTypes</a></li><li><a href="global.html#create">create</a></li><li><a href="global.html#createDatabase">createDatabase</a></li><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#createTable">createTable</a></li><li><a href="global.html#deleteRows">deleteRows</a></li><li><a href="global.html#drop">drop</a></li><li><a href="global.html#dropDatabase">dropDatabase</a></li><li><a href="global.html#get">get</a></li><li><a href="global.html#getCell">getCell</a></li><li><a href="global.html#getCellAt">getCellAt</a></li><li><a href="global.html#getCellValue">getCellValue</a></li><li><a href="global.html#getCurrentDatabase">getCurrentDatabase</a></li><li><a href="global.html#getDatabase">getDatabase</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#getStorageKey">getStorageKey</a></li><li><a href="global.html#getTable">getTable</a></li><li><a href="global.html#getTransaction">getTransaction</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#isInTransaction">isInTransaction</a></li><li><a href="global.html#key">key</a></li><li><a href="global.html#length">length</a></li><li><a href="global.html#load">load</a></li><li><a href="global.html#name">name</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#nullable">nullable</a></li><li><a href="global.html#one">one</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#read">read</a></li><li><a href="global.html#save">save</a></li><li><a href="global.html#set">set</a></li><li><a href="global.html#setCellValue">setCellValue</a></li><li><a href="global.html#setCurrentDatabase">setCurrentDatabase</a></li><li><a href="global.html#setDefaultValue">setDefaultValue</a></li><li><a href="global.html#setKey">setKey</a></li><li><a href="global.html#setName">setName</a></li><li><a href="global.html#setTable">setTable</a></li><li><a href="global.html#toJSON">toJSON</a></li><li><a href="global.html#type">type</a></li><li><a href="global.html#typeParams">typeParams</a></li><li><a href="global.html#typeToSQL">typeToSQL</a></li><li><a href="global.html#unbind">unbind</a></li><li><a href="global.html#unsetMany">unsetMany</a></li><li><a href="global.html#update">update</a></li><li><a href="global.html#write">write</a></li></ul>
 </nav>
 
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:16 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Thu Sep 11 2014 12:50:11 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

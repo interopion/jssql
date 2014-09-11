@@ -13,14 +13,14 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 	function undo(next) 
 	{
 		if (tableName) {
-			var db = SERVER.getCurrentDatabase();
+			var db = walker.server.getCurrentDatabase();
 			if (db) {
 				var table = db.tables[tableName];
 				if (table) {
-					next("Droping tables is not fully implemented yet!");
+					return next("Droping tables is not fully implemented yet!");
 				}
 			}
-			//SERVER.dropDatabase(dbName, true, done, fail);
+			//walker.server.dropDatabase(dbName, true, done, fail);
 			next();
 		} else {
 			next();
@@ -119,7 +119,7 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 				});
 			}
 		});
-		query.addConstraint(constraint);
+		query.constraints.push(constraint);
 		//console.log("constraint: ", constraint);
 
 		walker.optional({
@@ -229,29 +229,51 @@ STATEMENTS.CREATE_TABLE = function(walker) {
 	return new Task({
 		name : "Create Table",
 		execute : function(next) {
-			var q = new CreateTableQuery();
+			
+			var q = {
+				name        : "",
+				temporary   : walker.lookBack(2)[0].toUpperCase() == "TEMPORARY",
+				ifNotExists : false,
+				columns     : [],
+				constraints : []
+			};
+
 
 			// Make sure to reset this in case it stores something from 
 			// previous query
 			tableName = null;
 
-			q.temporary(walker.lookBack(2)[0].toUpperCase() == "TEMPORARY");
 			
 			walker
 			.optional("IF NOT EXISTS", function() {
-				q.ifNotExists(true);
+				q.ifNotExists = true;
 			})
 			.someType(WORD_OR_STRING, function(token) {
-				q.name(token[0]);
-				tableName = q.name();
+				q.name = token[0];
 			})
 			.optional("(", function() {
 				walk_createTableColumns(q);
 			})
 			.nextUntil(";")
 			.commit(function() {
-				q.execute(function(err) {
-					next(err, err ? null : 'Table "' + q.name() + '" created');
+
+				var db = walker.server.getCurrentDatabase();
+
+				if (!db)
+					return next(new SQLRuntimeError("No database selected"), null);
+
+				tableName = q.name;
+
+				db.createTable({
+					name        : q.name, 
+					fields      : q.columns,
+					ifNotExists : q.ifNotExists,
+					constraints : q.constraints
+				}, function(err) {
+					next(
+						err || null, 
+						err ? null : 'Table "' + q.name + '" created'
+					);
 				});
 			});
 		},

@@ -8,11 +8,11 @@
 STATEMENTS.USE = function(walker) {
 	
 	// Remember the last used DB here so that we can undo
-	var lastUsedDB = SERVER.getCurrentDatabase();
+	var lastUsedDB = walker.server.getCurrentDatabase();
 
 	function undo(next) {
 		if (lastUsedDB) {
-			SERVER.setCurrentDatabase(lastUsedDB.name);
+			walker.server.setCurrentDatabase(lastUsedDB.name);
 			next(null, 'Current database restored to "' + lastUsedDB.name + '".');
 		} else {
 			next();
@@ -30,8 +30,8 @@ STATEMENTS.USE = function(walker) {
 			.commit(function() {
 				var err = null, out = null;
 				try {
-					SERVER.setCurrentDatabase(dbName);
-					lastUsedDB = SERVER.getCurrentDatabase();
+					walker.server.setCurrentDatabase(dbName);
+					lastUsedDB = walker.server.getCurrentDatabase();
 					out = 'Database "' + dbName + '" selected.';
 				} catch (ex) {
 					err = ex;

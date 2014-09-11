@@ -25,72 +25,24 @@
     
     <section>
         <article>
-            <pre class="prettyprint source"><code>////////////////////////////////////////////////////////////////////////////////
-//                                                                            //
-//                              Class Column                                  //
-//                                                                            //
-////////////////////////////////////////////////////////////////////////////////
-var columnDataTypes = {
-	"BIT"       : Column_BIT      , // [(length)]
-	"TINYINT"   : Column_TINYINT  , // [(length)] [UNSIGNED] [ZEROFILL]
-	"SMALLINT"  : Column_SMALLINT , // [(length)] [UNSIGNED] [ZEROFILL]
-	"MEDIUMINT" : Column_MEDIUMINT, // [(length)] [UNSIGNED] [ZEROFILL]
-	"INT"       : Column_INT      , // [(length)] [UNSIGNED] [ZEROFILL]
-	"INTEGER"   : Column_INTEGER  , // [(length)] [UNSIGNED] [ZEROFILL]
-	"BIGINT"    : Column_BIGINT   , // [(length)] [UNSIGNED] [ZEROFILL]
-	//"REAL"      : , // [(length,decimals)] [UNSIGNED] [ZEROFILL]
-	"DOUBLE"    : Column_DOUBLE   , // [(length,decimals)] [UNSIGNED] [ZEROFILL]
-	"FLOAT"     : Column_FLOAT    , // [(length,decimals)] [UNSIGNED] [ZEROFILL]
-	"DECIMAL"   : Column_DECIMAL  , // [(length[,decimals])] [UNSIGNED] [ZEROFILL]
-	"NUMERIC"   : Column_NUMERIC  , // [(length[,decimals])] [UNSIGNED] [ZEROFILL]
-	//"DATE" : {},
-	//"TIME" : {}, // [(fsp)]
-	//"TIMESTAMP" : {}, // [(fsp)]
-	//"DATETIME" : {}, // [(fsp)]
-	//"YEAR" : {},
-	"CHAR"      : Column_CHAR   , // [(length)] [CHARACTER SET charset_name] [COLLATE collation_name]
-	"VARCHAR"   : Column_VARCHAR, // (length) [CHARACTER SET charset_name] [COLLATE collation_name]
-	//"BINARY" : {}, // [(length)]
-	//"VARBINARY" : {}, //(length)
-	//"TINYBLOB" : {},
-	//"BLOB" : {},
-	//"MEDIUMBLOB" : {},
-	//"LONGBLOB" : {},
-	//"TINYTEXT" : {}, // [BINARY] [CHARACTER SET charset_name] [COLLATE collation_name]
-	//"TEXT" : {}, //  [BINARY] [CHARACTER SET charset_name] [COLLATE collation_name]
-	//"MEDIUMTEXT" : {}, //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
-	//"LONGTEXT" : {}, //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
-	"ENUM" : Column_ENUM, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
-	//"SET" : {}//, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
-	//"spatial_type"
-};
+            <pre class="prettyprint source"><code>var re_date     = "(\\d{4})\\s*-\\s*(\\d{1,2})\\s*-\\s*(\\d{1,2})";
+var re_time     = "(\\d{1,3})\\s*:\\s*(\\d{1,2})\\s*:\\s*(\\d{1,2})";
+var re_datetime = re_date + "\\s+" + re_time;
+
+var RE_DATE      = new RegExp("^\\s*" + re_date     + "\\s*$");
+var RE_TIME      = new RegExp("^\\s*" + re_time     + "\\s*$");
+var RE_DATETIME  = new RegExp("^\\s*" + re_datetime + "\\s*$");
+var RE_TIMESTAMP = new RegExp("^\\s*({\\d{6}|\\d{8}|\\d{12}|\\d{14})\\s*$");
+
+
 
 /**
  * @classdesc Represents a column which is an abstract object resposible for 
  * handling the datatype constraints
  * @constructor
  */
-function Column() 
-{
-	/**
-	 * The arguments for the data type. If the column type support some 
-	 * arguments they will be stored here.
-	 * @type {Array}
-	 */
-	this.typeParams = [];
-}
-
-/**
- * A map the supported SQL data types and the corresponding constructor function
- * that should create an instance of the given column type.
- * @type {Object}
- * @static
- * @readonly
- */
-Column.constructors = columnDataTypes;
-
-Column.prototype = {
-
+var Column = Class.extend({ 
+	
 	/**
 	 * The type of the key that this column belongs to (if any). Can be "KEY",
 	 * "INDEX", "UNIQUE", "PRIMARY" or undefined.
@@ -263,39 +215,60 @@ Column.prototype = {
 			);
 		}
 		return sql.join("");
-	}
-};
+	},
 
-/**
- * The column factory function. Creates and returns an instance of one of the 
- * available Column subclasses.
- * @param {Object}  options - Might have various properties:
- * @param {Object}  options.type
- * @param {String}  options.type.name - The name of the data type
- * @param {Array}   options.type.params - The data type parameters (if any)
- * @param {Boolean} options.unsigned - For numeric columns only
- * @param {Boolean} options.autoIncrement - For numeric columns only
- * @param {Boolean} options.zerofill - For numeric columns only
- * @static
- */
-Column.create = function(options)
-{
-	var type = options.type.name.toUpperCase(),
-		Func = columnDataTypes[type], 
-		inst;
-		
-	if (!Func) {
-		throw new SQLRuntimeError(
-			'Unknown data type "%s".',
-			options.type.name
-		);
+	get : function(value) 
+	{
+		return value;
+	},
+
+	construct : function() {
+		/**
+		 * The arguments for the data type. If the column type support some 
+		 * arguments they will be stored here.
+		 * @type {Array}
+		 */
+		this.typeParams = [];
 	}
-	
-	inst = new Func();
-	inst.init(options);
-	//inst.typeParams = options.type.params || [];
-	return inst;
-};
+}, {
+
+	/**
+	 * The column factory function. Creates and returns an instance of one of the 
+	 * available Column subclasses.
+	 * @param {Object}  options - Might have various properties:
+	 * @param {Object}  options.type
+	 * @param {String}  options.type.name - The name of the data type
+	 * @param {Array}   options.type.params - The data type parameters (if any)
+	 * @param {Boolean} options.unsigned - For numeric columns only
+	 * @param {Boolean} options.autoIncrement - For numeric columns only
+	 * @param {Boolean} options.zerofill - For numeric columns only
+	 * @static
+	 */
+	create : function(options)
+	{
+		var type = options.type.name.toUpperCase(),
+			Func = columnDataTypes[type], 
+			inst;
+			
+		if (!Func) {
+			throw new SQLRuntimeError(
+				'Unknown data type "%s".',
+				options.type.name
+			);
+		}
+		
+		inst = new Func();
+		inst.init(options);
+		//inst.typeParams = options.type.params || [];
+		return inst;
+	}
+});
+
+
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
@@ -303,129 +276,130 @@ Column.create = function(options)
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+
 /** 
  * @classdesc Class NumericColumn extends Column. Thais is the basic class for 
  * all numeric data types.
  * @constructor
  * @extends Column
  */
-function NumericColumn() {}
-NumericColumn.prototype               = new Column();
-NumericColumn.prototype.constructor   = NumericColumn;
-NumericColumn.prototype.unsigned      = false;
-NumericColumn.prototype.zerofill      = false;
-NumericColumn.prototype.autoIncrement = false;
-NumericColumn.prototype.minUnsigned   =  0;
-NumericColumn.prototype.minSigned     = -1;
-NumericColumn.prototype.maxUnsigned   =  2;
-NumericColumn.prototype.maxSigned     =  1;
-NumericColumn.prototype.max           =  1;
-NumericColumn.prototype.min           = -1;
+var NumericColumn = Column.extend({
+	constructor   : NumericColumn,
+	unsigned      : false,
+	zerofill      : false,
+	autoIncrement : false,
+	minUnsigned   :  0,
+	minSigned     : -1,
+	maxUnsigned   :  2,
+	maxSigned     :  1,
+	max           :  1,
+	min           : -1,
 
-/**
- * Overrides the parent init method so that the numeric columns will also 
- * initialize their "autoIncrement", "zerofill" and "unsigned" properties.
- * @param {Object}  options - Might have various properties:
- * @param {Object}  options.type
- * @param {String}  options.type.name - The name of the data type
- * @param {Array}   options.type.params - The data type parameters (if any)
- * @param {Boolean} options.unsigned - For numeric columns only
- * @param {Boolean} options.autoIncrement - For numeric columns only
- * @param {Boolean} options.zerofill - For numeric columns only
- * @static
- */
-NumericColumn.prototype.init = function(options) 
-{
-	this.setUnsigned(options.unsigned);
-	
-	if ( isArray(options.type.params) && options.type.params.length > 0 ) {
-		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];
-	}
-	
-	this.setAutoIncrement(options.autoIncrement);
-	this.zerofill = !!options.zerofill;
-	Column.prototype.init.call(this, options);
-};
-
-NumericColumn.prototype.setAutoIncrement = function(bOn)
-{
-	this.autoIncrement = !!bOn;
-};
-
-NumericColumn.prototype.setUnsigned = function(bUnsigned)
-{
-	this.unsigned = !!bUnsigned;
-	this.min = this.unsigned ? this.minUnsigned : this.minSigned;
-	this.max = this.unsigned ? this.maxUnsigned : this.maxSigned; 
-};
-
-NumericColumn.prototype.setLength = function(n) 
-{
-	var l = String(this.max).length;
-	n = parseInt(n, 10);
-	if (isNaN(n) || !isFinite(n) || n &lt; 1 || n > l ) {
-		throw new SQLRuntimeError(
-			'Invalid length for column "%s". The length must be between 1 ' + 
-			'and %s inclusive.',
-			this.name,
-			l
-		);
-	}
-	this.length = n;
-};
-
-NumericColumn.prototype.toJSON = function() {
-	var json = {
-		name         : this.name,
-		unsigned     : this.unsigned,
-		zerofill     : this.zerofill,
-		key          : this.key,
-		defaultValue : this.defaultValue === undefined ? this.defaultValue : String(this.defaultValue),
-		autoIncrement: this.autoIncrement,
-		nullable     : this.nullable,
-		type : {
-			name   : this.type,
-			params : this.typeParams.slice()
+	/**
+	 * Overrides the parent init method so that the numeric columns will also 
+	 * initialize their "autoIncrement", "zerofill" and "unsigned" properties.
+	 * @param {Object}  options - Might have various properties:
+	 * @param {Object}  options.type
+	 * @param {String}  options.type.name - The name of the data type
+	 * @param {Array}   options.type.params - The data type parameters (if any)
+	 * @param {Boolean} options.unsigned - For numeric columns only
+	 * @param {Boolean} options.autoIncrement - For numeric columns only
+	 * @param {Boolean} options.zerofill - For numeric columns only
+	 * @static
+	 */
+	init : function(options) 
+	{
+		this.setUnsigned(options.unsigned);
+		
+		if ( isArray(options.type.params) && options.type.params.length > 0 ) {
+			this.setLength(options.type.params[0]);
+			this.typeParams = [this.length];
 		}
-	};
-	
-	return json;
-};
+		
+		this.setAutoIncrement(options.autoIncrement);
+		this.zerofill = !!options.zerofill;
+		Column.prototype.init.call(this, options);
+	},
 
-NumericColumn.prototype.toSQL = function() 
-{
-	var sql = [
-		quote(this.name), 
-		this.typeToSQL(),
-		this.nullable ? "NULL" : "NOT NULL"
-	];
+	setAutoIncrement : function(bOn)
+	{
+		this.autoIncrement = !!bOn;
+	},
 
-	if (this.unsigned)
-		sql.push("UNSIGNED");
-	if (this.zerofill)
-		sql.push("ZEROFILL");
-	if (this.autoIncrement)
-		sql.push("AUTO_INCREMENT");
+	setUnsigned : function(bUnsigned)
+	{
+		this.unsigned = !!bUnsigned;
+		this.min = this.unsigned ? this.minUnsigned : this.minSigned;
+		this.max = this.unsigned ? this.maxUnsigned : this.maxSigned; 
+	},
 
-	if (this.key == "PRIMARY")
-		sql.push("PRIMARY KEY");
-	else if (this.key == "UNIQUE")
-		sql.push("UNIQUE");
-	else if (this.key == "INDEX")
-		sql.push("KEY");
+	setLength : function(n) 
+	{
+		var l = String(this.max).length;
+		n = parseInt(n, 10);
+		if (isNaN(n) || !isFinite(n) || n &lt; 1 || n > l ) {
+			throw new SQLRuntimeError(
+				'Invalid length for column "%s". The length must be between 1 ' + 
+				'and %s inclusive.',
+				this.name,
+				l
+			);
+		}
+		this.length = n;
+	},
 
-	if (this.defaultValue !== undefined) {
-		sql.push(
-			"DEFAULT",
-			//typeof this.defaultValue == "string" ? 
-				quote(this.defaultValue, "'") //: 
-			//	this.defaultValue
-		);
+	toJSON : function() {
+		var json = {
+			name         : this.name,
+			unsigned     : this.unsigned,
+			zerofill     : this.zerofill,
+			key          : this.key,
+			defaultValue : this.defaultValue === undefined ? this.defaultValue : String(this.defaultValue),
+			autoIncrement: this.autoIncrement,
+			nullable     : this.nullable,
+			type : {
+				name   : this.type,
+				params : this.typeParams.slice()
+			}
+		};
+		
+		return json;
+	},
+
+	toSQL : function() 
+	{
+		var sql = [
+			quote(this.name), 
+			this.typeToSQL(),
+			this.nullable ? "NULL" : "NOT NULL"
+		];
+
+		if (this.unsigned)
+			sql.push("UNSIGNED");
+		if (this.zerofill)
+			sql.push("ZEROFILL");
+		if (this.autoIncrement)
+			sql.push("AUTO_INCREMENT");
+
+		if (this.key == "PRIMARY")
+			sql.push("PRIMARY KEY");
+		else if (this.key == "UNIQUE")
+			sql.push("UNIQUE");
+		else if (this.key == "INDEX")
+			sql.push("KEY");
+
+		if (this.defaultValue !== undefined) {
+			sql.push(
+				"DEFAULT",
+				//typeof this.defaultValue == "string" ? 
+					quote(this.defaultValue, "'") //: 
+				//	this.defaultValue
+			);
+		}
+
+		return sql.join(" ");
 	}
-
-	return sql.join(" ");
-};
+});
 
 // Column_BIT
 // =============================================================================
@@ -444,79 +418,74 @@ NumericColumn.prototype.toSQL = function()
  * @extends {NumericColumn}
  * @todo Enable the "b'xxx'" syntax
  */
-function Column_BIT() {}
-Column_BIT.prototype             = new NumericColumn();
-Column_BIT.prototype.constructor = Column_BIT;
-Column_BIT.prototype.type        = "BIT";
+var Column_BIT = NumericColumn.extend({
+	type : "BIT",
 
-Column_BIT.prototype.init = function(options) 
-{
-	NumericColumn.prototype.init.call(this, options);
+	init : function(options) 
+	{
+		NumericColumn.prototype.init.call(this, options);
 
-	if ( isArray(options.type.params) && options.type.params.length > 0) {
-		if (options.type.params.length !== 1) {
+		if ( isArray(options.type.params) && options.type.params.length > 0) {
+			if (options.type.params.length !== 1) {
+				throw new SQLRuntimeError(
+					'Invalid data type declaration for column "%s". The syntax ' + 
+					'is "INT[(length)]".',
+					options.name
+				);
+			}
+			this.setLength(options.type.params[0]);
+			this.typeParams = [this.length];	
+		}
+	},
+
+	setLength : function(n) 
+	{
+		n = parseInt(n, 10);
+		if (isNaN(n) || !isFinite(n) || n &lt; 1 || n > 64 ) {
 			throw new SQLRuntimeError(
-				'Invalid data type declaration for column "%s". The syntax ' + 
-				'is "INT[(length)]".',
-				options.name
+				'Invalid length for column "%s". The length must be between 1 ' + 
+				'and 64 inclusive.',
+				this.name
 			);
 		}
-		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];	
+		this.length = n;
+	},
+
+	set : function(value) {
+		var v = String(value), l = v.length, n;
+		
+		if (l > this.length) {
+			throw new SQLRuntimeError(
+				'The data ("%s") is too long for the field "%s". It may contain ' +
+				'up to %s bits',
+				v,
+				this.name,
+				this.length
+			);
+		}
+		
+		n = parseInt(v, 2);
+
+		//if (isNaN(n) && isNumeric(v)) {
+		//	n = parseInt(v, 10);
+		//}
+		
+		if (isNaN(n) || !isFinite(n)) {
+			throw new SQLRuntimeError(
+				'Invalid bit field value for column "%s". ' + 
+				'Expecting up to %s bits as binary number literal',
+				this.name,
+				this.length
+			);
+		}
+		
+		while (l++ &lt; this.length) {
+			v = '0' + v;
+		}
+		
+		return v;
 	}
-};
-
-Column_BIT.prototype.setLength = function(n) 
-{
-	n = parseInt(n, 10);
-	if (isNaN(n) || !isFinite(n) || n &lt; 1 || n > 64 ) {
-		throw new SQLRuntimeError(
-			'Invalid length for column "%s". The length must be between 1 ' + 
-			'and 64 inclusive.',
-			this.name
-		);
-	}
-	this.length = n;
-};
-
-Column_BIT.prototype.set = function(value) {
-	var v = String(value), l = v.length, n;
-	
-	if (l > this.length) {
-		throw new SQLRuntimeError(
-			'The data ("%s") is too long for the field "%s". It may contain ' +
-			'up to %s bits',
-			v,
-			this.name,
-			this.length
-		);
-	}
-	
-	n = parseInt(v, 2);
-
-	//if (isNaN(n) && isNumeric(v)) {
-	//	n = parseInt(v, 10);
-	//}
-	
-	if (isNaN(n) || !isFinite(n)) {
-		throw new SQLRuntimeError(
-			'Invalid bit field value for column "%s". ' + 
-			'Expecting up to %s bits as binary number literal',
-			this.name,
-			this.length
-		);
-	}
-	
-	while (l++ &lt; this.length) {
-		v = '0' + v;
-	}
-	
-	return v;
-};
-
-
-
-
+});
 
 // Column_INT extends NumericColumn
 // =============================================================================
@@ -525,70 +494,70 @@ Column_BIT.prototype.set = function(value) {
  * @constructor
  * @extends {NumericColumn}
  */
-function Column_INT() {}
-Column_INT.prototype             = new NumericColumn();
-Column_INT.prototype.constructor = Column_INT;
-Column_INT.prototype.type        = "INT";
-Column_INT.prototype.minUnsigned =  0;
-Column_INT.prototype.minSigned   = -2147483648;
-Column_INT.prototype.maxUnsigned =  4294967295;
-Column_INT.prototype.maxSigned   =  2147483647;
+var Column_INT = NumericColumn.extend({
+	type        : "INT",
+	minUnsigned :  0,
+	minSigned   : -2147483648,
+	maxUnsigned :  4294967295,
+	maxSigned   : 2147483647,
 
-Column_INT.prototype.init = function(options) 
-{
-	NumericColumn.prototype.init.call(this, options);
+	init : function(options) 
+	{
+		NumericColumn.prototype.init.call(this, options);
 
-	if ( isArray(options.type.params) && options.type.params.length > 0) {
-		if (options.type.params.length !== 1) {
+		if ( isArray(options.type.params) && options.type.params.length > 0) {
+			if (options.type.params.length !== 1) {
+				throw new SQLRuntimeError(
+					'Invalid data type declaration for column "%s". The syntax ' + 
+					'is "INT[(length)]".',
+					options.name
+				);
+			}
+			this.setLength(options.type.params[0]);
+			this.typeParams = [this.length];	
+		}
+	},
+
+	setLength : function(n) 
+	{
+		var l = String(this.minSigned).length;
+		n = parseInt(n, 10);
+		if (isNaN(n) || !isFinite(n) || n &lt; 1 || n > l ) {
 			throw new SQLRuntimeError(
-				'Invalid data type declaration for column "%s". The syntax ' + 
-				'is "INT[(length)]".',
-				options.name
+				'Invalid length for column "%s". The length must be between 1 ' + 
+				'and %s inclusive.',
+				this.name,
+				l
 			);
 		}
-		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];	
-	}
-};
+		this.length = n;
+	},
 
-Column_INT.prototype.setLength = function(n) 
-{
-	var l = String(this.minSigned).length;
-	n = parseInt(n, 10);
-	if (isNaN(n) || !isFinite(n) || n &lt; 1 || n > l ) {
-		throw new SQLRuntimeError(
-			'Invalid length for column "%s". The length must be between 1 ' + 
-			'and %s inclusive.',
-			this.name,
-			l
-		);
-	}
-	this.length = n;
-};
+	set : function(value) 
+	{
+		if (value === null) {
+			if (this.nullable || this.autoIncrement)
+				return value;
 
-Column_INT.prototype.set = function(value) 
-{
-	if (value === null) {
-		if (this.nullable || this.autoIncrement)
-			return value;
+			throw new SQLRuntimeError('Column "%s" cannot be NULL.', this.name);
+		}
 
-		throw new SQLRuntimeError('Column "%s" cannot be NULL.', this.name);
+		var n = parseInt(value, 10);
+		
+		if (isNaN(n) || !isFinite(n) || n &lt; this.min || n > this.max) {
+			throw new SQLRuntimeError(
+				'Invalid value "%s" for column "%s". ' + 
+				'Expecting an integer between %s and %s.',
+				String(value),
+				this.name,
+				this.min,
+				this.max
+			);
+		}
+		
+		return n;
 	}
-
-	var n = parseInt(value, 10);
-	
-	if (isNaN(n) || !isFinite(n) || n &lt; this.min || n > this.max) {
-		throw new SQLRuntimeError(
-			'Invalid value for column "%s". ' + 
-			'Expecting an integer between %s and %s.',
-			this.name,
-			this.min,
-			this.max
-		);
-	}
-	
-	return n;
-};
+});
 
 
 // Column_INTEGER - alias of Column_INT
@@ -600,10 +569,9 @@ Column_INT.prototype.set = function(value)
  * @constructor
  * @extends {Column_INT}
  */
-function Column_INTEGER() {}
-Column_INTEGER.prototype             = new Column_INT();
-Column_INTEGER.prototype.constructor = Column_INTEGER;
-Column_INTEGER.prototype.type        = "INTEGER";
+var Column_INTEGER = Column_INT.extend({
+	type : "INTEGER"
+});
 
 
 // Column_TINYINT extends Column_INT
@@ -613,15 +581,13 @@ Column_INTEGER.prototype.type        = "INTEGER";
  * @constructor
  * @extends {Column_INT}
  */
-function Column_TINYINT() {}
-Column_TINYINT.prototype             = new Column_INT();
-Column_TINYINT.prototype.constructor = Column_TINYINT;
-Column_TINYINT.prototype.type        = "TINYINT";
-Column_TINYINT.prototype.minUnsigned =  0;
-Column_TINYINT.prototype.minSigned   = -128;
-Column_TINYINT.prototype.maxUnsigned =  255;
-Column_TINYINT.prototype.maxSigned   =  127;
-
+var Column_TINYINT = Column_INT.extend({
+	type        : "TINYINT",
+	minUnsigned :  0,
+	minSigned   : -128,
+	maxUnsigned :  255,
+	maxSigned   :  127
+});
 
 // Column_SMALLINT extends Column_INT
 // =============================================================================
@@ -630,14 +596,13 @@ Column_TINYINT.prototype.maxSigned   =  127;
  * @constructor
  * @extends {Column_INT}
  */
-function Column_SMALLINT() {}
-Column_SMALLINT.prototype             = new Column_INT();
-Column_SMALLINT.prototype.constructor = Column_SMALLINT;
-Column_SMALLINT.prototype.type        = "SMALLINT";
-Column_SMALLINT.prototype.minUnsigned =  0;
-Column_SMALLINT.prototype.minSigned   = -32768;
-Column_SMALLINT.prototype.maxUnsigned =  65535;
-Column_SMALLINT.prototype.maxSigned   =  32767;
+var Column_SMALLINT = Column_INT.extend({
+	type        : "SMALLINT",
+	minUnsigned :  0,
+	minSigned   : -32768,
+	maxUnsigned :  65535,
+	maxSigned   :  32767
+});
 
 
 // Column_MEDIUMINT extends Column_INT
@@ -647,14 +612,13 @@ Column_SMALLINT.prototype.maxSigned   =  32767;
  * @constructor
  * @extends {Column_INT}
  */
-function Column_MEDIUMINT() {}
-Column_MEDIUMINT.prototype             = new Column_INT();
-Column_MEDIUMINT.prototype.constructor = Column_MEDIUMINT;
-Column_MEDIUMINT.prototype.type        = "MEDIUMINT";
-Column_MEDIUMINT.prototype.minUnsigned =  0;
-Column_MEDIUMINT.prototype.minSigned   = -8388608;
-Column_MEDIUMINT.prototype.maxUnsigned =  16777215;
-Column_MEDIUMINT.prototype.maxSigned   =  8388607;
+var Column_MEDIUMINT = Column_INT.extend({
+	type        : "MEDIUMINT",
+	minUnsigned :  0,
+	minSigned   : -8388608,
+	maxUnsigned :  16777215,
+	maxSigned   :  8388607
+});
 
 
 // Column_BIGINT extends Column_INT
@@ -664,290 +628,285 @@ Column_MEDIUMINT.prototype.maxSigned   =  8388607;
  * @constructor
  * @extends {Column_INT}
  */
-function Column_BIGINT() {}
-Column_BIGINT.prototype             = new Column_INT();
-Column_BIGINT.prototype.constructor = Column_BIGINT;
-Column_BIGINT.prototype.type        = "BIGINT";
-Column_BIGINT.prototype.minUnsigned =  0;
-Column_BIGINT.prototype.minSigned   = -9223372036854775808;
-Column_BIGINT.prototype.maxUnsigned =  18446744073709551615;
-Column_BIGINT.prototype.maxSigned   =  9223372036854775807;
+var Column_BIGINT = Column_INT.extend({
+	type        : "BIGINT",
+	minUnsigned :  0,
+	minSigned   : -9223372036854775808,
+	maxUnsigned :  18446744073709551615,
+	maxSigned   :  9223372036854775807
+});
 
 
 // Column_DECIMAL extends NumericColumn
 // =============================================================================
-function Column_DECIMAL() {}
-Column_DECIMAL.prototype             = new NumericColumn();
-Column_DECIMAL.prototype.constructor = Column_DECIMAL;
-Column_DECIMAL.prototype.type        = "DECIMAL";
-Column_DECIMAL.prototype.length      = 10;
-Column_DECIMAL.prototype.decimals    = 0;
-Column_DECIMAL.prototype.minUnsigned = Column_INT.prototype.minUnsigned;
-Column_DECIMAL.prototype.minSigned   = Column_INT.prototype.minSigned;
-Column_DECIMAL.prototype.maxUnsigned = Column_INT.prototype.maxUnsigned;
-Column_DECIMAL.prototype.maxSigned   = Column_INT.prototype.maxSigned;
-Column_DECIMAL.prototype.min         = Column_INT.prototype.minUnsigned;
-Column_DECIMAL.prototype.max         = Column_INT.prototype.maxUnsigned;
+var Column_DECIMAL = NumericColumn.extend({
+	type        : "DECIMAL",
+	length      : 10,
+	decimals    : 0,
+	minUnsigned : Column_INT.prototype.minUnsigned,
+	minSigned   : Column_INT.prototype.minSigned,
+	maxUnsigned : Column_INT.prototype.maxUnsigned,
+	maxSigned   : Column_INT.prototype.maxSigned,
+	min         : Column_INT.prototype.minUnsigned,
+	max         : Column_INT.prototype.maxUnsigned,
 
-Column_DECIMAL.prototype.init = function(options) 
-{
-	//debugger;
-	NumericColumn.prototype.init.call(this, options);
+	init : function(options) 
+	{
+		//debugger;
+		NumericColumn.prototype.init.call(this, options);
 
-	if ( isArray(options.type.params) ) {
-		if (options.type.params.length !== 1) {
+		if ( isArray(options.type.params) ) {
+			if (options.type.params.length !== 1) {
+				throw new SQLRuntimeError(
+					'Invalid data type declaration for column "%s". The syntax ' + 
+					'is "%s[(length)]".',
+					options.name,
+					this.type.toUpperCase()
+				);
+			}
+			this.setLength(options.type.params[0]);
+			this.typeParams = [this.length];
+
+		}
+		this.setDefaultValue(options.defaultValue);
+		//console.log(this.defaultValue);
+	},
+
+	set : function(value) 
+	{
+		var n = parseFloat(value);
+		
+		if (isNaN(n) || !isFinite(n) || n &lt; this.min || n > this.max) {
 			throw new SQLRuntimeError(
-				'Invalid data type declaration for column "%s". The syntax ' + 
-				'is "%s[(length)]".',
-				options.name,
-				this.type.toUpperCase()
+				'Invalid value "%s" for column "%s". ' + 
+				'Expecting a number between %s and %s.',
+				String(value),
+				this.name,
+				this.min,
+				this.max
 			);
 		}
-		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];
-
+		//debugger;
+		n = Number(value).toPrecision(this.length);
+		
+		return Number(n).toFixed(this.decimals);
 	}
-	this.setDefaultValue(options.defaultValue);
-	//console.log(this.defaultValue);
-};
-
-Column_DECIMAL.prototype.set = function(value) 
-{
-	var n = parseFloat(value);
-	
-	if (isNaN(n) || !isFinite(n) || n &lt; this.min || n > this.max) {
-		throw new SQLRuntimeError(
-			'Invalid value for column "%s". ' + 
-			'Expecting a number between %s and %s.',
-			this.name,
-			this.min,
-			this.max
-		);
-	}
-	//debugger;
-	n = Number(value).toPrecision(this.length);
-	
-	return Number(n).toFixed(this.decimals);
-};
+});
 
 
 // Column_NUMERIC - alias of Column_DECIMAL
 // =============================================================================
-function Column_NUMERIC() {}
-Column_NUMERIC.prototype             = new Column_DECIMAL();
-Column_NUMERIC.prototype.constructor = Column_NUMERIC;
-Column_NUMERIC.prototype.type        = "NUMERIC";
+var Column_NUMERIC = Column_DECIMAL.extend({
+	type : "NUMERIC"
+});
 
 
 // Column_DOUBLE extends NumericColumn
 // =============================================================================
-function Column_DOUBLE() {}
-Column_DOUBLE.prototype             = new NumericColumn();
-Column_DOUBLE.prototype.constructor = Column_DOUBLE;
-Column_DOUBLE.prototype.type        = "DOUBLE";
-Column_DOUBLE.prototype.length      = 10;
-Column_DOUBLE.prototype.decimals    = 2;
-Column_DOUBLE.prototype.minUnsigned = Column_INT.prototype.minUnsigned;
-Column_DOUBLE.prototype.minSigned   = Column_INT.prototype.minSigned;
-Column_DOUBLE.prototype.maxUnsigned = Column_INT.prototype.maxUnsigned;
-Column_DOUBLE.prototype.maxSigned   = Column_INT.prototype.maxSigned;
+var Column_DOUBLE = NumericColumn.extend({
+	type        : "DOUBLE",
+	length      : 10,
+	decimals    : 2,
+	minUnsigned : Column_INT.prototype.minUnsigned,
+	minSigned   : Column_INT.prototype.minSigned,
+	maxUnsigned : Column_INT.prototype.maxUnsigned,
+	maxSigned   : Column_INT.prototype.maxSigned,
 
-Column_DOUBLE.prototype.init = function(options) 
-{
-	NumericColumn.prototype.init.call(this, options);
+	init : function(options) 
+	{
+		NumericColumn.prototype.init.call(this, options);
 
-	if ( isArray(options.type.params) ) {
-		if (options.type.params.length !== 1) {
+		if ( isArray(options.type.params) ) {
+			if (options.type.params.length !== 1) {
+				throw new SQLRuntimeError(
+					'Invalid data type declaration for column "%s". The syntax ' + 
+					'is "%s[(length)]".',
+					options.name,
+					this.type.toUpperCase()
+				);
+			}
+			this.setLength(options.type.params[0]);
+			this.typeParams = [this.length];	
+		}
+	},
+
+	set : function(value) 
+	{
+		var n = parseFloat(value);
+		
+		if (isNaN(n) || !isFinite(n) || n &lt; this.min || n > this.max) {
 			throw new SQLRuntimeError(
-				'Invalid data type declaration for column "%s". The syntax ' + 
-				'is "%s[(length)]".',
-				options.name,
-				this.type.toUpperCase()
+				'Invalid value "%s" for column "%s". ' + 
+				'Expecting a number between %s and %s.',
+				String(value),
+				this.name,
+				this.min,
+				this.max
 			);
 		}
-		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];	
+		
+		n = Number(value).toPrecision(this.length);
+		
+		var q = Math.pow(10, this.decimals);
+	    return Math.round(n * q) / q;
 	}
-};
-
-Column_DOUBLE.prototype.set = function(value) 
-{
-	var n = parseFloat(value, 10);
-	
-	if (isNaN(n) || !isFinite(n) || n &lt; this.min || n > this.max) {
-		throw new SQLRuntimeError(
-			'Invalid value for column "%s". ' + 
-			'Expecting a number between %s and %s.',
-			this.name,
-			this.min,
-			this.max
-		);
-	}
-	
-	n = Number(value).toPrecision(this.length);
-	
-	var q = Math.pow(10, this.decimals);
-    return Math.round(n * q) / q;
-};
+});
 
 // Column_FLOAT extends NumericColumn
 // =============================================================================
-function Column_FLOAT() {}
-Column_FLOAT.prototype             = new NumericColumn();
-Column_FLOAT.prototype.constructor = Column_FLOAT;
-Column_FLOAT.prototype.type        = "FLOAT";
-Column_FLOAT.prototype.length      = 10;
-Column_FLOAT.prototype.decimals    = 2;
-Column_FLOAT.prototype.minUnsigned = Column_INT.prototype.minUnsigned;
-Column_FLOAT.prototype.minSigned   = Column_INT.prototype.minSigned;
-Column_FLOAT.prototype.maxUnsigned = Column_INT.prototype.maxUnsigned;
-Column_FLOAT.prototype.maxSigned   = Column_INT.prototype.maxSigned;
+var Column_FLOAT = NumericColumn.extend({
+	type        : "FLOAT",
+	length      : 10,
+	decimals    : 2,
+	minUnsigned : Column_INT.prototype.minUnsigned,
+	minSigned   : Column_INT.prototype.minSigned,
+	maxUnsigned : Column_INT.prototype.maxUnsigned,
+	maxSigned   : Column_INT.prototype.maxSigned,
 
-Column_FLOAT.prototype.init = function(options) 
-{
-	NumericColumn.prototype.init.call(this, options);
-	this.typeParams = [this.length];
-	if ( isArray(options.type.params) ) {
-		if (options.type.params.length > 2) {
+	init : function(options) 
+	{
+		NumericColumn.prototype.init.call(this, options);
+		this.typeParams = [this.length];
+		if ( isArray(options.type.params) ) {
+			if (options.type.params.length > 2) {
+				throw new SQLRuntimeError(
+					'Invalid data type declaration for column "%s". The syntax ' + 
+					'is "%s[(length[, decimals])]".',
+					options.name,
+					this.type.toUpperCase()
+				);
+			}
+
+			this.typeParams = [];
+			if (options.type.params.length > 0) {
+				this.setLength(options.type.params[0]);
+				this.typeParams[0] = this.length;
+			}
+
+			if (options.type.params.length > 1) {
+				this.decimals = intVal(options.type.params[1]);
+				this.typeParams[1] = this.decimals;
+			}
+		}
+	},
+
+	set : function(value) 
+	{
+		var n = parseFloat(value);
+		
+		if (isNaN(n) || !isFinite(n) || n &lt; this.min || n > this.max) {
 			throw new SQLRuntimeError(
-				'Invalid data type declaration for column "%s". The syntax ' + 
-				'is "%s[(length[, decimals])]".',
-				options.name,
-				this.type.toUpperCase()
+				'Invalid value "%s" for column "%s". ' + 
+				'Expecting a number between %s and %s.',
+				String(value),
+				this.name,
+				this.min,
+				this.max
 			);
 		}
-
-		this.typeParams = [];
-		if (options.type.params.length > 0) {
-			this.setLength(options.type.params[0]);
-			this.typeParams[0] = this.length;
-		}
-
-		if (options.type.params.length > 1) {
-			this.decimals = intVal(options.type.params[1]);
-			this.typeParams[1] = this.decimals;
-		}
+		
+		n = Number(value).toPrecision(this.length);
+		
+		var q = Math.pow(10, this.decimals);
+	    return Math.round(n * q) / q;
 	}
-};
-
-Column_FLOAT.prototype.set = function(value) 
-{
-	var n = parseFloat(value, 10);
-	
-	if (isNaN(n) || !isFinite(n) || n &lt; this.min || n > this.max) {
-		throw new SQLRuntimeError(
-			'Invalid value for column "%s". ' + 
-			'Expecting a number between %s and %s.',
-			this.name,
-			this.min,
-			this.max
-		);
-	}
-	
-	n = Number(value).toPrecision(this.length);
-	
-	var q = Math.pow(10, this.decimals);
-    return Math.round(n * q) / q;
-};
+});
 
 // StringColumn extends Column
 // =============================================================================
-function StringColumn() {}
-StringColumn.prototype             = new Column();
-StringColumn.prototype.constructor = StringColumn;
-StringColumn.prototype.type        = "STRING";
-StringColumn.prototype.length      = -1;
-StringColumn.prototype.maxLength   = Number.MAX_VALUE;
+var StringColumn = Column.extend({
+	type        : "STRING",
+	length      : -1,
+	maxLength   : Number.MAX_VALUE,
 
-StringColumn.prototype.init = function(options) 
-{
-	if ( isArray(options.type.params) && 
-		options.type.params.length > 0 &&
-		String(options.type.params[0]) != "-1" ) 
+	init : function(options) 
 	{
-		this.setLength(options.type.params[0]);
-		this.typeParams = [this.length];	
-	}
-	Column.prototype.init.call(this, options);
-};
+		if ( isArray(options.type.params) && 
+			options.type.params.length > 0 &&
+			String(options.type.params[0]) != "-1" ) 
+		{
+			this.setLength(options.type.params[0]);
+			this.typeParams = [this.length];	
+		}
+		Column.prototype.init.call(this, options);
+	},
 
-StringColumn.prototype.setLength = function(n) 
-{
-	n = parseInt(n, 10);
-	if (isNaN(n) || !isFinite(n) || n &lt; 0 ) {
-		throw new SQLRuntimeError(
-			'Invalid length for column "%s". The length must be a positive integer.',
-			this.name
-		);
-	}
-	this.length = Math.min(n, this.maxLength);
-};
+	setLength : function(n) 
+	{
+		n = parseInt(n, 10);
+		if (isNaN(n) || !isFinite(n) || n &lt; 0 ) {
+			throw new SQLRuntimeError(
+				'Invalid length for column "%s". The length must be a positive integer.',
+				this.name
+			);
+		}
+		this.length = Math.min(n, this.maxLength);
+	},
 
-StringColumn.prototype.set = function(value) 
-{
-	var s = String(value), l;
-	if (this.length == -1) {
+	set : function(value) 
+	{
+		var s = String(value), l;
+		if (this.length == -1) {
+			return s;
+		}
+		
+		l = s.length;
+		
+		if (l > this.length) {
+			throw new SQLRuntimeError(
+				'Truncated value for column "%s".',
+				this.name
+			);
+		}
+		
 		return s;
+	},
+
+	toSQL : function() 
+	{
+		var sql = [
+			quote(this.name), 
+			this.typeToSQL(),
+			this.nullable ? "NULL" : "NOT NULL"
+		];
+
+		if (this.key == "PRIMARY")
+			sql.push("PRIMARY KEY");
+		else if (this.key == "UNIQUE")
+			sql.push("UNIQUE");
+		else if (this.key == "INDEX")
+			sql.push("KEY");
+
+		if (this.defaultValue !== undefined) {
+			sql.push(
+				"DEFAULT",
+				//typeof this.defaultValue == "string" ? 
+					quote(this.defaultValue, "'") //: 
+				//	this.defaultValue
+			);
+		}
+
+		return sql.join(" ");
 	}
-	
-	l = s.length;
-	
-	if (l > this.length) {
-		throw new SQLRuntimeError(
-			'Truncated value for column "%s".',
-			this.name
-		);
-	}
-	
-	return s;
-};
-
-StringColumn.prototype.toSQL = function() 
-{
-	var sql = [
-		quote(this.name), 
-		this.typeToSQL(),
-		this.nullable ? "NULL" : "NOT NULL"
-	];
-
-	if (this.key == "PRIMARY")
-		sql.push("PRIMARY KEY");
-	else if (this.key == "UNIQUE")
-		sql.push("UNIQUE");
-	else if (this.key == "INDEX")
-		sql.push("KEY");
-
-	if (this.defaultValue !== undefined) {
-		sql.push(
-			"DEFAULT",
-			//typeof this.defaultValue == "string" ? 
-				quote(this.defaultValue, "'") //: 
-			//	this.defaultValue
-		);
-	}
-
-	return sql.join(" ");
-};
+});
 
 
 
 // Column_VARCHAR extends StringColumn
 // =============================================================================
-function Column_VARCHAR() {}
-Column_VARCHAR.prototype             = new StringColumn();
-Column_VARCHAR.prototype.constructor = Column_VARCHAR;
-Column_VARCHAR.prototype.type        = "VARCHAR";
-Column_VARCHAR.prototype.length      = -1;
-Column_VARCHAR.prototype.maxLength   = 65535;
+var Column_VARCHAR = StringColumn.extend({
+	type        : "VARCHAR",
+	length      : -1,
+	maxLength   : 65535
+});
 
 // Column_CHAR extends StringColumn
 // =============================================================================
-function Column_CHAR() {}
-Column_CHAR.prototype             = new StringColumn();
-Column_CHAR.prototype.constructor = Column_CHAR;
-Column_CHAR.prototype.type        = "CHAR";
-Column_CHAR.prototype.length      = -1;
-Column_CHAR.prototype.maxLength   = 65535;
+var Column_CHAR = StringColumn.extend({
+	type        : "CHAR",
+	length      : -1,
+	maxLength   : 65535
+});
 
 // Column_ENUM extends StringColumn
 // =============================================================================
@@ -955,76 +914,314 @@ Column_CHAR.prototype.maxLength   = 65535;
  * @constructor
  * @extends {StringColumn}
  */
-function Column_ENUM() {}
-
-Column_ENUM.prototype             = new StringColumn();
-Column_ENUM.prototype.constructor = Column_ENUM;
-
-Column_ENUM.prototype.type = "ENUM";
-
-Column_ENUM.prototype.setLength = function(n) {};
-
-/**
- * The initialization of ENUM columns requires at least one option to be 
- * specified in the options.type.params array.
- */
-Column_ENUM.prototype.init = function(options) 
-{
-	if ( !isArray(options.type.params) || options.type.params.length &lt; 1 ) 
-	{
-		throw new SQLRuntimeError(
-			'The "%s" column type requires at least one option.',
-			this.type
-		);
-	}
-
-	this.typeParams = options.type.params.slice();
-	Column.prototype.init.call(this, options);	
-};
-
-/**
- * Setting a value on ENUM column requires that that value is present in the
- * options list. Otherwise an exception is thrown.
- * @param {String|Number} value - The value to set
- * @return {String} - The value that has been set as string
- * @throws {SQLRuntimeError} exception - If the value is invalid
- */
-Column_ENUM.prototype.set = function(value) 
-{
-	var s = String(value);
-	if (this.typeParams.indexOf(s) == -1) 
-	{
-		throw new SQLRuntimeError(
-			'The value for column "%s" must be %s.',
-			this.name,
-			prettyList(this.optionSet)
-		);
-	}
+var Column_ENUM = StringColumn.extend({
+	type : "ENUM",
 	
-	return s;
-};
+	setLength : function(n) {},
+
+	/**
+	 * The initialization of ENUM columns requires at least one option to be 
+	 * specified in the options.type.params array.
+	 */
+	init : function(options) 
+	{
+		if ( !isArray(options.type.params) || options.type.params.length &lt; 1 ) 
+		{
+			throw new SQLRuntimeError(
+				'The "%s" column type requires at least one option.',
+				this.type
+			);
+		}
+
+		this.typeParams = options.type.params.slice();
+		Column.prototype.init.call(this, options);	
+	},
+
+	/**
+	 * Setting a value on ENUM column requires that that value is present in the
+	 * options list. Otherwise an exception is thrown.
+	 * @param {String|Number} value - The value to set
+	 * @return {String} - The value that has been set as string
+	 * @throws {SQLRuntimeError} exception - If the value is invalid
+	 */
+	set : function(value) 
+	{
+		var s = String(value);
+		if (this.typeParams.indexOf(s) == -1) 
+		{
+			throw new SQLRuntimeError(
+				'The value for column "%s" must be %s.',
+				this.name,
+				prettyList(this.optionSet)
+			);
+		}
+		
+		return s;
+	},
+
+	/**
+	 * Overrides the basic typeToSQL method so that the ENUM columns include their
+	 * options as comma-separated list in brackets after the type name.
+	 * @return {String} - The SQL representation of the column
+	 */
+	typeToSQL : function() {
+		var sql = [this.type];
+		if (this.typeParams.length) {
+			sql.push("(");
+			for (var i = 0, l = this.typeParams.length; i &lt; l; i++) {
+				sql.push(quote(this.typeParams[i], "'"));
+				if (i &lt; l - 1)
+					sql.push(", ");
+			}
+			sql.push(")");
+		}
+		return sql.join("");
+	}
+});
+
+var DateTimeColumn = Column.extend({
+	//get : function() {
+	//	throw new Error("Please implement get()");
+	//},
+
+	set : function(d) 
+	{
+		if (d === null) {
+			if (this.nullable || this.autoIncrement)
+				return d;
+
+			throw new SQLRuntimeError('Column "%s" cannot be NULL.', this.name);
+		}
+
+		var _d = parseDate(d);
+		if (isNaN(_d * 1)) {
+			throw new SQLParseError(
+				'Invalid value "%s" for column "%s".',
+				d + " (" + typeof d + ")",
+				this.name
+			);
+		}
+
+		return _d.getTime();//this.get(_d);
+	}
+});
+
+// Column_DATE extends DateTimeColumn
+// =============================================================================
+var Column_DATE = DateTimeColumn.extend({
+	type : "DATE",
+
+	/**
+	 * jsSQL displays DATE values in 'YYYY-MM-DD' format, but allows you to 
+	 * assign values to DATE columns using either strings, numbers or Date 
+	 * objects.
+	 */
+	get : function(d) 
+	{
+		return d === null ? "0000-00-00" : strftime("%Y-%m-%d", d);
+	},
+});
+
+// Column_YEAR extends DateTimeColumn
+// =============================================================================
+var Column_YEAR = DateTimeColumn.extend({
+	type : "YEAR",
+
+	/**
+	 * jsSQL displays YEAR values in 'YYYY' format, but allows you to 
+	 * assign values to DATE columns using either strings, numbers or Date 
+	 * objects.
+	 */
+	get : function(d) 
+	{
+		return d === null ? "0000" : strftime("%Y", d);
+	},
+});
+
+// Column_DATETIME extends DateTimeColumn
+// =============================================================================
+var Column_DATETIME = DateTimeColumn.extend({
+	type : "DATETIME",
+
+	format : "%Y-%m-%d %H:%M:%S",
+
+	init : function(options) 
+	{
+		if ( isArray(options.type.params) && options.type.params.length > 0 ) {
+			var first = options.type.params[0];
+			if (isNumeric(first)) {
+				this.fps = intVal(first);
+			} else {
+				this.format = first;
+			}
+			this.typeParams = [this.length];
+		}
+		console.log(this);
+		Column.prototype.init.call(this, options);
+	},
+
+	/**
+	 * jsSQL displays DATETIME values in 'YYYY-MM-DD HH:MM:SS' format, but 
+	 * allows you to assign values to DATE columns using either strings, numbers
+	 * or Date objects.
+	 */
+	get : function(d) 
+	{
+		return d === null ? 
+			"0000-00-00 00:00:00" : 
+			strftime(this.format, d);
+	}
+});
+
+// Column_TIME extends DateTimeColumn
+// =============================================================================
+var Column_TIME = DateTimeColumn.extend({
+	type : "TIME",
+
+	/**
+	 * jsSQL displays TIME values in 'HH:MM:SS' format, but allows you to assign
+	 * values to DATE columns using either strings, numbers or Date objects.
+	 */
+	get : function(d) 
+	{
+		return d === null ? "00:00:00" : strftime("%H:%M:%S", d);
+	},
+});
+
+// Column_TIMESTAMP extends DateTimeColumn
+// =============================================================================
+var Column_TIMESTAMP = DateTimeColumn.extend({
+	type : "TIMESTAMP",
+
+	init : function(options) 
+	{
+		if ( isArray(options.type.params) && options.type.params.length > 0 ) {
+			this.setLength(options.type.params[0]);
+			this.typeParams = [this.length];
+		} else {
+			this.setLength(14);
+		}
+		Column.prototype.init.call(this, options);
+	},
+
+	setLength : function(n) 
+	{
+		var accept = { 4: 1, 6: 1, 8: 1, 10: 1, 12: 1, 14: 1 };
+		n = parseInt(n, 10);
+		if (isNaN(n) || !isFinite(n) || !(n in accept)) {
+			throw new SQLRuntimeError(
+				'Invalid length for column "%s". The length (if specified) ' + 
+				'must be %s.',
+				this.name,
+				prettyList(accept)
+			);
+		}
+		this.length = n;
+	},
+
+	set : function(d) 
+	{
+		//if (d === null) {
+		//	if (this.nullable || this.autoIncrement)
+		//		return d;
+		//
+		//	throw new SQLRuntimeError('Column "%s" cannot be NULL.', this.name);
+		//}
+		if (d === null) 
+			d = "now";
+
+		var _d = parseDate(d);
+		if (isNaN(_d * 1)) {
+			throw new SQLParseError(
+				'Invalid value "%s" for column "%s".',
+				d + " (" + typeof d + ")",
+				this.name
+			);
+		}
+
+		return _d.getTime();//this.get(_d);
+	},
+
+	/**
+	 * TIMESTAMP[(M)]
+	 *
+	 * A timestamp. The range is '1970-01-01 00:00:00' to sometime in the year 
+	 * 2037. jsSQL displays TIMESTAMP values in YYYYMMDDHHMMSS, YYMMDDHHMMSS, 
+	 * YYYYMMDD, or YYMMDD format, depending on whether M is 14 (or missing), 
+	 * 12, 8, or 6, but allows you to assign values to TIMESTAMP columns using 
+	 * either strings, numbers or Date objects.
+	 */
+	get : function(d) 
+	{
+		if (d === null) 
+			return d;
+
+		var _d = new Date(d);
+
+		var out = [ _d.getFullYear() ];
+
+		if (this.length > 4)
+			out.push(prependZero(_d.getMonth() + 1, 2));
+
+		if (this.length > 6)
+			out.push(prependZero(_d.getDate(), 2));
+
+		if (this.length > 8) 
+			out.push(prependZero(_d.getHours(), 2));
+
+		if (this.length > 10) 
+			out.push(prependZero(_d.getMinutes(), 2));
+
+		if (this.length > 12) 
+			out.push(prependZero(_d.getSeconds(), 2));
+
+		return out.join("");
+	}
+});
 
 /**
- * Overrides the basic typeToSQL method so that the ENUM columns include their
- * options as comma-separated list in brackets after the type name.
- * @return {String} - The SQL representation of the column
+ * A map the supported SQL data types and the corresponding constructor function
+ * that should create an instance of the given column type.
+ * @type {Object}
+ * @static
+ * @readonly
  */
-Column_ENUM.prototype.typeToSQL = function() {
-	var sql = [this.type];
-	if (this.typeParams.length) {
-		sql.push("(");
-		for (var i = 0, l = this.typeParams.length; i &lt; l; i++) {
-			sql.push(quote(this.typeParams[i], "'"));
-			if (i &lt; l - 1)
-				sql.push(", ");
-		}
-		sql.push(")");
-	}
-	return sql.join("");
-};
-
-
-</code></pre>
+var columnDataTypes = {
+	"BIT"       : Column_BIT      , // [(length)]
+	"TINYINT"   : Column_TINYINT  , // [(length)] [UNSIGNED] [ZEROFILL]
+	"SMALLINT"  : Column_SMALLINT , // [(length)] [UNSIGNED] [ZEROFILL]
+	"MEDIUMINT" : Column_MEDIUMINT, // [(length)] [UNSIGNED] [ZEROFILL]
+	"INT"       : Column_INT      , // [(length)] [UNSIGNED] [ZEROFILL]
+	"INTEGER"   : Column_INTEGER  , // [(length)] [UNSIGNED] [ZEROFILL]
+	"BIGINT"    : Column_BIGINT   , // [(length)] [UNSIGNED] [ZEROFILL]
+	//"REAL"      : , // [(length,decimals)] [UNSIGNED] [ZEROFILL]
+	"DOUBLE"    : Column_DOUBLE   , // [(length,decimals)] [UNSIGNED] [ZEROFILL]
+	"FLOAT"     : Column_FLOAT    , // [(length,decimals)] [UNSIGNED] [ZEROFILL]
+	"DECIMAL"   : Column_DECIMAL  , // [(length[,decimals])] [UNSIGNED] [ZEROFILL]
+	"NUMERIC"   : Column_NUMERIC  , // [(length[,decimals])] [UNSIGNED] [ZEROFILL]
+	
+	"DATE"      : Column_DATE     ,
+	"TIME"      : Column_TIME     , // [(fsp)]
+	"TIMESTAMP" : Column_TIMESTAMP, // [(fsp)]
+	"DATETIME"  : Column_DATETIME , // [(fsp)]
+	"YEAR"      : Column_YEAR     ,
+	
+	"CHAR"      : Column_CHAR     , // [(length)] [CHARACTER SET charset_name] [COLLATE collation_name]
+	"VARCHAR"   : Column_VARCHAR  , // (length) [CHARACTER SET charset_name] [COLLATE collation_name]
+	//"BINARY" : {}, // [(length)]
+	//"VARBINARY" : {}, //(length)
+	//"TINYBLOB" : {},
+	//"BLOB" : {},
+	//"MEDIUMBLOB" : {},
+	//"LONGBLOB" : {},
+	//"TINYTEXT" : {}, // [BINARY] [CHARACTER SET charset_name] [COLLATE collation_name]
+	//"TEXT" : {}, //  [BINARY] [CHARACTER SET charset_name] [COLLATE collation_name]
+	//"MEDIUMTEXT" : {}, //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
+	//"LONGTEXT" : {}, //  [BINARY][CHARACTER SET charset_name] [COLLATE collation_name]
+	"ENUM" : Column_ENUM          , // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
+	//"SET" : {}//, // (value1,value2,value3,...)[CHARACTER SET charset_name] [COLLATE collation_name]
+	//"spatial_type"
+};</code></pre>
         </article>
     </section>
 
@@ -1034,13 +1231,13 @@ Column_ENUM.prototype.typeToSQL = function() {
 </div>
 
 <nav>
-    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="construct.html">construct</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_insertRow">_insertRow</a></li><li><a href="global.html#addConstraint">addConstraint</a></li><li><a href="global.html#beginTransaction">beginTransaction</a></li><li><a href="global.html#bind">bind</a></li><li><a href="global.html#columnDataTypes">columnDataTypes</a></li><li><a href="global.html#create">create</a></li><li><a href="global.html#createDatabase">createDatabase</a></li><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#createTable">createTable</a></li><li><a href="global.html#deleteRows">deleteRows</a></li><li><a href="global.html#drop">drop</a></li><li><a href="global.html#dropDatabase">dropDatabase</a></li><li><a href="global.html#get">get</a></li><li><a href="global.html#getCell">getCell</a></li><li><a href="global.html#getCellAt">getCellAt</a></li><li><a href="global.html#getCellValue">getCellValue</a></li><li><a href="global.html#getCurrentDatabase">getCurrentDatabase</a></li><li><a href="global.html#getDatabase">getDatabase</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#getStorageKey">getStorageKey</a></li><li><a href="global.html#getTable">getTable</a></li><li><a href="global.html#getTransaction">getTransaction</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#isInTransaction">isInTransaction</a></li><li><a href="global.html#key">key</a></li><li><a href="global.html#length">length</a></li><li><a href="global.html#load">load</a></li><li><a href="global.html#name">name</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#nullable">nullable</a></li><li><a href="global.html#one">one</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#read">read</a></li><li><a href="global.html#save">save</a></li><li><a href="global.html#set">set</a></li><li><a href="global.html#setCellValue">setCellValue</a></li><li><a href="global.html#setCurrentDatabase">setCurrentDatabase</a></li><li><a href="global.html#setDefaultValue">setDefaultValue</a></li><li><a href="global.html#setKey">setKey</a></li><li><a href="global.html#setName">setName</a></li><li><a href="global.html#setTable">setTable</a></li><li><a href="global.html#toJSON">toJSON</a></li><li><a href="global.html#type">type</a></li><li><a href="global.html#typeParams">typeParams</a></li><li><a href="global.html#typeToSQL">typeToSQL</a></li><li><a href="global.html#unbind">unbind</a></li><li><a href="global.html#unsetMany">unsetMany</a></li><li><a href="global.html#update">update</a></li><li><a href="global.html#write">write</a></li></ul>
 </nav>
 
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:16 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Thu Sep 11 2014 12:50:11 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

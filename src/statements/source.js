@@ -25,39 +25,50 @@ STATEMENTS.SOURCE = function(walker) {
 			}
 			
 			walker.commit(function() {
-				
-				if (url) {
-					xhr = new XMLHttpRequest();
-					xhr.open("GET", url, true);
-					xhr.onreadystatechange = function() {
-						if (xhr.readyState == 4) {
-							if (xhr.status == 200 || xhr.status == 304) {
-								var queries = getQueries(xhr.responseText),
-									len = queries.length;
-								query(queries, function(result, idx) {
-									if (idx === len - 1) {
-										next(null, strf(
+				if (!url)
+					return next(new SQLParseError("No path specified"), null);
+
+				xhr = new XMLHttpRequest();
+				xhr.open("GET", url, true);
+				xhr.onreadystatechange = function() {
+					if (xhr.readyState == 4) {
+						if (xhr.status == 200 || xhr.status == 304) {
+							var queries = getQueries(xhr.responseText),
+								len = queries.length;
+
+							walker.server.query(queries, function(err, result, idx) {
+								if (err) {
+									return next(
+										err ? err : new SQLRuntimeError(
+											'Error executing query:\n%s',
+											queries[idx].sql
+										), 
+										null
+									);
+								}
+
+								if (idx === len - 1) {
+									walker.server.save(function(err) {
+										next(err, err ? null : strf(
 											'%s queries executed successfuly from file "%s"',
 											len,
 											url
 										));
-									}
-								}, function(e, idx) {
-									next(e + " (query: " + queries[idx].sql + ")", null);
-								});
-							} else {
-								next(xhr.statusText, null);
-							}
+									});
+								}
+							});
+						} else {
+							next(new SQLRuntimeError(xhr.statusText), null);
 						}
-					};
-					xhr.send(null);
-				}
+					}
+				};
+				xhr.send(null);
 			});
 		},
 		undo : function(next) {
-			if (CFG.debug)
+			if (walker.server.options.debug)
 				console.warn("The SOURCE command cannot be undone!");
-			next();
+			next("The SOURCE command cannot be undone!");
 		}
 	});
 };

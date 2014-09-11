@@ -7,6 +7,7 @@
  */
 STATEMENTS.INSERT = function(walker) {
 	var dbName, 
+		db,
 		tableName, 
 		table,
 		or, 
@@ -80,7 +81,7 @@ STATEMENTS.INSERT = function(walker) {
 			walker
 			// TODO: with-clause
 			
-			// Type of insert ------------------------------------------------------
+			// Type of insert --------------------------------------------------
 			.optional({ 
 				"OR" : function() {
 					walker.pick({
@@ -95,7 +96,7 @@ STATEMENTS.INSERT = function(walker) {
 			
 			.pick({ "INTO" : noop })
 			
-			// table ---------------------------------------------------------------
+			// table -----------------------------------------------------------
 			.someType(WORD_OR_STRING, function(token) {
 				tableName = token[0];
 			})
@@ -105,25 +106,31 @@ STATEMENTS.INSERT = function(walker) {
 					tableName = token[0];
 				});
 			});
-			
-			table = getTable(tableName, dbName);
+
+			db      = walker.server.getDatabase(dbName);
+			table   = db.getTable(tableName);
 			columns = keys(table.cols);
 			
-			// Columns to be used --------------------------------------------------
+			// Columns to be used ----------------------------------------------
 			walker.optional({ "(" : columnsList })
 			
-			// Values to insert ----------------------------------------------------
+			// Values to insert ------------------------------------------------
 			.pick({
 				// TODO: Support for select statements here
 				//"DEFAULT VALUES" : function() {
 					// TODO
 				//},
 				"VALUES" : valueSet
-			})
+			});
 			
-			// Finalize ------------------------------------------------------------
-			.errorUntil(";")
-			.commit(function() {
+			// Finalize --------------------------------------------------------
+			try {
+				walker.errorUntil(";");
+			} catch (ex) {
+				return next(ex, null);
+			}
+			
+			walker.commit(function() {
 				/*console.dir({
 					dbName    : dbName, 
 					tableName : tableName, 

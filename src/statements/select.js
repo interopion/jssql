@@ -362,10 +362,15 @@ STATEMENTS.SELECT = function(walker) {
 
 		for ( i = 0; i < tablesLength; i++ ) 
 		{
-			tables[i] = tables[query.tables[i].table] = getTable(
-				query.tables[i].table,
-				query.tables[i].database
-			);
+			tables[i] = walker
+				.server
+				.getDatabase(query.tables[i].database)
+				.getTable(query.tables[i].table);
+
+			//tables[i] = tables[query.tables[i].table] = getTable(
+			//	query.tables[i].table,
+			//	query.tables[i].database
+			//);
 
 			if (query.tables[i].alias) {
 				tables[query.tables[i].alias] = tables[i];
@@ -385,9 +390,9 @@ STATEMENTS.SELECT = function(walker) {
 			col,
 			db;
 
-		for ( dbName in SERVER.databases )
+		for ( dbName in walker.server.databases )
 		{
-			db = SERVER.databases[dbName];
+			db = walker.server.databases[dbName];
 			env[dbName] = {};
 
 			for ( tableName in db.tables )
@@ -457,7 +462,8 @@ STATEMENTS.SELECT = function(walker) {
 			//console.log("fld: ", fld);
 
 			if (fld.table) {
-				table = getTable(fld.table.table, fld.table.database);
+				table = walker.server.getDatabase(fld.table.database).getTable(fld.table.table);
+				//table = getTable(fld.table.table, fld.table.database);
 
 				if (!_tables.hasOwnProperty(table.name))
 					_tables[table.name] = { name : table.name };
@@ -495,7 +501,8 @@ STATEMENTS.SELECT = function(walker) {
 				if (fld.table)
 				{
 					//debugger;
-					table = getTable(fld.table, fld.database);
+					table = walker.server.getDatabase(fld.database).getTable(fld.table);
+					//table = getTable(fld.table, fld.database);
 					for ( colName in table.cols ) 
 					{
 						prepareField({
@@ -558,7 +565,7 @@ STATEMENTS.SELECT = function(walker) {
 			table = tables[i];
 			for ( rowId in table.rows )
 			{
-				arr.push(table.rows[rowId].toJSON());
+				arr.push(table.rows[rowId].toJSON("object"));
 			}
 			_data.push(arr);
 		}
@@ -707,6 +714,7 @@ STATEMENTS.SELECT = function(walker) {
 			.commit(function() {//console.log("EXEC SELECT");
 				//console.dir(query);
 				var result = execute(query);
+				//console.dir(result);
 				next(null, {
 					cols : result.cols,
 					rows : result.rows

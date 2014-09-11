@@ -38,14 +38,14 @@
  *                         converted to float too.
  * @return {Number} The resulting floating point number.
  */
-function floatVal(x, defaultValue) 
-{
-    var out = parseFloat(x);
-    if (isNaN(out) || !isFinite(out)) {
-        out = defaultValue === undefined ? 0 : floatVal(defaultValue);
-    }
-    return out;
-}
+//function floatVal(x, defaultValue) 
+//{
+//    var out = parseFloat(x);
+//    if (isNaN(out) || !isFinite(out)) {
+//        out = defaultValue === undefined ? 0 : floatVal(defaultValue);
+//    }
+//    return out;
+//}
 
 /**
  * Returns the int representation of the first argument or the
@@ -73,18 +73,18 @@ function intVal(x, defaultValue)
  *                   decimal point) to use.
  * @return {Number} The resulting number.
  */
-function roundToPrecision(n, p) 
-{
-    n = parseFloat(n);
-    if (isNaN(n) || !isFinite(n)) {
-        return NaN;
-    }
-    if (!p || isNaN(p) || !isFinite(p) || p &lt; 1) {
-        return Math.round(n);
-    }
-    var q = Math.pow(10, p);
-    return Math.round(n * q) / q;
-}
+//function roundToPrecision(n, p) 
+//{
+//    n = parseFloat(n);
+//    if (isNaN(n) || !isFinite(n)) {
+//        return NaN;
+//    }
+//    if (!p || isNaN(p) || !isFinite(p) || p &lt; 1) {
+//        return Math.round(n);
+//    }
+//    var q = Math.pow(10, p);
+//    return Math.round(n * q) / q;
+//}
 
 /**
  * Simplified version of printf. Just replaces all the occurrences of "%s" with
@@ -152,7 +152,7 @@ function makeArray(x)
 		return x;
 	}
 
-	if ( typeof x.toArray == "function" )
+	if ( x && typeof x.toArray == "function" )
 	{
 		return makeArray(x.toArray());
 	}
@@ -165,7 +165,7 @@ function makeArray(x)
 	return [x];
 }
 
-function error(options)
+/*function error(options)
 {
 	options = typeof options == "string" ? 
 		{ message : options } : 
@@ -224,7 +224,7 @@ function error(options)
 	//console.log(params.join(""))
 	console.log.apply(console, params);
 	throw new SyntaxError(txt);
-}
+}*/
 
 function trim(str)
 {
@@ -339,7 +339,7 @@ function every(o, callback, scope)
 	return true;
 }
 
-function some(o, callback, scope)
+/*function some(o, callback, scope)
 {
 	var key, len, argLen = arguments.length;
 	
@@ -377,7 +377,7 @@ function some(o, callback, scope)
 		}
 	}
 	return false;
-}
+}*/
 
 function keys(o, all) {
 	var out = [], x;
@@ -391,7 +391,7 @@ function keys(o, all) {
 
 function noop() {}
 
-function getDatabase(dbName, throwError)
+/*function getDatabase(dbName, throwError)
 {
 	var database;
 	if (!dbName) {
@@ -446,7 +446,7 @@ function createTable(name, fields, ifNotExists, database, next)
 	}
 	
 	return database.createTable(name, fields, ifNotExists, next);
-}
+}*/
 
 function isArray(x) 
 {
@@ -460,8 +460,9 @@ function isFunction(x)
 
 function isNumeric(x)
 {
-	var n = parseFloat(x);
-	return !isNaN(n) && isFinite(n);
+	return trim(x * 1) === trim(x);
+	//var n = parseFloat(x);
+	//return !isNaN(n) && isFinite(n);
 }
 
 function binarySearch(haystack, needle, comparator, low, high) 
@@ -541,11 +542,11 @@ function assert(condition, msg) {
 	}
 }
 
-function defaultErrorHandler(e) 
+/*function defaultErrorHandler(e) 
 {
 	if (CFG.debug && window.console && console.error) 
 		console.error(e);
-}
+}*/
 
 function createNextHandler(fn) {
 	return isFunction(fn) ? fn : function(err) {
@@ -602,6 +603,300 @@ function mixin()
 
 	return a;
 }
+
+function prependZero(n, len) {
+	var q = len || 1, x = String(n).length;
+	while (x++ &lt; q) n = "0" + n;
+	return n;
+}
+
+
+// =============================================================================
+//                             Date/Time Utils
+// =============================================================================
+
+/* 
+ * This returns true if year is a leap year.  Must use 4 digit year.
+ */
+function isLeapYear(year) {
+	return year % 4 === 0 && 
+		(year % 100 !== 0 || year % 400 === 0);
+}
+
+function getWeek(date) {
+    var firstMon = new Date(date.getFullYear(), 0, 1);
+    return Math.floor((date.getTime() + DAY - firstMon) / WEEK);
+}
+
+function dateToISO8601(format) {
+	/* jshint ignore:start */
+	return strftime(format || "%Y-%m-%dT%H:%M:%f%z", this);
+	/* jshint ignore:end */
+}
+
+function parseISO8601(input) {
+	var date = new Date(0,0,1,0,0,0,0), m = String(input).match(RE_ISO8601), tz;
+
+	if (m) {
+		date.setFullYear    (parseInt(m[2 ] || 0, 10));
+		date.setMonth       (parseInt((m[3 ] || 1) - 1, 10));
+		date.setDate        (parseInt(m[4 ] || 1, 10));
+		date.setHours       (parseInt(m[6 ] || 0, 10));
+		date.setMinutes     (parseInt(m[7 ] || 0, 10));
+		date.setSeconds     (parseInt(m[9 ] || 0, 10));
+		date.setMilliseconds(parseInt(m[11] || 0, 10));
+
+		tz = String(m[12]).toUpperCase();
+
+		if (tz == "Z") {
+			date._offset = 0;
+		}
+		else if (m[14]) {
+
+			// custom hours offset
+			if (m[15]) {
+				date._offset = parseInt(m[14] + m[15], 10) * HOUR;
+			}
+
+			// custom minutes offset
+			if (m[17]) {
+				date._offset += parseInt(m[14] + m[17], 10) * MINUTE;
+			}
+		}
+	} else {
+		date.setFullYear(0);
+	}
+
+	date.toString = dateToISO8601;
+
+	return date;
+}
+
+// ISO-8601
+// now (case insensitive) 
+// unix time integer
+// a Date object
+function parseDate(input, mods) {
+
+	var type = Object.prototype.toString.call(input), date;
+
+	// By Date object
+	if (type == "[object Date]") {
+		date = input;
+	}
+
+	// By unix time number
+	else if (type == "[object Number]") {
+		date = new Date(input);
+	}
+
+	// Require string argument from now on
+	else if (type != "[object String]") {
+		date = parseISO8601(0);
+		//throw new Error("Invalid argument " + type);
+	}
+
+	// By "now" string
+	else if (input.toLowerCase() == "now") {
+		date = new Date(Date.now());
+	}
+
+	// By unix time as string
+	else if (isNumeric(input)) {
+		date = new Date(input * 1);
+	}
+
+	else {
+		date = parseISO8601(input);
+	}
+
+	if (!isNaN(date * 1)) {
+		mods = isArray(mods) ? mods : makeArray(arguments).slice(1);
+		mods.forEach(function(mod) {
+			dateModify(date, mod);	
+		});
+	}
+
+	date.toString = dateToISO8601;
+
+	return date;
+}
+
+function dateModify(date, mod) {
+	var m = mod.match(/^\s*([+-]?\d+(\.\d+)?\s+)?(.*)?\s*$/), tmp;
+
+	//date.__is_utc__ = date.getTimezoneOffset() === 0;
+
+	//console.log(m);
+	if (m) {
+
+		// simply add the specified amount of time to the date and time 
+		// specified by the modifiers
+		if (m[1]) {
+			var q = parseFloat(m[1]), add;
+			switch (m[3].toLowerCase()) {
+				case "days":
+					tmp = date.getDate();
+					date.setDate(tmp + q);
+					break;
+				case "hours":
+					tmp = date.getHours();
+					date.setHours(tmp + q);
+					break;
+				case "minutes":
+					tmp = date.getMinutes();
+					date.setMinutes(tmp + q);
+					break;
+				case "seconds":
+					tmp = date.getSeconds();
+					date.setSeconds(tmp + q);
+					break;
+				case "months":
+					tmp = date.getMonth();
+					date.setMonth(tmp + q);
+					break;
+				case "years":
+					tmp = date.getFullYear();
+					date.setFullYear(tmp + q);
+					break;
+				default:
+					return;
+			}
+		} else {
+
+			switch (m[3].toLowerCase()) {
+				
+				// shift backwards to the beginning of the current month
+				case "start of month":
+					date.setDate(1);
+					date.setHours(0, 0, 0, 0);
+					break;
+
+				// shift backwards to the beginning of the current year
+				case "start of year":
+					date.setMonth(0, 1);
+					date.setHours(0, 0, 0, 0);
+					break;
+
+				// shift backwards to the beginning of the current day
+				case "start of day":
+					date.setHours(0, 0, 0, 0);
+					break;
+
+				// Adjusts the time so that it displays localtime.
+				case "localtime":
+					if (date._offset) {
+						date.setTime(date.getTime() - date._offset);
+					}
+					date._offset = date.getTimezoneOffset() * MINUTE;
+					date.setTime(date.getTime() + date._offset);
+					break;
+
+				// Adjusts the time to be in UTC
+				case "utc":
+					if (date._offset) {
+						date.setTime(date.getTime() - date._offset);
+						date._offset = 0;
+					}
+					break;
+
+				default:
+
+					// weekday N
+					// 
+					// The "weekday" modifier advances the date forward to the 
+					// next date where the weekday number is N. Sunday is 0, 
+					// Monday is 1, and so forth.
+					var match = m[3].match(/weekday\s+([0-6])/), d, n;
+					if (match) {
+						n = date.getDay();
+						d = parseInt(match[1]);
+						date.setDate(date.getDate() + (d &lt; n ? 7 + d - n : d - n));
+					}
+					break;
+			}
+		}
+	}
+}
+
+function strftime(format, date, mods) {
+	mods = Array.prototype.slice.call(arguments, 2);
+	date = parseDate(date || 0, mods);
+	
+	var time = date.getTime(),
+		d    = new Date(date.getFullYear(), 0, 0, 24, 0, 0, 0), 
+		t    = time - d.getTime();
+
+	return format
+		.replace(/%%/g, "__DOUBLE_%__")
+
+		// date (01-28/29/30/31)
+		.replace(/%d/g, prependZero(date.getDate(), 2))
+		
+		// float seconds (00-59).(000-999)
+		.replace(/%f/g, prependZero(date.getSeconds(), 2) + "." + prependZero(date.getMilliseconds(), 3))
+		
+		// Hours (00-23)
+		.replace(/%H/g, prependZero(date.getHours(), 2))
+		
+		// Day of year (001-365/366)
+		.replace(/%j/g, prependZero(Math.ceil((+date - (new Date(date.getFullYear(), 0, 0, 24, 0, 0, 0))*1)/DAY), 3))
+
+		// Month (01-12)
+		.replace(/%m/g, prependZero(date.getMonth() + 1, 2))
+
+		// Minutes (00-59)
+		.replace(/%M/g, prependZero(date.getMinutes(), 2))
+
+		// Unix time
+		.replace(/%s/g, +date)
+
+		// Seconds (00-59)
+		.replace(/%S/g, prependZero(date.getSeconds(), 2))
+
+		// Day of week (0-6)
+		.replace(/%w/g, date.getDay())
+
+		// Week (00-53) 
+		// The first Monday of January is the first day of week 1; days in the 
+		// new year before this are in week 0
+		.replace(/%W/g, prependZero(getWeek(date), 2))
+		
+		// Year (4 digits)
+		.replace(/%Y/g, prependZero(date.getFullYear(), 4))
+
+		// Timezone
+		// Replaced by the offset from UTC in the ISO 8601:2000 standard format 
+		// (+hhmm or -hhmm), or by no characters if no timezone is determinable
+		.replace(
+			/%z/g, 
+			date._offset === 0 ?
+				"Z" :
+				!date._offset ? 
+					"" : 
+					(date._offset &lt; 0 ? "-" : "+") + 
+					prependZero(Math.floor(Math.abs(date._offset) / HOUR), 2) + 
+					prependZero(Math.floor((Math.abs(date._offset) % HOUR) / MINUTE), 2)
+		)
+
+		.replace(/__DOUBLE_%__/g, "%");
+}
+
+
+jsSQL.parseDate  = parseDate;
+jsSQL.strftime   = strftime;
+//window.parseISO8601 = parseISO8601;
+//window.prependZero = prependZero;
+
+
+
+var SQL_FUNCTIONS = {
+	date : function(input) {
+		if (input == "now")
+			return Date.now();
+	}
+};
+
 /*
 function expr(input, scope)
 {
@@ -662,7 +957,9 @@ function executeInSandbox(options)
 	for ( key in scope ) {
 		body = body.replace(
 			new RegExp("\\b" + key + "\\b", "gi"),
-			"__scope__['" + key + "']"
+			isNaN(parseFloat(key)) ? 
+				"__scope__['" + key + "']" :
+				key
 		);
 	}
 
@@ -680,7 +977,7 @@ function executeInSandbox(options)
 }
 
 function executeCondition(condition, scope) 
-{
+{//console.log(condition, scope);
 	return executeInSandbox({
 		code    : condition, 
 		sandbox : {},
@@ -1061,6 +1358,212 @@ function innerJoin(tables, filter)
 
 	return rows;
 }*/
+
+/**
+ * Simple wrapper for query lists. Its an array but its instanceof QueryList
+ * so it is useful for argument polymorphism... For example the 
+ * normalizeQueryList can work with strings and arrays but if the input array is
+ * a QueryList, then it is considered complete and not processed...
+ */
+function QueryList() {}
+QueryList.prototype = [];
+
+/**
+ * Parses the string and returns a list of queries
+ */
+function getQueries(sql)
+{
+	sql = normalizeQueryList(sql);
+
+	var queries = new QueryList(),
+		tokens  = getTokens(sql, {
+			skipComments : true,
+			skipSpace    : true,
+			skipEol      : true,
+			skipStrQuots : true
+		}),
+		walker = new Walker(tokens, sql),
+		start, end, tokLen = tokens.length, offset = 0, q, tok;
+
+	function onToken(tok) {
+		tok[2] += offset;
+		tok[3] += offset;
+		end = tok[3];
+		q.tokens.push(tok);
+	}
+
+	while (walker._pos &lt; tokLen - 1) {
+		
+		q = { sql : "", tokens : [] };
+
+		// Set both markers to the start of the first token
+		start = end = walker.current()[2];
+
+		walker.nextUntil(";", onToken);
+
+		// If the ";" is missing at the end of the last query consider it 
+		// incomplete and abort the procedure
+		if (!walker.is(";"))
+			break;
+
+		tok = walker.current();
+		tok[2] += offset;
+		end = tok[3];
+		tok[3] += offset;
+		q.tokens.push(tok);
+		q.sql = sql.substring(start, end);
+		if (q.sql && q.sql != ";")
+			queries.push(q);
+		offset = -end-1;
+
+		if ( !walker.next() )
+			break;
+	}
+
+	return queries;
+}
+
+/**
+ * Converts the input to normalized SQL string. Appends missing semicolons at 
+ * the end, trims, joins multiple queries etc. 
+ * @param {String|Array} Can also be an array with nested arrays in which case
+ * it will be recursive and produce a flat query list string
+ * @return {Array}
+ */
+function normalizeQueryList(input) {
+	return isArray(input) ? 
+			input instanceof QueryList ?
+				input : 
+				input.map(normalizeQueryList).join("").trim() : 
+			String(input).trim().replace(/(.*?);*?$/, "$1;");
+}
+
+// Class
+// =============================================================================
+function Class() {}
+
+Class._super_ = Function;
+
+Class.extend = function extend(props, staticProps) {
+	var Constructor = function() {
+		if (typeof this.construct == "function")	{
+			return this.construct.apply(this, arguments);
+		}
+	};
+
+	Constructor.prototype = new this();
+	
+	if (staticProps)
+		mixin(Constructor, staticProps);
+	
+	mixin(Constructor.prototype, props);
+
+	Constructor.prototype.constructor = Constructor;
+	Constructor._super_ = this;
+	Constructor.extend = extend;
+	return Constructor;
+};
+
+// jsJQL
+// =============================================================================
+function createPublicAPI(server) {
+	return {
+		query : function(sql, cb) {
+			return server.query(sql, cb);
+		},
+		getDatabase : function(dbName) {
+			return server.getDatabase(dbName, false);
+		},
+		getCurrentDatabase : function() {
+			return server.getCurrentDatabase();
+		},
+		getTable : function(tableName, dbName) {
+			return server.getTable(tableName, dbName, false);
+		},
+		forEachRow : function(sql, cb) {
+			server.query(sql, function(err, result) {
+				if (err) throw err;
+
+				if (result && result.rows) {
+					result.rows.forEach(cb);
+				}
+			});
+		},
+		config : function(name, value) {
+			server.config(name, value);
+		},
+		on : function(e, h) {
+			return server.on(e, h);
+		},
+		one : function(e, h) {
+			return server.one(e, h);
+		},
+		off : function(e, h) {
+			server.off(e, h);
+			return this;
+		},
+		destroy : function(cb) {
+			server.destroy(cb);
+		}
+	};
+}
+
+function jsSQL(opts, cb) {
+	
+	if (!cb) {
+		cb = opts;
+		opts = {};
+	}
+
+	// It is useless to create a server (cannot be used ot of the callback)
+	if (!isFunction(cb))
+		return;
+
+	(new Server(opts)).load(function(err, server) {
+		if (err) 
+			throw err;
+		
+		//console.dir(server.serialize(3));
+		//console.log(server);
+		cb(createPublicAPI(server));
+	});
+}
+
+var nextTick = (function() {
+	function byObserver(Observer) {
+		var node = document.createTextNode(""), queue = [], data = 1;
+
+		new Observer(function() {
+			while (queue.length) queue.shift()();
+		}).observe(node, { characterData: true });
+		
+		return function(fn) {
+			queue.push(fn);
+			data = node.data = data * -1;
+		};
+	}
+
+	if (typeof setImmediate === 'function') {
+		//console.log("using setImmediate");
+		return function(fn) { setImmediate(fn); };
+	}
+
+	if (typeof MutationObserver === 'function') {
+		//console.log("using MutationObserver");
+		return byObserver(MutationObserver);
+	}
+
+	if (typeof WebKitMutationObserver === 'function') {
+		//console.log("using WebKitMutationObserver");
+		return byObserver(WebKitMutationObserver);
+	}
+
+	//console.log("using setTimeout");
+	return function(cb) { setTimeout(cb, 0); };
+
+})();
+
+jsSQL.nextTick = nextTick;
 </code></pre>
         </article>
     </section>
@@ -1071,13 +1574,13 @@ function innerJoin(tables, filter)
 </div>
 
 <nav>
-    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="construct.html">construct</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_insertRow">_insertRow</a></li><li><a href="global.html#addConstraint">addConstraint</a></li><li><a href="global.html#beginTransaction">beginTransaction</a></li><li><a href="global.html#bind">bind</a></li><li><a href="global.html#columnDataTypes">columnDataTypes</a></li><li><a href="global.html#create">create</a></li><li><a href="global.html#createDatabase">createDatabase</a></li><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#createTable">createTable</a></li><li><a href="global.html#deleteRows">deleteRows</a></li><li><a href="global.html#drop">drop</a></li><li><a href="global.html#dropDatabase">dropDatabase</a></li><li><a href="global.html#get">get</a></li><li><a href="global.html#getCell">getCell</a></li><li><a href="global.html#getCellAt">getCellAt</a></li><li><a href="global.html#getCellValue">getCellValue</a></li><li><a href="global.html#getCurrentDatabase">getCurrentDatabase</a></li><li><a href="global.html#getDatabase">getDatabase</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#getStorageKey">getStorageKey</a></li><li><a href="global.html#getTable">getTable</a></li><li><a href="global.html#getTransaction">getTransaction</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#isInTransaction">isInTransaction</a></li><li><a href="global.html#key">key</a></li><li><a href="global.html#length">length</a></li><li><a href="global.html#load">load</a></li><li><a href="global.html#name">name</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#nullable">nullable</a></li><li><a href="global.html#one">one</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#read">read</a></li><li><a href="global.html#save">save</a></li><li><a href="global.html#set">set</a></li><li><a href="global.html#setCellValue">setCellValue</a></li><li><a href="global.html#setCurrentDatabase">setCurrentDatabase</a></li><li><a href="global.html#setDefaultValue">setDefaultValue</a></li><li><a href="global.html#setKey">setKey</a></li><li><a href="global.html#setName">setName</a></li><li><a href="global.html#setTable">setTable</a></li><li><a href="global.html#toJSON">toJSON</a></li><li><a href="global.html#type">type</a></li><li><a href="global.html#typeParams">typeParams</a></li><li><a href="global.html#typeToSQL">typeToSQL</a></li><li><a href="global.html#unbind">unbind</a></li><li><a href="global.html#unsetMany">unsetMany</a></li><li><a href="global.html#update">update</a></li><li><a href="global.html#write">write</a></li></ul>
 </nav>
 
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:17 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Thu Sep 11 2014 12:50:11 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

@@ -25,116 +25,140 @@
     
     <section>
         <article>
-            <pre class="prettyprint source"><code>/**
- * Class LocalStorage extends LocalStorage
- * @constructor
- * @extends {StorageBase}
- */
-function LocalStorage() 
-{
-	if (!window.localStorage || !isFunction(localStorage.setItem))
-		throw new Error("localStorage is not supported");
+            <pre class="prettyprint source"><code>(function() {
+	function _setMany(map) {
+		for ( var key in map )
+			localStorage.setItem( key, JSON.stringify(map[key]) );
+	}
 
-	this.setMany = function(map, next)
-	{
-		setTimeout(function() {
-			var err = null;
-			try {
-				for ( var key in map )
-					localStorage.setItem( key, map[key] );
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err);
-		}, 0);
-	};
+	function _getMany(keys) {
+		var out = [];
+		for (var i = 0, l = keys.length; i &lt; l; i++)
+			out.push( JSON.parse(localStorage.getItem( keys[i] )) );
+		return out;
+	}
 
-	this.getMany = function(keys, next)
-	{
-		setTimeout(function() {
-			var err = null, out = [];
-			try {
-				for (var i = 0, l = keys.length; i &lt; l; i++)
-					out.push( localStorage.getItem( keys[i] ) );
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err, out);
-		}, 0);
-	};
+	function _unsetMany(keys) {
+		for (var i = 0, l = keys.length; i &lt; l; i++)
+			localStorage.removeItem( keys[i] );
+	}
+
+	function _set(key, value) {
+		localStorage.setItem( key, JSON.stringify(value) );
+	}
+
+	function _get(key) {
+		return JSON.parse(localStorage.getItem( key ));
+	}
+
+	function _unset(key) {
+		localStorage.removeItem( key );
+	}
 
 	/**
-	 * Delete multiple items. If everything goes well, calls the onSuccess
-	 * callback. Otherwise calls the onError callback.
-	 * @param {Array} keys - An array of keys to delete
-	 * @param {Function} onSuccess - This is called on success without arguments
-	 * @param {Function} onError - This is called on error with the error as
-	 * single argument
-	 * @return {void} undefined - This method is async. so use the callbacks
+	 * Class LocalStorage extends StorageBase
+	 * @extends {StorageBase}
 	 */
-	this.unsetMany = function(keys, next)
-	{
-		setTimeout(function() {
-			var err = null;
-			try {
-				for (var i = 0, l = keys.length; i &lt; l; i++)
-					localStorage.removeItem( keys[i] );
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err);
-		}, 0);
-	};
+	jsSQL.registerStorageEngine("LocalStorage", {
 
-	this.set = function(key, value, next) 
-	{
-		setTimeout(function() {
-			var err = null;
-			try {
-				localStorage.setItem( key, value );
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err);
-		}, 0);
-	};
-	
-	this.get = function(key, next) 
-	{
-		setTimeout(function() {
-			var err = null, out;
-			try {
-				out = localStorage.getItem( key );
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err, out);
-		}, 0);
-	};
-	
-	this.unset = function(key, next) 
-	{
-		setTimeout(function() {
-			var err = null;
-			try {
-				localStorage.removeItem( key );
-			} catch (ex) {
-				err = ex;
-			}
-			if (next) 
-				next(err);
-		}, 0);
-	};
-}
-LocalStorage.prototype = Storage.getEnginePrototype();
-LocalStorage.prototype.constructor = LocalStorage;
-Storage.registerEngine("LocalStorage", LocalStorage);
-</code></pre>
+		/**
+		 * @constructor
+		 */
+		construct : function LocalStorage() {
+			if (!window.localStorage || !isFunction(localStorage.setItem))
+				throw new Error("localStorage is not supported");
+		},
+
+		setMany : function(map, next) {
+			nextTick(function() {
+				var err = null;
+				try {
+					_setMany(map);
+				} catch (ex) {
+					err = ex;
+				}
+				//if (next)
+					next(err);
+			});
+		},
+
+		getMany : function(keys, next) {
+			nextTick(function() {
+				var err = null, out = [];
+				try {
+					out = _getMany(keys);
+				} catch (ex) {
+					err = ex;
+				}
+				//if (next)
+					next(err, out);
+			});
+		},
+
+		/**
+		 * Delete multiple items. If everything goes well, calls the onSuccess
+		 * callback. Otherwise calls the onError callback.
+		 * @param {Array} keys - An array of keys to delete
+		 * @param {Function} onSuccess - This is called on success without arguments
+		 * @param {Function} onError - This is called on error with the error as
+		 * single argument
+		 * @return {void} undefined - This method is async. so use the callbacks
+		 */
+		unsetMany : function(keys, next) {
+			nextTick(function() {
+				var err = null;
+				try {
+					_unsetMany(keys);
+				} catch (ex) {
+					err = ex;
+				}
+				//if (next)
+					next(err);
+			});
+		},
+
+		set : function(key, value, next) {
+			nextTick(function() {
+				var err = null;
+				try {
+					_set( key, value );
+				} catch (ex) {
+					err = ex;
+				}
+				//if (next)
+					next(err);
+			});
+		},
+		
+		get : function(key, next) {
+			nextTick(function() {
+				var err = null, out;
+				try {
+					out = _get( key );
+				} catch (ex) {
+					err = ex;
+				}
+				//if (next)
+					next(err, out);
+			});
+		},
+		
+		unset : function(key, next) {
+			nextTick(function() {
+				var err = null;
+				try {
+					_unset( key );
+				} catch (ex) {
+					err = ex;
+				}
+				//if (next) 
+					next(err);
+			});
+		}
+	}, {
+		label : "Local Storage"
+	});
+})();</code></pre>
         </article>
     </section>
 
@@ -144,13 +168,13 @@ Storage.registerEngine("LocalStorage", LocalStorage);
 </div>
 
 <nav>
-    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="construct.html">construct</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_insertRow">_insertRow</a></li><li><a href="global.html#addConstraint">addConstraint</a></li><li><a href="global.html#beginTransaction">beginTransaction</a></li><li><a href="global.html#bind">bind</a></li><li><a href="global.html#columnDataTypes">columnDataTypes</a></li><li><a href="global.html#create">create</a></li><li><a href="global.html#createDatabase">createDatabase</a></li><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#createTable">createTable</a></li><li><a href="global.html#deleteRows">deleteRows</a></li><li><a href="global.html#drop">drop</a></li><li><a href="global.html#dropDatabase">dropDatabase</a></li><li><a href="global.html#get">get</a></li><li><a href="global.html#getCell">getCell</a></li><li><a href="global.html#getCellAt">getCellAt</a></li><li><a href="global.html#getCellValue">getCellValue</a></li><li><a href="global.html#getCurrentDatabase">getCurrentDatabase</a></li><li><a href="global.html#getDatabase">getDatabase</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#getStorageKey">getStorageKey</a></li><li><a href="global.html#getTable">getTable</a></li><li><a href="global.html#getTransaction">getTransaction</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#isInTransaction">isInTransaction</a></li><li><a href="global.html#key">key</a></li><li><a href="global.html#length">length</a></li><li><a href="global.html#load">load</a></li><li><a href="global.html#name">name</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#nullable">nullable</a></li><li><a href="global.html#one">one</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#read">read</a></li><li><a href="global.html#save">save</a></li><li><a href="global.html#set">set</a></li><li><a href="global.html#setCellValue">setCellValue</a></li><li><a href="global.html#setCurrentDatabase">setCurrentDatabase</a></li><li><a href="global.html#setDefaultValue">setDefaultValue</a></li><li><a href="global.html#setKey">setKey</a></li><li><a href="global.html#setName">setName</a></li><li><a href="global.html#setTable">setTable</a></li><li><a href="global.html#toJSON">toJSON</a></li><li><a href="global.html#type">type</a></li><li><a href="global.html#typeParams">typeParams</a></li><li><a href="global.html#typeToSQL">typeToSQL</a></li><li><a href="global.html#unbind">unbind</a></li><li><a href="global.html#unsetMany">unsetMany</a></li><li><a href="global.html#update">update</a></li><li><a href="global.html#write">write</a></li></ul>
 </nav>
 
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:16 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Thu Sep 11 2014 12:50:11 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

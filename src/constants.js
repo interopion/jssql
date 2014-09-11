@@ -1,6 +1,6 @@
 var 
 
-SERVER,
+//SERVER,
 
 /**
  * This object contains parsers for various SQL statements
@@ -20,11 +20,11 @@ NS = "JSDB",
  */
 JSDB = {},
 
-CFG = {
-	debug         : false,
-	storageEngine : "LocalStorage",
-	socketIoPath  : "http://Vladimirs-MacBook-Pro.local:3001"
-},
+//CFG = {
+//	debug         : false,
+//	storageEngine : "LocalStorage",
+//	socketIoPath  : "http://Vladimirs-MacBook-Pro.local:3001"
+//},
 
 // Token type constants --------------------------------------------------------
 TOKEN_TYPE_UNKNOWN             = 0,
@@ -70,11 +70,11 @@ ANY_VALUE = [
 ],
 		
 // State constants -------------------------------------------------------------
-STATE_IDDLE    = 0,
-STATE_WAITING  = 2,
-STATE_WORKING  = 4,
-STATE_ERROR    = 8,
-STATE_COMPLETE = 16,
+//STATE_IDDLE    = 0,
+//STATE_WAITING  = 2,
+//STATE_WORKING  = 4,
+//STATE_ERROR    = 8,
+//STATE_COMPLETE = 16,
 
 OPERATORS = {
 
@@ -147,8 +147,49 @@ DATA_TYPES = [
 	//"spatial_type"
 ],
 
-DATABASES = {},
-CURRENT_DATABASE,
+//DATABASES = {},
+//CURRENT_DATABASE,
+
+RE_ISO8601 = new RegExp([
+	"^",
+	"(",                                 // \1  - date
+		"\\s*",
+		"(\\d{4})",                      // \2  - year
+		"-",
+		"(0[1-9]|1[0-2]|[1-9])",         // \3  - month
+		"-",
+		"([12]\\d|0[1-9]|3[01]|[1-9])",  // \4  - day
+	")?",
+	"(",                                 // \5  - time
+		"[tT\\s]?",                           
+		"([01]\\d|2[0-3])",              // \6  - hours
+		"\\:",
+		"([0-5]\\d|\\d)",                // \7  - minutes
+		"(\\:",                          // \8  - seconds and milliseconds
+			"([0-5]\\d|\\d)",            // \9  - seconds
+			"([\\.,](\\d+))?",           // \11 - milliseconds
+		")?",
+		"\\s*(",                         // \12 - timezone
+			"[zZ]|",
+			"(",
+				"([\\+\\-])",            // \14 - timezone direction
+				"([01]\\d|2[0-3]|\\d)",  // \15 - timezone hours
+				"(\\:?([0-5]\\d|\\d))?", // \17 - timezone minutes
+			")",
+		")?", 
+	")?",
+	"\\s*$"
+].join("")),
+
+MILLISECOND = 1,
+SECOND      = MILLISECOND * 1000, // 1000
+MINUTE      = SECOND * 60,        // 60000
+HOUR        = MINUTE * 60,        // 3600000
+DAY         = HOUR * 24,          // 86400000
+WEEK        = DAY * 7,            // 604800000
+YEAR        = DAY * 365,          // 31536000000
+LEAP_YEAR   = YEAR + DAY,         // 31622400000
+
 
 TOKEN_TYPE_MAP = {};
 TOKEN_TYPE_MAP[TOKEN_TYPE_UNKNOWN]             = "character";

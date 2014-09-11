@@ -1,6 +1,6 @@
 html {
-	height: 100%;
-	overflow: hidden;
+	/*height: 100%;
+	overflow: hidden;*/
 }
 
 body {
@@ -26,9 +26,28 @@ body {
 	text-shadow: 0 1px 0 #000;
 }
 
+#overlay {
+	position: fixed;
+	z-index: 1000;
+	top: 1px;
+	right: 1px;
+	bottom: 1px;
+	left: 1px;
+	background: #444;
+	opacity: 0.6;
+	display: none;
+}
+
+#storage-selector {
+	position: fixed;
+	z-index: 1001;
+	top: 4px;
+	right: 20px;
+}
+
 pre {
 	margin     : 0;
-	padding    : 4px 4px 4px 16px;
+	padding    : 8px 4px 4px 16px;
 	white-space: pre-wrap;
 	-moz-tab-size:4; 
 	-o-tab-size:4; 
@@ -39,7 +58,7 @@ textarea {
 	position   : absolute;
 	width      : 100%;
 	margin     : -4px 0 0 0;
-	padding    : 0px 4px 0 16px;
+	padding    : 8px 4px 0 16px;
 	left       : 0;
 	right      : 0;
 	border     : none;

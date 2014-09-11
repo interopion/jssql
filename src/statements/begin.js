@@ -63,12 +63,12 @@ STATEMENTS.BEGIN = function(walker) {
 			walker.errorUntil(";");
 
 			walker.commit(function() {
-				SERVER.beginTransaction({ type : type });
+				walker.server.beginTransaction({ type : type });
 				next(null, "Transaction created");
 			});
 		},
 		undo : function(next) {
-			SERVER.rollbackTransaction(next);
+			walker.server.rollbackTransaction(next);
 		}
 	});
 };

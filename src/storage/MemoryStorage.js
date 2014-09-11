@@ -1,104 +1,59 @@
 /**
  * Class MemoryStorage extends StorageBase
- * @constructor
  * @extends {StorageBase}
  */
-function MemoryStorage() {
-	var _store = {};
-
-	this.setMany = function(map, next)
-	{
-		setTimeout(function() {
-			var err = null;
-			try {
-				for ( var key in map )
-					_store[key] = map[key];
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err);
-		}, 0);
-	};
-
-	this.getMany = function(keys, next)
-	{
-		setTimeout(function() {
-			var err = null, out = [], key;
-			try {
-				for (var i = 0, l = keys.length; i < l; i++) {
-					key = keys[i];
-					out.push( key in _store ? _store[key] : null );
-				}
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err, out);
-		}, 0);
-	};
-
-	this.unsetMany = function(keys, next)
-	{
-		setTimeout(function() {
-			var err = null;
-			try {
-				for (var i = 0, l = keys.length; i < l; i++)
-					if (_store.hasOwnProperty(keys[i])) 
-						delete _store[keys[i]];
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err);
-		}, 0);
-	};
+jsSQL.registerStorageEngine("MemoryStorage", {
 	
-	this.set = function(key, value, next) 
-	{
-		setTimeout(function() {
-			var err = null;
-			try {
-				_store[key] = value;
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err);
-		}, 0);
-	};
-	
-	this.get = function(key, next) 
-	{
-		setTimeout(function() {
-			var err = null, out;
-			try {
-				out = key in _store ? _store[key] : null;
-			} catch (ex) {
-				err = ex;
-			}
-			if (next)
-				next(err, out);
-			return out;
-		});
-	};
-	
-	this.unset = function(key, next) 
-	{
-		setTimeout(function() {
-			var err = null;
-			try {
-				if (_store.hasOwnProperty(key)) 
-					delete _store[key];
-			} catch (ex) {
-				err = ex;
-			}
-			if (next) 
-				next(err);
-		}, 0);
-	};
-}
+	/**
+	 * @constructor
+	 */
+	construct : function MemoryStorage() {
+		var _store = {};
 
-MemoryStorage.prototype = Storage.getEnginePrototype();
-MemoryStorage.prototype.constructor = MemoryStorage;
-Storage.registerEngine("MemoryStorage", MemoryStorage);
+		this.setMany = function(map, next)
+		{
+			for ( var key in map )
+				_store[key] = map[key];
+			next(null);
+		};
+
+		this.getMany = function(keys, next)
+		{
+			var out = [], key, i, l = keys.length;
+			for (i = 0; i < l; i++) {
+				key = keys[i];
+				out.push( key in _store ? _store[key] : null );
+			}
+			next(null, out);
+		};
+
+		this.unsetMany = function(keys, next)
+		{
+			for (var i = 0, l = keys.length; i < l; i++)
+				if (_store.hasOwnProperty(keys[i])) 
+					delete _store[keys[i]];
+			next(null);
+		};
+		
+		this.set = function(key, value, next) 
+		{
+			_store[key] = value;
+			next(null);
+		};
+		
+		this.get = function(key, next) 
+		{
+			next(null, key in _store ? _store[key] : null);
+		};
+		
+		this.unset = function(key, next) 
+		{
+			if (_store.hasOwnProperty(key)) 
+				delete _store[key];
+			next(null);
+		};
+	}
+}, {
+	label : "Memory Storage"
+});
+

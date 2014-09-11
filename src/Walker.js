@@ -3,7 +3,7 @@
  * @param {Array} tokens
  * @param {String} input
  */
-function Walker(tokens, input)
+function Walker(tokens, input, server)
 {
 	/**
 	 * The tokens array
@@ -12,7 +12,7 @@ function Walker(tokens, input)
 	 */
 	this._tokens = [];
 
-	this.init(tokens, input);
+	this.init(tokens, input, server);
 }
 
 Walker.prototype = {
@@ -38,11 +38,12 @@ Walker.prototype = {
  	 * @param {String} input
  	 * @return {Walker} Returns the instance
 	 */
-	init : function(tokens, input)
+	init : function(tokens, input, server)
 	{
 		this._pos = 0;
 		this._tokens = tokens || [];
 		this._input = input || "";
+		this.server = server;
 	},
 
 	/**
@@ -127,7 +128,7 @@ Walker.prototype = {
 		return this._tokens[this._pos] ? this._tokens[this._pos][0] : "";
 	},
 
-	is : function(arg, caseSensitive)
+	is : function(arg, caseSensitive, move)
 	{
 		var token = this.current(),
 			str   = token ? token[0] : "",
@@ -140,6 +141,7 @@ Walker.prototype = {
 			subkeys = arg.split(/\s*\|\s*/);
 			for ( y = 0; y < subkeys.length; y++ ) {
 				if (this.is(subkeys[y], caseSensitive)) {
+					if (move) this._pos++;
 					return true;
 				}
 			}
@@ -155,6 +157,7 @@ Walker.prototype = {
 					return false;
 				}
 			}
+			if (move) this._pos++;
 			return true;
 		}
 
@@ -170,28 +173,44 @@ Walker.prototype = {
 				}
 				this._pos++;
 			}
-			this._pos = start;
+			if (!move) this._pos = start;
 			return true;
 		}
 
 		// Negation ------------------------------------------------------------
 		if (arg[0] == "!") {
-			return !this.is(arg.substr(1));
+			if (!this.is(arg.substr(1), caseSensitive)) {
+				if (move) this._pos++;
+				return true;
+			}
+			return false;
 		}
 
 		// Token type matching -------------------------------------------------
 		if (arg[0] == "@") {
 			var type = intVal(arg.substr(1));
-			return token ? token[1] === type : false;
+			if (token && token[1] === type) {
+				if (move) this._pos++;
+				return true;
+			}
+			return false;
 		}
 		
 		// Case sensitive string match -----------------------------------------
 		if (caseSensitive) {
-			return arg === str;
+			if (arg === str) {
+				if (move) this._pos++;
+				return true;
+			}
+			return false;
 		}
 
 		// Case insensitive string match ---------------------------------------
-		return arg.toUpperCase() === str.toUpperCase();
+		if (arg.toUpperCase() === str.toUpperCase()) {
+			if (move) this._pos++;
+			return true;
+		}
+		return false;
 	},
 
 	require : function(arg, caseSensitive) 
@@ -215,12 +234,13 @@ Walker.prototype = {
 		}
 	},
 
-	some : function(options, caseSensitive) 
+	some : function(options, caseSensitive, params) 
 	{
 		var token = this._tokens[this._pos], 
 			key, 
 			keys = [], 
 			walker = this,
+			args = makeArray(params),
 			subkeys, y, prev, match;
 
 		function onMatch() {
@@ -229,14 +249,20 @@ Walker.prototype = {
 		
 		if (token) {
 			for ( key in options ) {
+				if (this.is(key, caseSensitive, true)) {
+					//this._pos++;
+					options[key].apply(this, args);
+					return this;
+				}
+				/*
 				if (key.indexOf("|") > 0) {
-					subkeys = key.split(/\s*\|\s*/);
+					subkeys = key.split(/\s*\|\s*//*);
 					for ( y = 0; y < subkeys.length; y++ ) {
 						if ((caseSensitive && subkeys[y] === token[0] ) || 
 							(!caseSensitive && subkeys[y].toUpperCase() === token[0].toUpperCase())) 
 						{
 							this._pos++;
-							options[key].call(this);
+							options[key].apply(this, args);
 							return this;
 						}
 					}
@@ -247,7 +273,7 @@ Walker.prototype = {
 					this.optional(key, onMatch);
 
 					if (match) {
-						options[key].call(this);
+						options[key].apply(this, args);
 						return this;
 					}
 				}
@@ -256,9 +282,9 @@ Walker.prototype = {
 					(!caseSensitive && key.toUpperCase() === token[0].toUpperCase())
 				) {
 					this._pos++;
-					options[key].call(this);
+					options[key].apply(this, args);
 					return this;
-				}
+				}*/
 
 				keys.push(key);
 			}
@@ -307,9 +333,9 @@ Walker.prototype = {
 		throw new SQLParseError( 'Expecting: %s. The query was %s', prettyList(options), this._input );
 	},
 	
-	pick : function(options) 
+	pick : function(options, caseSensitive, params) 
 	{
-		return this.some(options); 
+		return this.some(options, caseSensitive, params); 
 	},
 
 	optional : function(options, callback) 

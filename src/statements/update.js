@@ -106,8 +106,8 @@ STATEMENTS.UPDATE = function(walker) {
 		}
 
 		db = dbName ?
-			SERVER.getDatabase(dbName) :
-			SERVER.getCurrentDatabase();
+			walker.server.getDatabase(dbName) :
+			walker.server.getCurrentDatabase();
 
 		if ( !db )
 		{
@@ -222,7 +222,7 @@ STATEMENTS.UPDATE = function(walker) {
 			});
 		},
 		undo : function(next) {
-			if (CFG.debug)
+			if (walker.server.options.debug)
 				console.warn("undo is not implemented for UPDATE queries yet!");
 			next();
 		}

@@ -25,84 +25,7 @@
     
     <section>
         <article>
-            <pre class="prettyprint source"><code>/**
- * Simple wrapper for query lists. Its an array but its instanceof QueryList
- * so it is useful for argument polymorphism... For example the 
- * normalizeQueryList can work with strings and arrays but if the input array is
- * a QueryList, then it is considered complete and not processed...
- */
-function QueryList() {}
-QueryList.prototype = [];
-
-/**
- * Parses the string and returns a list of queries
- */
-function getQueries(sql)
-{
-	sql = normalizeQueryList(sql);
-
-	var queries = new QueryList(),
-		tokens  = getTokens(sql, {
-			skipComments : true,
-			skipSpace    : true,
-			skipEol      : true,
-			skipStrQuots : true
-		}),
-		walker = new Walker(tokens, sql),
-		start, end, tokLen = tokens.length, offset = 0, q, tok;
-
-	function onToken(tok) {
-		tok[2] += offset;
-		tok[3] += offset;
-		end = tok[3];
-		q.tokens.push(tok);
-	}
-
-	while (walker._pos &lt; tokLen - 1) {
-		
-		q = { sql : "", tokens : [] };
-
-		// Set both markers to the start of the first token
-		start = end = walker.current()[2];
-
-		walker.nextUntil(";", onToken);
-
-		// If the ";" is missing at the end of the last query consider it 
-		// incomplete and abort the procedure
-		if (!walker.is(";"))
-			break;
-
-		tok = walker.current();
-		tok[2] += offset;
-		end = tok[3];
-		tok[3] += offset;
-		q.tokens.push(tok);
-		q.sql = sql.substring(start, end);
-		if (q.sql && q.sql != ";")
-			queries.push(q);
-		offset = -end-1;
-
-		if ( !walker.next() )
-			break;
-	}
-
-	return queries;
-}
-
-/**
- * Converts the input to normalized SQL string. Appends missing semicolons at 
- * the end, trims, joins multiple queries etc. 
- * @param {String|Array} Can also be an array with nested arrays in which case
- * it will be recursive and produce a flat query list string
- * @return {Array}
- */
-function normalizeQueryList(input) {
-	return isArray(input) ? 
-			input instanceof QueryList ?
-				input : 
-				input.map(normalizeQueryList).join("").trim() : 
-			String(input).trim().replace(/(.*?);*?$/, "$1;");
-}
+            <pre class="prettyprint source"><code>
 
 /**
  * Executes the given SQL query and invokes the callback function which has the
@@ -111,7 +34,7 @@ function normalizeQueryList(input) {
  */
 function query2(sql, callback) 
 {
-	query(sql, function(result, idx) {
+	query(SERVER, sql, function(result, idx) {
 		callback(null, result, idx);
 	}, function(err, idx) {
 		var error = err && err instanceof Error ?
@@ -121,7 +44,7 @@ function query2(sql, callback)
 	});
 }
 
-function query(sql, onSuccess, onError) 
+function query(SERVER, sql, onSuccess, onError) 
 {
 	var 
 
@@ -355,13 +278,13 @@ function query(sql, onSuccess, onError)
 </div>
 
 <nav>
-    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#bind">bind</a></li><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#one">one</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li><a href="global.html#unbind">unbind</a></li><li>{Boolean}</li><li>{String}</li></ul>
 </nav>
 
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:16 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Wed Sep 03 2014 16:33:06 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

@@ -4,7 +4,42 @@ jQuery(function($) {
 	var history    = [""],
 		historyPos = 0,
 		$in        = $("#in"),
-		$out       = $("#out");
+		$out       = $("#out"),
+		api;
+
+	var connectionOptions = {};
+
+	$.each(jsSQL.getRegisteredStorageEngines(), function(id, label) {
+		$("#storage-selector").append(
+			'<option value="' + id + '">Use ' + label + '</option>' +
+			'<option value="' + id + '_debug">Use ' + label + ' + debug</option>'
+		);
+	})
+
+	$("#storage-selector")
+	.on("mousedown click", function(e) {
+		e.stopPropagation();
+	})
+	.on("change", function() {
+		$("#overlay").show();
+		var storageType = $(this).val(),
+			debug = storageType.indexOf("_debug") > 0;
+
+		sessionStorage["storageType"] = storageType;
+		connectionOptions.debug = debug
+		connectionOptions.storageEngine = {
+			type  : storageType.replace(/_debug$/, ""),
+			debug : debug
+		};
+
+		jsSQL(connectionOptions, function(_api) {
+			api = _api;
+			console.info("Connected to %s", storageType);
+			$("#overlay").hide();
+		});
+	})
+	.val(sessionStorage["storageType"] || "MemoryStorage")
+	.trigger("change");
 	
 	loadState();
 
@@ -18,8 +53,8 @@ jQuery(function($) {
 
 	function pushState(txt)
 	{
-		if (txt != history[historyPos]) {
-			historyPos = history.push(txt) - 1;
+		if (txt != history[historyPos - 1]) {
+			historyPos = history.push(txt);
 			saveState();
 		}
 	}
@@ -40,7 +75,7 @@ jQuery(function($) {
 					{
 						historyPos = state.historyPos;
 					} else {
-						historyPos = history.length - 1;
+						historyPos = history.length;
 					}
 				}
 			} catch (ex) {
@@ -62,33 +97,33 @@ jQuery(function($) {
 		}).trigger("input");
 	}
 
+	var lastValue = "";
 	function historyUp() {
 		var txt = "", len;
-		if (historyPos > 0) {
-			txt = history[historyPos--];
+		if (historyPos === history.length) lastValue = $in.val();
+		if (historyPos > 1) {
+			txt = history[--historyPos];
 			len = txt.length;
 			$in.val(txt);//.attr("rows", txt.split("\n").length);
-			setTimeout(function() {
+			$in.prop({
+				selectionEnd   : len,
+				selectionStart : len
+			});
+			//setTimeout(function() {
 				//$in.val(txt);
 				resizeUI();
-				$in.prop({
-					selectionEnd   : len,
-					selectionStart : len
-				});
-
 				
-
-			}, 0);
+			//}, 0);
 		}
 	}
 
 	function historyDown() {
-		if (historyPos < history.length - 1) {
-			$("#in").val(history[++historyPos]).trigger("focus");
+		if (historyPos < history.length) {
+			$("#in").val(history[++historyPos] || lastValue)//.trigger("focus");
 		} else {
-			$("#in").val("").trigger("focus");
+			$("#in").val(lastValue);
 		}
-		setTimeout(resizeUI, 0);
+		resizeUI();
 	}
 
 	function showError(e, i) {
@@ -113,10 +148,11 @@ jQuery(function($) {
 		$in.removeClass("waiting").trigger("input").trigger("focus");
 	}
 	
-	function onSuccess(result, queryIndex) {//console.log("result: ", result);
+	function onSuccess(result, queryIndex, len) {//console.log("result: ", result);
 		var html = "";
 		if (result.type === JSDB.Result.TYPE_ARRAY || result.type === JSDB.Result.TYPE_SET) {
 			html += result.toHTML();
+			//console.dir(result);
 			/*
 			html += '<br><br>';
 			html += result.toJSONString(4));
@@ -133,8 +169,8 @@ jQuery(function($) {
 		}
 
 		html += '<div>';
-		if (queryIndex !== undefined) {
-			html += 'Query ' + (queryIndex + 1) + ": ";
+		if (len && len > 1 && queryIndex !== undefined) {
+			html += 'Query ' + (queryIndex + 1) + " of " + len + ": ";
 		}
 		html += result.getMessage() + '</div>';
 		$out.append(html);
@@ -142,33 +178,33 @@ jQuery(function($) {
 		$in.removeClass("waiting").trigger("input").trigger("focus");
 	}
 	
-	function onComplete(input) {
-		$out.append(
-			$('<code class="prettyprint old-input lang-sql"/>')
-				.text(input)
-		);
-		PR.prettyPrint("out");
+	function onComplete(err, result, i, len) {
+		if (err)
+			onError(err, i, len);
+		else
+			onSuccess(result, i, len);
+		resizeUI();
 	}
 
 	function resizeUI() {
-		$in.css({ height : 0 });
-		var wh = $(window).height(),
+		var wh = document.documentElement.clientHeight,
 			oh = $out.outerHeight();
-			h  = Math.max(wh - oh, $in[0].scrollHeight, 30);
+			h  = Math.max(wh - oh, 30)
+			t  = $in[0];
 		
-		$in.css({
-			top    : oh,
-			height : h
-		});
+		
 
-		$("body")[0].scrollTop = $("body")[0].scrollHeight;
+		$in.css({ top : oh, minHeight : h });
+
+
+		var rows = $in.val().split("\n");
+    	$in.trigger("blur").prop('rows', rows.length + 1);
+    	t.blur();t.focus();
+    	rows = [];
 	}
 	
 	$(window).on("resize", resizeUI);
-
-	$("#in").on("input paste keyup", function() {
-		resizeUI();
-	});
+	$("#in").on("input paste keyup", resizeUI);
 
 	$("body")
 		.on("mousedown", "#out", function(e) { e.stopPropagation(); })
@@ -181,8 +217,6 @@ jQuery(function($) {
 
 	$in.on("keydown", function(e) {
 		//console.log(e.keyCode);
-		//setTimeout(resizeUI, 0);
-
 		switch (e.keyCode) {
 			case 9: // Tab
 				var val = this.value,
@@ -192,32 +226,37 @@ jQuery(function($) {
 				this.selectionEnd   = start + 1;
 				this.selectionStart = start + 1;
 				return false;
-			break;
+			
 			case 38: // Arrow Up
-				if (!(e.ctrlKey || e.metaKey)) {
-					return true;
+				//if (!(e.ctrlKey || e.metaKey)) {
+				//	return true;
+				//}
+				//historyUp();
+				//return false;
+				if (e.ctrlKey || e.metaKey || ($in[0].selectionStart === 0 && $in[0].selectionEnd === 0)) {
+					historyUp();
+					return false;	
 				}
-				historyUp();
-				return false;
-			break;
+				return true;
+
 			case 40: // Arrow Down
-				if (!(e.ctrlKey || e.metaKey)) {
-					return true;
+				var txtLen = $in.val().length;
+				if (e.ctrlKey || e.metaKey || ($in[0].selectionStart === txtLen && $in[0].selectionEnd === txtLen)) {
+					historyDown();
+					return false;
 				}
-				historyDown();
-				return false;
-			break;
+				return true;
+
 			case 13: // Enter
+				
 				if (this.value.indexOf(";") < 1) {
 					return true;
 				}
+
 				if (!(e.ctrlKey || e.metaKey)) {
 					return true;
 				}
 				
-				setTimeout(function() {
-					$in.trigger("input");
-				}, 0);
 				var input = $.trim($(this).val()), out;
 
 				if (/\s*clear(\s*\(\s*\))?[\s;]*$/.test(input)) {
@@ -226,20 +265,29 @@ jQuery(function($) {
 				}
 				
 				$out.append(
-					$('<code class="prettyprint old-input lang-sql"/>')
-						.text(input)
+					$('<code class="prettyprint old-input lang-sql"/>').text(input)
 				);
+
 				PR.prettyPrint("out");
 				$in.addClass("waiting");
 				pushState(input);
+				
 				$in.trigger("blur").prop({
 					value : "",
 					selectionStart : 0,
 					selectionEnd   : 0
 				});
-				JSDB.query(input, onSuccess, onError);
+
+				if (api) {
+					api.query(input, onComplete);
+				} else {
+					jsSQL(connectionOptions, function(_api) {
+						api = _api;
+						api.query(input, onComplete);
+					});
+				}
+				
 				return false;
-			break;
 		}
 	});
 
@@ -248,5 +296,5 @@ jQuery(function($) {
 		selectionStart : 0,
 		selectionEnd   : 0
 	});
-
+	resizeUI();
 });

@@ -5,19 +5,19 @@
 	module("TableRow", {
 		setup : function() {
 			QUnit.stop();
-			JSDB.SERVER.createDatabase("unitTestingDB", true, function(err, db) {
+			TEST_API.query("CREATE DATABASE unitTestingDB", function(err, res) {
 				if (err)
 					throw err;
-				DB = db;
+				DB = TEST_API.getDatabase("unitTestingDB");
 				QUnit.start();
 			});
 		},
 		teardown : function() {
 			QUnit.stop();
-			JSDB.SERVER.dropDatabase("unitTestingDB", true, function(err) {
+			TEST_API.query("DROP DATABASE unitTestingDB", function(err) {
 				if (err)
 					throw err;
-				DB = null;
+				DB  = null;
 				QUnit.start();
 			});
 		}
@@ -74,7 +74,7 @@
 		strictEqual(row.getCellValue("a"), 7);
 		strictEqual(row.getCellValue("b"), 8);
 
-		deepEqual(row.toJSON(), {
+		deepEqual(row.toJSON("object"), {
 			a : 7,
 			b : 8
 		});

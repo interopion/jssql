@@ -32,14 +32,14 @@ STATEMENTS.SHOW_TABLES = function(walker)
 	return new Task({
 		name : "Show tables",
 		execute : function(next) {
-			var db = SERVER.getCurrentDatabase(), dbName;
+			var db = walker.server.getCurrentDatabase(), dbName;
 
 			if ( walker.is("FROM|IN") ) 
 			{
 				walker.forward();
 				walker.someType(WORD_OR_STRING, function(token) {
 					dbName = token[0];
-					db = SERVER.databases[dbName];
+					db = walker.server.databases[dbName];
 				});
 			}
 			

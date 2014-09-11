@@ -25,244 +25,254 @@
     
     <section>
         <article>
-            <pre class="prettyprint source"><code>/**
- * Represents a table row which is a managed collection of TableCell objects.
- * @param {Table} table (optional; can be set later too)
- * @constructor
- * @return {TableRow}
- * @extends Persistable
- */
-function TableRow(table, id)
-{
-	/**
-	 * The id of the row is just it's sequence number provided by the contaning
-	 * Table instance.
-	 * @type Number
-	 * @readonly
-	 */
-	this.id = id;
+            <pre class="prettyprint source"><code>
+var TableRow = Persistable.extend({
 
 	/**
-	 * The Table of this row
-	 * @type Table
+	 * Represents a table row which is a managed collection of TableCell objects.
+	 * @param {Table} table (optional; can be set later too)
+	 * @constructor
+	 * @return {TableRow}
+	 * @extends Persistable
 	 */
-	this.table = null;
+	construct : function(table, id) {
+		
+		Persistable.prototype.construct.call(this, "row", table);
 
-	/**
-	 * The length of the row, i.e. the number of the cells inside it.
-	 * IMPORTANT: Must me treated as read-only
-	 * @type Number
-	 * @readonly
-	 */
-	this.length = 0;
+		/**
+		 * The id of the row is just it's sequence number provided by the 
+		 * contaning Table instance.
+		 * @type Number
+		 * @readonly
+		 */
+		this.id = id;
 
-	/**
-	 * The actual data collection
-	 * @type Array
-	 * @private
-	 */
-	this._data = [];
-	
-	/**
-	 * The collection of TableCell objects by name
-	 * @type Object
-	 * @private
-	 */
-	this._cellsByName = {};
+		/**
+		 * The Table of this row
+		 * @type Table
+		 */
+		this.table = table;
 
-	if (table) {
+		/**
+		 * The length of the row, i.e. the number of the cells inside it.
+		 * IMPORTANT: Must me treated as read-only
+		 * @type Number
+		 * @readonly
+		 */
+		this.length = 0;
+
+		/**
+		 * The actual data collection
+		 * @type Array
+		 * @private
+		 */
+		this._data = [];
+		
+		/**
+		 * The collection of TableCell objects by name
+		 * @type Object
+		 * @private
+		 */
+		this._cellsByName = {};
+
 		this.setTable(table);
-	}
-}
+	},
 
-TableRow.prototype = new Persistable();
-TableRow.prototype.constructor = TableRow;
 
-/**
- * Overrides the Persistable.prototype.getStorageKey method. Generates and 
- * returns the key to be used as storage key.
- * @return {String}
- */
-TableRow.prototype.getStorageKey = function()
-{
-	return [
-		NS, 
-		this.table._db.name, 
-		this.table.name,
-		this.id
-	].join(".");
-};
+	/**
+	 * Overrides the Persistable.prototype.getStorageKey method. Generates and 
+	 * returns the key to be used as storage key.
+	 * @return {String}
+	 */
+	getStorageKey : function()
+	{
+		return [
+			NS, 
+			this.table._db.name, 
+			this.table.name,
+			this.id
+		].join(".");
+	},
 
-/**
- * Loads the row data from the storage.
- * @emits loadstart:row - before the loading starts
- * @emits load:row - If the load was successfully completed
- * @return {void} This method is async. Use the callback instead of relying on 
- * 		return value.
- * @param {Function} next(err, row) - The callback to be invoked after the 
- * 		loading is complete (successful or not). Optional.
- */
-TableRow.prototype.load = function(next)
-{
-	var row   = this, 
-		_next = createNextHandler(next);
-	
-	events.dispatch("loadstart:row", row);
-	
-	row.read(function(err, json) {
-		if (err)
-			return _next(err, null);
+	/**
+	 * Loads the row data from the storage.
+	 * @emits loadstart:row - before the loading starts
+	 * @emits load:row - If the load was successfully completed
+	 * @return {void} This method is async. Use the callback instead of relying on 
+	 * 		return value.
+	 * @param {Function} next(err, row) - The callback to be invoked after the 
+	 * 		loading is complete (successful or not). Optional.
+	 */
+	load : function(next)
+	{
+		var row   = this, 
+			_next = createNextHandler(next);
+		
+		row.emit("loadstart:row", row);
+		
+		row.read(function(err, json) {
+			if (err)
+				return _next(err, null);
 
-		if (json) {
-			for (var i = 0; i &lt; row.length; i++) {
-				row._data[i] = row.table.cols[row.table._col_seq[i]].set(json[i]);
+			if (json && json.length) {
+				for (var i = 0; i &lt; row.length; i++) {
+					row._data[i] = row.table.cols[row.table._col_seq[i]].set(
+						json[i]
+					);
+				}
+			}
+
+			row._isDirty = false;
+			row.emit("load:row", row);
+			_next(null, row);
+		});
+	},
+
+	/**
+	 * Injects the Table reference and then recreates the entire state of the 
+	 * instance by analyzing the table columns.
+	 * @param {Table} table
+	 * @return {TableRow}
+	 */
+	setTable : function(table)
+	{
+		var colName, col;
+
+		this.length = 0;
+		this._cellsByName = {};
+		this.parent = this.table = table;
+		this._data = [];
+		this.storage = table.storage;
+		this.bubbleTarget = table;
+
+		for (colName in table.cols) 
+		{
+			col = table.cols[colName];
+			this._cellsByName[colName] = this.length;
+
+			if (col.defaultValue !== undefined) {
+				this.setCellValue(this.length, col.defaultValue);
+			}
+			else if (col.nullable) {
+				this.setCellValue(this.length, null);
+			}
+			this.length++;
+			//this.setCellValue(
+			//	this.length++, 
+			//	col.defaultValue === undefined ? null : col.defaultValue
+			//);
+		}
+		
+		this._isDirty = false;
+
+		return this;
+	},
+
+	/**
+	 * Returns a reference to one of the TableCells in the row by name.
+	 * @throws Error if the cell does not exist
+	 * @return {TableCell}
+	 */
+	getCell : function(name)
+	{
+		assertInObject(name, this._cellsByName, 'No such field "' + name + '".');
+		return this.table.cols[name].get(this._data[this._cellsByName[name]]);
+		//return this._data[this._cellsByName[name]];
+	},
+
+	/**
+	 * Returns a reference to one of the TableCells in the row by it's index.
+	 * @throws RangeError if the cell does not exist
+	 * @return {TableCell}
+	 */
+	getCellAt : function(index)
+	{
+		assertInBounds(index, this._data, 'No field at index "' + index + '".');
+		return this.table.cols[this.table._col_seq[index]].get(this._data[index]);
+		//return this._data[index];
+	},
+
+	/**
+	 * Sets the value of the cell specified by name or by index.
+	 * @param {String|Number} nameOrIndex The name or the index of the cell.
+	 * @value {String|Number} value
+	 * @throws Error if the cell does not exist
+	 * @return {TableRow} Returns the instance
+	 */
+	setCellValue : function(nameOrIndex, value)
+	{
+		var _isNumeric = isNumeric(nameOrIndex),
+			col = _isNumeric ? 
+				this.table.cols[this.table._col_seq[nameOrIndex]] :
+				this.table.cols[nameOrIndex],
+			oldVal = _isNumeric ? 
+				this._data[nameOrIndex] :
+				this._data[this._cellsByName[nameOrIndex]],
+			newVal;
+
+		if (value === oldVal)
+			return this;
+
+		newVal = col.set(value);
+
+		if (newVal === oldVal)
+			return this;
+
+		if (newVal === null && col.autoIncrement)
+			newVal = this.table._ai;
+
+		this._data[_isNumeric ? 
+			nameOrIndex : 
+			this._cellsByName[nameOrIndex]] = newVal;
+
+		if (newVal !== oldVal)
+			this._isDirty = true; // TODO: notify change if needed
+		
+		return this;
+	},
+
+	/**
+	 * Gets the value of the cell specified by name or by index.
+	 * @param {String|Number} nameOrIndex The name or the index of the cell.
+	 * @throws Error if the cell does not exist
+	 * @return {any} Returns the cell value
+	 */
+	getCellValue : function(nameOrIndex)
+	{
+		return isNumeric(nameOrIndex) ? 
+			this.getCellAt(nameOrIndex) : 
+			this.getCell(nameOrIndex);
+	},
+
+	/**
+	 * Creates and returns the plain object representation of the instance.
+	 * @param {String} format Optional. Can be "array", "object" or "mixed".
+	 * Defaults to "mixed".
+	 * @return {Object}
+	 */
+	toJSON : function(format) 
+	{
+		if (!format || format == "array")
+			return this._data.slice();
+
+		var json = {}, k;
+
+		if (format == "object" || format == "mixed") {
+			for (k in this._cellsByName) {
+				json[k] = this.getCell(k);
 			}
 		}
-
-		JSDB.events.dispatch("load:row", row);
 		
-		_next(null, row);
-	});
-};
-
-/**
- * Saves the row data to the storage.
- * @emits savestart:row - before the saving starts
- * @emits save:row - If the save was successfully completed
- * @return {void} This method is async. Use the callback instead of relying on 
- * 		return value.
- * @param {Function} next(err, row) - The callback to be invoked after the 
- * 		saving is complete (successful or not). Optional.
- */
-TableRow.prototype.save = function(next)
-{
-	var row = this, _next = createNextHandler(next);
-
-	events.dispatch("savestart:row", row);
-
-	row.write( this._data, function(err) {
-		if (err) 
-			return _next(err, null);
-		
-		events.dispatch("save:row", row);
-		
-		_next(null, row);
-	});
-};
-
-/**
- * Injects the Table reference and then recreates the entire state of the 
- * instance by analyzing the table columns.
- * @param {Table} table
- * @return {TableRow}
- */
-TableRow.prototype.setTable = function(table)
-{
-	var colName, col;
-
-	assertInstance(table, Table);
-	
-	this.length = 0;
-	this._cellsByName = {};
-	this.table = table;
-	this._data = [];
-
-	for (colName in table.cols) 
-	{
-		col = table.cols[colName];
-		this._cellsByName[colName] = this.length;
-		this.setCellValue(
-			this.length++, 
-			col.defaultValue === undefined ? null : col.defaultValue
-		);
-	}
-
-	return this;
-};
-
-/**
- * Returns a reference to one of the TableCells in the row by name.
- * @throws Error if the cell does not exist
- * @return {TableCell}
- */
-TableRow.prototype.getCell = function(name)
-{
-	assertInObject(name, this._cellsByName, 'No such field "' + name + '".');
-	return this._data[this._cellsByName[name]];
-};
-
-/**
- * Returns a reference to one of the TableCells in the row by it's index.
- * @throws RangeError if the cell does not exist
- * @return {TableCell}
- */
-TableRow.prototype.getCellAt = function(index)
-{
-	assertInBounds(index, this._data, 'No field at index "' + index + '".');
-	return this._data[index];
-};
-
-/**
- * Sets the value of the cell specified by name or by index.
- * @param {String|Number} nameOrIndex The name or the index of the cell.
- * @value {String|Number} value
- * @throws Error if the cell does not exist
- * @return {TableRow} Returns the instance
- */
-TableRow.prototype.setCellValue = function(nameOrIndex, value)
-{
-	var col;
-	
-	if (isNumeric(nameOrIndex)) {
-		col   = this.table.cols[this.table._col_seq[nameOrIndex]];
-		value = col.set(value);
-		if (value === null && col.autoIncrement) {
-			value = this.table._ai;
+		if (format == "mixed") {
+			for ( k = 0; k &lt; this.length; k++ ) {
+				json[k] = this.getCellAt(k);
+			}	
 		}
-		this._data[nameOrIndex] = value;
-	}
-	else {
-		col   = this.table.cols[nameOrIndex];
-		value = col.set(value);
-		if (value === null && col.autoIncrement) {
-			value = this.table._ai;
-		}
-		this._data[this._cellsByName[nameOrIndex]] = value;
-	}
-	
-	return this;
-};
 
-/**
- * Gets the value of the cell specified by name or by index.
- * @param {String|Number} nameOrIndex The name or the index of the cell.
- * @throws Error if the cell does not exist
- * @return {any} Returns the cell value
- */
-TableRow.prototype.getCellValue = function(nameOrIndex)
-{
-	return isNumeric(nameOrIndex) ? 
-		this.getCellAt(nameOrIndex) : 
-		this.getCell(nameOrIndex);
-};
+		return json;
+	}
+});
 
-/**
- * Creates and returns the plain object representation of the instance.
- * @return {Object}
- */
-TableRow.prototype.toJSON = function(mixed) 
-{
-	var json = {};
-	for (var x in this._cellsByName) {
-		json[x] = this._data[this._cellsByName[x]];
-	}
-	if (mixed) {
-		for ( var i = 0; i &lt; this.length; i++ ) {
-			json[i] = this._data[i];
-		}	
-	}
-	return json;
-};
 </code></pre>
         </article>
     </section>
@@ -273,13 +283,13 @@ TableRow.prototype.toJSON = function(mixed)
 </div>
 
 <nav>
-    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="CreateDatabaseQuery.html">CreateDatabaseQuery</a></li><li><a href="CreateTableQuery.html">CreateTableQuery</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="Database.html">Database</a></li><li><a href="LocalStorage.html">LocalStorage</a></li><li><a href="MemoryStorage.html">MemoryStorage</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="Server.html">Server</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="Table.html">Table</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="TableRow.html">TableRow</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#query2">query2</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#Storage">Storage</a></li><li>{Boolean}</li><li>{String}</li></ul>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Column.html">Column</a></li><li><a href="Column_BIGINT.html">Column_BIGINT</a></li><li><a href="Column_BIT.html">Column_BIT</a></li><li><a href="Column_ENUM.html">Column_ENUM</a></li><li><a href="Column_INT.html">Column_INT</a></li><li><a href="Column_INTEGER.html">Column_INTEGER</a></li><li><a href="Column_MEDIUMINT.html">Column_MEDIUMINT</a></li><li><a href="Column_SMALLINT.html">Column_SMALLINT</a></li><li><a href="Column_TINYINT.html">Column_TINYINT</a></li><li><a href="construct.html">construct</a></li><li><a href="CustomError.html">CustomError</a></li><li><a href="NumericColumn.html">NumericColumn</a></li><li><a href="Persistable.html">Persistable</a></li><li><a href="Result.html">Result</a></li><li><a href="SQLConstraintError.html">SQLConstraintError</a></li><li><a href="SQLParseError.html">SQLParseError</a></li><li><a href="SQLRuntimeError.html">SQLRuntimeError</a></li><li><a href="TableIndex.html">TableIndex</a></li><li><a href="Task.html">Task</a></li><li><a href="Transaction.html">Transaction</a></li><li><a href="Walker.html">Walker</a></li></ul><h3>Namespaces</h3><ul><li><a href="events.html">events</a></li><li><a href="JSDB.html">JSDB</a></li><li><a href="STATEMENTS.html">STATEMENTS</a></li><li><a href="Utils.html">Utils</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_insertRow">_insertRow</a></li><li><a href="global.html#addConstraint">addConstraint</a></li><li><a href="global.html#beginTransaction">beginTransaction</a></li><li><a href="global.html#bind">bind</a></li><li><a href="global.html#columnDataTypes">columnDataTypes</a></li><li><a href="global.html#create">create</a></li><li><a href="global.html#createDatabase">createDatabase</a></li><li><a href="global.html#createErrorClass">createErrorClass</a></li><li><a href="global.html#createTable">createTable</a></li><li><a href="global.html#deleteRows">deleteRows</a></li><li><a href="global.html#drop">drop</a></li><li><a href="global.html#dropDatabase">dropDatabase</a></li><li><a href="global.html#get">get</a></li><li><a href="global.html#getCell">getCell</a></li><li><a href="global.html#getCellAt">getCellAt</a></li><li><a href="global.html#getCellValue">getCellValue</a></li><li><a href="global.html#getCurrentDatabase">getCurrentDatabase</a></li><li><a href="global.html#getDatabase">getDatabase</a></li><li><a href="global.html#getQueries">getQueries</a></li><li><a href="global.html#getStorageKey">getStorageKey</a></li><li><a href="global.html#getTable">getTable</a></li><li><a href="global.html#getTransaction">getTransaction</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#isInTransaction">isInTransaction</a></li><li><a href="global.html#key">key</a></li><li><a href="global.html#length">length</a></li><li><a href="global.html#load">load</a></li><li><a href="global.html#name">name</a></li><li><a href="global.html#normalizeQueryList">normalizeQueryList</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#nullable">nullable</a></li><li><a href="global.html#one">one</a></li><li><a href="global.html#QueryList">QueryList</a></li><li><a href="global.html#read">read</a></li><li><a href="global.html#save">save</a></li><li><a href="global.html#set">set</a></li><li><a href="global.html#setCellValue">setCellValue</a></li><li><a href="global.html#setCurrentDatabase">setCurrentDatabase</a></li><li><a href="global.html#setDefaultValue">setDefaultValue</a></li><li><a href="global.html#setKey">setKey</a></li><li><a href="global.html#setName">setName</a></li><li><a href="global.html#setTable">setTable</a></li><li><a href="global.html#toJSON">toJSON</a></li><li><a href="global.html#type">type</a></li><li><a href="global.html#typeParams">typeParams</a></li><li><a href="global.html#typeToSQL">typeToSQL</a></li><li><a href="global.html#unbind">unbind</a></li><li><a href="global.html#unsetMany">unsetMany</a></li><li><a href="global.html#update">update</a></li><li><a href="global.html#write">write</a></li></ul>
 </nav>
 
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Mon Sep 01 2014 11:27:16 GMT+0300 (EEST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a> on Thu Sep 11 2014 12:50:11 GMT+0300 (EEST)
 </footer>
 
 <script> prettyPrint(); </script>

@@ -69,8 +69,8 @@ STATEMENTS.SHOW_COLUMNS = function(walker) {
 			
 			walker.commit(function() {
 				var database = dbName ? 
-						SERVER.databases[dbName] : 
-						SERVER.getCurrentDatabase(), 
+						walker.server.databases[dbName] : 
+						walker.server.getCurrentDatabase(), 
 					table;
 				
 				if (!database) {

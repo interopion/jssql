@@ -1,4 +1,9 @@
-function FileSystemStorage() {
+
+(function() {
+
+	if (!(window.requestFileSystem || window.webkitRequestFileSystem)) {
+		return;
+	}
 	
 	var CONFIG = {
 		fileSystem : {
@@ -144,132 +149,32 @@ function FileSystemStorage() {
 		}
 	}
 
-	////////////////////////////////////////////////////////////////////////////
-	this.set = function(key, value, next) 
-	{
-		var path  = key + ".json",
-			_next = createNextHandler(next),
-			onError = function(err) {
-				_next(err);
-			};
+	jsSQL.registerStorageEngine("FileSystemStorage", {
+		
+		set : function(key, value, next) {
+			var path  = key + ".json",
+				_next = createNextHandler(next),
+				onError = function(err) {
+					_next(err);
+				};
 
-		getFileSystem(function(fs) {
-			fs.root.getFile(
-				path,
-				{ create: true, exclusive: false },
-				function(fileEntry) {
-					fileEntry.createWriter(function(fileWriter) {
-
-						fileWriter.onwriteend = function(e) {
-							_next(null, value);
-						};
-
-						fileWriter.onerror = function(e) {
-							onError('Write failed: ' + e);
-						};
-
-						var blob = new Blob([String(value)], { type: 'text/plain' });
-
-						fileWriter.write(blob);
-					}, onError);
-				},
-				onError
-			);
-		}, onError);
-	};
-
-	this.get = function(key, next) 
-	{
-		var path  = key + ".json",
-			_next = createNextHandler(next),
-			onError = function(err) {
-				_next(err);
-			};
-
-		getFileSystem(function(fs) {
-			fs.root.getFile(
-				path,
-				{ create: true, exclusive: false },
-				function(fileEntry) {
-					fileEntry.file(function(file) {
-						readFile(file, {
-							readAs    : "text",
-							onerror   : onError,
-							onabort   : onError,
-							onloadend : function(e) {
-								_next(null, e.target.result || null);
-							}
-						});
-					}, onError);
-				},
-				onError
-			);
-		}, onError);
-	};
-
-	this.unset = function(key, next) 
-	{
-		var path  = key + ".json",
-			_next = createNextHandler(next),
-			onError = function(err) {
-				_next(err);
-			};
-
-		getFileSystem(function(fs) {
-			fs.root.getFile(
-				path,
-				{ create: false, exclusive: false },
-				function(fileEntry) {
-					fileEntry.remove(function() {
-						_next(null, null);
-					}, onError);
-				},
-				function() {
-					_next(null, null);
-				}
-			);
-		}, onError);
-	};
-
-	this.setMany = function(map, next) 
-	{
-		var hasError = false,
-			onError = function(err) {
-				hasError = true;
-				next(err);
-			};
-
-		getFileSystem(function(fs) {
-			var pending = [];
-			
-			each(map, function(value, key) {
-				pending.push({ path : key + ".json", value : value });
-			});
-
-			function saveNext() 
-			{
-				if ( hasError )
-					return false;
-
-				if (!pending.length)
-					return next(null);
-
-				var task = pending.shift();
-
+			getFileSystem(function(fs) {
 				fs.root.getFile(
-					task.path,
+					path,
 					{ create: true, exclusive: false },
 					function(fileEntry) {
 						fileEntry.createWriter(function(fileWriter) {
 
-							fileWriter.onwriteend = saveNext;
+							fileWriter.onwriteend = function(e) {
+								_next(null, value);
+							};
 
 							fileWriter.onerror = function(e) {
 								onError('Write failed: ' + e);
 							};
 
 							var blob = new Blob(
-								[String(task.value)], 
+								[JSON.stringify(value)], 
 								{ type: 'text/plain' }
 							);
 
@@ -278,34 +183,21 @@ function FileSystemStorage() {
 					},
 					onError
 				);
-			}
+			}, onError);
+		},
 
-			saveNext();
+		get : function(key, next) 
+		{
+			var path  = key + ".json",
+				_next = createNextHandler(next),
+				store = this,
+				onError = function(err) {
+					_next(err);
+				};
 
-		}, onError);
-	};
-
-	this.getMany = function(keys, next) 
-	{
-		var _keys    = keys.slice(),
-			out      = [],
-			hasError = false,
-			onError  = function(err) {
-				hasError = true;
-				next(err);
-			};
-
-		getFileSystem(function(fs) {
-			function getNext() 
-			{
-				if ( hasError )
-					return false;
-
-				if (!_keys.length)
-					return next(null, out);
-
+			getFileSystem(function(fs) {
 				fs.root.getFile(
-					_keys.shift() + ".json",
+					path,
 					{ create: true, exclusive: false },
 					function(fileEntry) {
 						fileEntry.file(function(file) {
@@ -314,52 +206,184 @@ function FileSystemStorage() {
 								onerror   : onError,
 								onabort   : onError,
 								onloadend : function(e) {
-									out.push(e.target.result || null);
-									getNext();
+									var out = null;
+									try {
+										out = JSON.parse(e.target.result || null);
+										_next(null, out || null);
+									} catch (ex) {
+										store.unset(key, _next);
+									}
 								}
 							});
 						}, onError);
 					},
 					onError
 				);
-			}
-			getNext();
-		}, onError);
-	};
+			}, onError);
+		},
 
-	this.unsetMany = function(keys, next) 
-	{
-		var _keys    = keys.slice(),
-			hasError = false,
-			onError  = function(err) {
-				hasError = true;
-				next(err);
-			};
+		unset : function(key, next) 
+		{
+			var path  = key + ".json",
+				_next = createNextHandler(next),
+				onError = function(err) {
+					_next(err);
+				};
 
-		getFileSystem(function(fs) {
-			function deleteNext() 
-			{
-				if ( hasError )
-					return false;
-
-				if (!_keys.length)
-					return next(null);
-
+			getFileSystem(function(fs) {
 				fs.root.getFile(
-					_keys.shift() + ".json",
+					path,
 					{ create: false, exclusive: false },
 					function(fileEntry) {
-						fileEntry.remove(deleteNext, onError);
+						fileEntry.remove(function() {
+							_next(null, null);
+						}, onError);
 					},
-					deleteNext
+					function() {
+						_next(null, null);
+					}
 				);
-			}
-			deleteNext();
-		}, onError);
-	};
+			}, onError);
+		},
 
-}
+		setMany : function(map, next) 
+		{
+			var hasError = false,
+				onError = function(err) {
+					hasError = true;
+					next(err);
+				};
 
-FileSystemStorage.prototype = Storage.getEnginePrototype();
-FileSystemStorage.prototype.constructor = FileSystemStorage;
-Storage.registerEngine("FileSystemStorage", FileSystemStorage);
+			getFileSystem(function(fs) {
+				var pending = [];
+				
+				each(map, function(value, key) {
+					pending.push({ path : key + ".json", value : value });
+				});
+
+				function saveNext() 
+				{
+					if ( hasError )
+						return false;
+
+					if (!pending.length)
+						return next(null);
+
+					var task = pending.shift();
+
+					fs.root.getFile(
+						task.path,
+						{ create: true, exclusive: false },
+						function(fileEntry) {
+							fileEntry.createWriter(function(fileWriter) {
+
+								fileWriter.onwriteend = saveNext;
+
+								fileWriter.onerror = function(e) {
+									onError('Write failed: ' + e);
+								};
+
+								var blob = new Blob(
+									[JSON.stringify(task.value)], 
+									{ type: 'text/plain' }
+								);
+
+								fileWriter.write(blob);
+							}, onError);
+						},
+						onError
+					);
+				}
+
+				saveNext();
+
+			}, onError);
+		},
+
+		getMany : function(keys, next) 
+		{
+			var _keys    = keys.slice(),
+				out      = [],
+				hasError = false,
+				onError  = function(err) {
+					hasError = true;
+					next(err);
+				};
+
+			getFileSystem(function(fs) {
+				function getNext() 
+				{
+					if ( hasError )
+						return false;
+
+					if (!_keys.length)
+						return next(null, out);
+
+					var key = _keys.shift();
+
+					fs.root.getFile(
+						key + ".json",
+						{ create: true, exclusive: false },
+						function(fileEntry) {
+							fileEntry.file(function(file) {
+								readFile(file, {
+									readAs    : "text",
+									onerror   : onError,
+									onabort   : onError,
+									onloadend : function(e) {
+										var res = null;
+										try {
+											res = JSON.parse(e.target.result || null);
+											out.push(res || null);
+											getNext();
+										} catch (ex) {
+											store.unset(key, function() {
+												out.push(null);
+												getNext();
+											});
+										}
+									}
+								});
+							}, onError);
+						},
+						onError
+					);
+				}
+				getNext();
+			}, onError);
+		},
+
+		unsetMany : function(keys, next) 
+		{
+			var _keys    = keys.slice(),
+				hasError = false,
+				onError  = function(err) {
+					hasError = true;
+					next(err);
+				};
+
+			getFileSystem(function(fs) {
+				function deleteNext() 
+				{
+					if ( hasError )
+						return false;
+
+					if (!_keys.length)
+						return next(null);
+
+					fs.root.getFile(
+						_keys.shift() + ".json",
+						{ create: false, exclusive: false },
+						function(fileEntry) {
+							fileEntry.remove(deleteNext, onError);
+						},
+						deleteNext
+					);
+				}
+				deleteNext();
+			}, onError);
+		}
+	}, {
+		label : "File Storage (for Google Chrome)"
+	});
+})();

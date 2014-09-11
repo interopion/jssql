@@ -1,22 +1,39 @@
 /**
  * @constructor
  * @abstract
- * @classdesc The base class for persistable objects. Provides the basic methods
- * for key-value based async. persistance
+ * @classdesc The base class for persistable objects. Provides the basic 
+ * methods for key-value based async. persistance and some base methods for
+ * composite operations
  */
-function Persistable() {}
+var Persistable = Class.extend({
 
-Persistable.prototype = {
-	
 	/**
-	 * The storage engine instance used by this object.
-	 * @todo This should be configurable!
+	 * @constructor
 	 */
-	//storage : Storage.getEngine(CFG.storageEngine),
+	construct : function(label, parent) {
+		
+		this.label = label || "persistable";
 
-	getStorage : function() 
-	{
-		return Storage.getEngine(CFG.storageEngine);
+		/**
+		 * The storage engine instance used by this object.
+		 */
+		this.storage = parent ? parent.storage : null;
+
+		/**
+		 * This flag is managed internally and shows if the instance has unsaved
+		 * changes
+		 * @type {Boolean}
+		 */
+		this._isDirty = false;
+
+		this.children = {};
+
+		this.parent = parent || null;
+
+		this.bubbleTarget = this.parent;
+
+		// Make it observable
+		Observer.call(this);
 	},
 	
 	/**
@@ -42,6 +59,27 @@ Persistable.prototype = {
 		throw "Please implement the 'getStorageKey' method to return the " + 
 			"storage key";
 	},
+
+	getPatch : function() 
+	{
+		var hasChanges = false, out = {}, name, child, patch;
+
+		if (this._isDirty) {
+			hasChanges = true;
+			out[this.getStorageKey()] = JSON.stringify(this.toJSON());
+		}
+
+		for ( name in this.children) {
+			child = this.children[name];
+			patch = child.getPatch();
+			if (patch) {
+				hasChanges = true;
+				mixin(out, patch);
+			}
+		}
+
+		return hasChanges ? out : null;
+	},
 	
 	/**
 	 * This method attempts to read the serialized version of the instance from
@@ -52,17 +90,8 @@ Persistable.prototype = {
 	 */
 	read : function(next)
 	{
-		this.getStorage().get(this.getStorageKey(), function(err, data) {
-			if (err)
-				return next(err, null);
-
-			try {
-				data = JSON.parse(data);
-			} catch (ex) {
-				err = ex;
-			}
-			
-			next(err, data);
+		this.storage.get(this.getStorageKey(), function(err, data) {
+			next(err, err ? null : data);
 		});
 	},
 	
@@ -75,7 +104,7 @@ Persistable.prototype = {
 	 */
 	write : function(data, next)
 	{
-		this.getStorage().set( this.getStorageKey(),  JSON.stringify(data), next );
+		this.storage.set(this.getStorageKey(), data, next);
 	},
 	
 	/**
@@ -85,7 +114,7 @@ Persistable.prototype = {
 	 */
 	drop : function(next)
 	{
-		return this.getStorage().unset(this.getStorageKey(), next);
+		this.storage.unset(this.getStorageKey(), next);
 	},
 	
 	/**
@@ -96,7 +125,33 @@ Persistable.prototype = {
 	 */
 	save : function(next) 
 	{
-		this.write( this.toJSON(), next );
+		var self  = this, 
+			cb    = createNextHandler(next),
+			patch = self.getPatch();
+
+		if (!patch)
+			return cb(null, self);
+
+		self.emit("savestart:" + self.label, self);
+
+		if (self.parent) {
+			self.parent.save(self.onSave(cb));
+		} else {
+			self.storage.setMany(patch, self.onSave(cb));
+		}
+		//this.write( this.toJSON(), cb );
+	},
+
+	onSave : function(cb) 
+	{
+		var self = this;
+		return function(err) {
+			if (err) 
+				return cb(err, self);
+			self._isDirty = false;
+			self.emit("save:" + self.label, self);
+			cb(null, self);
+		};
 	},
 	
 	/**
@@ -109,5 +164,5 @@ Persistable.prototype = {
 	{
 		this.read(next);
 	}
-};
+});
 

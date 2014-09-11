@@ -307,10 +307,10 @@ Result.prototype = {
 			html.push('<tr>');
 			for ( j = 0; j < colLen; j++ ) 
 			{
-				v = tmp[this.cols[j]] || tmp[j];
+				v = tmp[this.cols[j]];//tmp[this.cols[j]] || tmp[j];
 				html.push(
 					'<td>', 
-					v === undefined ? '' : String(v), 
+					(v === undefined ? '' : v === null ? 'NULL' : String(v)), 
 					'</td>'
 				);
 			}
