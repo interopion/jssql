@@ -1,5 +1,5 @@
 /**
- * jsSQL version 0.0.1524
+ * jsSQL version 0.1.153
  */
 (function(GLOBAL, undefined) {
 "use strict";
@@ -159,6 +159,9 @@ DATA_TYPES = [
 //DATABASES = {},
 //CURRENT_DATABASE,
 
+// Regular Expressions
+RE_VARIABLE = /^[a-zA-Z\$_][a-zA-Z0-9\$_]*$/,
+RE_SURROUNDING_SPACE = /^\s+|\s+$/,
 RE_ISO8601 = new RegExp([
 	"^",
 	"(",                                 // \1  - date
@@ -189,6 +192,9 @@ RE_ISO8601 = new RegExp([
 	")?",
 	"\\s*$"
 ].join("")),
+
+DATEFORMAT_ISO8601    = "%Y-%m-%dT%H:%M:%S%z",
+DATEFORMAT_ISO8601_MS = "%Y-%m-%dT%H:%M:%f%z",
 
 MILLISECOND = 1,
 SECOND      = MILLISECOND * 1000, // 1000
@@ -224,6 +230,11 @@ TOKEN_TYPE_MAP[TOKEN_TYPE_EOL]                 = "new line";
 /**
  * @namespace Utils
  */
+var objectToString = Object.prototype.toString;
+
+function is(x, type) {
+	return objectToString.call(x) == "[object " + type + "]";
+}
 
 /**
  * Returns the float representation of the first argument or the
@@ -252,12 +263,10 @@ TOKEN_TYPE_MAP[TOKEN_TYPE_EOL]                 = "new line";
  *                         converted to integer too.
  * @return {Number} The resulting integer.
  */
-function intVal(x, defaultValue) 
-{
+function intVal(x, defaultValue) {
     var out = parseInt(x, 10);
-    if (isNaN(out) || !isFinite(out)) {
+    if (isNaN(out) || !isFinite(out))
         out = defaultValue === undefined ? 0 : intVal(defaultValue);
-    }
     return out;
 }
 
@@ -266,21 +275,53 @@ function intVal(x, defaultValue)
  * @memberof Utils
  * @param {numeric} n The argument to round.
  * @param {Number} p The precision (number of digits after the
- *                   decimal point) to use.
+ *                   decimal point) to use. "p" can be negative to cause p 
+ *                   digits left of the decimal point of the value X to become 
+ *                   zero.
  * @return {Number} The resulting number.
  */
-//function roundToPrecision(n, p) 
-//{
-//    n = parseFloat(n);
-//    if (isNaN(n) || !isFinite(n)) {
-//        return NaN;
-//    }
-//    if (!p || isNaN(p) || !isFinite(p) || p < 1) {
-//        return Math.round(n);
-//    }
-//    var q = Math.pow(10, p);
-//    return Math.round(n * q) / q;
-//}
+function roundToPrecision(n, p) {
+    n = parseFloat(n);
+
+    if (isNaN(n) || !isFinite(n))
+        return n;
+
+    if (!p || isNaN(p) || !isFinite(p))
+        return Math.round(n);
+
+    if (p < 0)
+    	return truncate(n, p);
+
+    var q = Math.pow(10, p);
+    return Math.round(n * q) / q;
+}
+
+/**
+ * Returns the number X, truncated to D decimal places. If D is 0, the result 
+ * has no decimal point or fractional part. D can be negative to cause D digits 
+ * left of the decimal point of the value X to become zero.
+ * @param {Number} X
+ * @param {Number} D
+ * @return {Number}
+ */
+function truncate(X, D) {
+	D = D || 0;
+
+	if (D === 0)
+		return X < 0 ? Math.ceil(X) : Math.floor(X);
+
+	if (D < 0) {
+		D = Math.pow(10, D * -1);
+		return Math.floor(X/D) * D;
+	}
+
+	var toks = String(X).split("."),
+		outI = toks[0],
+		outF = toks[1] || "0";
+
+	D = Math.pow(10, Math.max(0, outF.length - D));
+	return parseFloat(outI + "."  + Math.floor(outF / D) * D);
+}
 
 /**
  * Simplified version of printf. Just replaces all the occurrences of "%s" with
@@ -291,13 +332,10 @@ function intVal(x, defaultValue)
  * @param {*} ... The rest of the arguments are used for the replacements
  * @return {String}
  */
-function strf(s) 
-{
-	var args = arguments, 
-		l = args.length, 
-		i = 0;
-	return String(s || "").replace(/(%s)/g, function(a, match) {
-		return ++i > l ? match : args[i];
+function strf(s) {
+	var args = arguments, l = args.length, i = 0;
+	return String(s || "").replace(/(%s)/g, function(a) {
+		return ++i > l ? "" : args[i];
 	});
 }
 
@@ -308,23 +346,21 @@ function strf(s)
  * @param {Array} The array to join
  * @return {String} 
  */
-function prettyList(arr) 
-{
+function prettyList(arr) {
 	var len = arr.length, last;
-	if (len === 0) {
+	if (len === 0)
 		return '';
-	}
-	if (len === 1) {
+
+	if (len === 1)
 		return quote(arr[0]);
-	}
-	if (len == 2) {
+
+	if (len == 2)
 		return quote(arr[0]) + " or " + quote(arr[1]);
-	}
 	
 	var out = [], i;
-	for(i = 0; i < arr.length; i++) {
+	for(i = 0; i < arr.length; i++)
 		out.push(quote(arr[i]));
-	}
+
 	last = out.pop();
 
 	return "one of " + out.join(", ") + " or " + last;
@@ -335,34 +371,25 @@ function prettyList(arr)
  * @memberof Utils
  * @param {String} 
  */
-function quote(str, q) 
-{
+function quote(str, q) {
 	q = q || '"';
 	return q + String(str).replace(q, q + "" + q) + q;
 }
 
-function makeArray(x)
-{
+function makeArray(x) {
 	if ( isArray(x) )
-	{
 		return x;
-	}
 
 	if ( x && typeof x.toArray == "function" )
-	{
 		return makeArray(x.toArray());
-	}
 
 	if ( x && typeof x == "object" && "length" in x )
-	{
 		return Array.prototype.slice.call(x);
-	}
 
 	return [x];
 }
 
-/*function error(options)
-{
+function error(options) {
 	options = typeof options == "string" ? 
 		{ message : options } : 
 		options || { message : "Unknown error" };
@@ -381,14 +408,17 @@ function makeArray(x)
 		msg += "%c \n   file: %s";
 		params.push("font-weight:bold;", options.file);
 	}
+
 	if ("line" in options) {
 		msg += "%c \n   line: %i";
 		params.push("font-weight:bold", options.line);
 	}
+
 	if ("col" in options) {
 		msg += "%c \n column: %i";
 		params.push("font-weight:bold", options.col);
 	}
+
 	if ("token" in options) {
 		msg += "%c \n   char: %i";
 		params.push("font-weight:bold", options.token[2]);//console.log(options.token);
@@ -420,11 +450,10 @@ function makeArray(x)
 	//console.log(params.join(""))
 	console.log.apply(console, params);
 	throw new SyntaxError(txt);
-}*/
+}
 
-function trim(str)
-{
-	return String(str).replace(/^\s+|\s+$/, "");
+function trim(str) {
+	return String(str).replace(RE_SURROUNDING_SPACE, "");
 }
 
 function getTokens(sql, options)
@@ -433,65 +462,64 @@ function getTokens(sql, options)
 		level  = 0,
 		i      = 0;
 
+	options = options || {};
+
 	function openBlock() { 
 		level++; 
+		if (options.onBlockOpen) 
+			options.onBlockOpen(level);
 	}
+
 	function closeBlock() { 
 		level--; 
+		if (options.onBlockClose) 
+			options.onBlockClose(level);
 	}
-	function handleToken(tok)
-	{
+
+	function handleToken(tok) {
 		tokens[i++] = tok;
 	}
 
 	tokenize(sql, handleToken, openBlock, closeBlock, options);
 
-	if (level > 0) {
-	//	throw new SyntaxError("Unclosed block");
-	}
-	if (level < 0) {
-	//	throw new SyntaxError("Extra closing block");
-	}
+	if (level > 0)
+		throw new SyntaxError("Unclosed block");
+
+	if (level < 0)
+		throw new SyntaxError("Extra closing block");
 
 	return tokens;
 }
 
-function each(o, callback, scope)
-{
+function each(o, callback, scope) {
 	var key, len, argLen = arguments.length;
 	
-	if (argLen < 2 || !o || typeof o != "object") {
-		return;
-	}
+	if (argLen < 2 || !o || typeof o != "object")
+		throw "Invalid arguments";
 	
-	if (Object.prototype.toString.call(o) == "[object Array]") {
+	if (is(o, "Array")) {
 		//if ( typeof o.every == "function" ) {
 		//	return o.every(callback, scope);
 		//}
 		len = o.length;
 		for ( key = 0; key < len; key++ ) {
 			if ( argLen > 2 ) {
-				if ( callback.call(scope, o[key], key, o) === false ) {
+				if ( callback.call(scope, o[key], key, o) === false )
 					break;
-				}
 			} else {
-				if ( callback(o[key], key, o) === false ) {
+				if ( callback(o[key], key, o) === false )
 					break;
-				}
 			}
 		}
 	} else {
-		for ( key in o ) {
+		for ( key in o )
 			if ( argLen > 2 ) {
-				if ( callback.call(scope, o[key], key, o) === false ) { 
+				if ( callback.call(scope, o[key], key, o) === false )
 					break;
-				}
 			} else {
-				if ( callback(o[key], key, o) === false ) { 
+				if ( callback(o[key], key, o) === false )
 					break;
-				}
 			}
-		}
 	}
 }
 
@@ -499,36 +527,31 @@ function every(o, callback, scope)
 {
 	var key, len, argLen = arguments.length;
 	
-	if (argLen < 2 || !o || typeof o != "object") {
+	if (argLen < 2 || !o || typeof o != "object")
 		return false;
-	}
 	
-	if (Object.prototype.toString.call(o) == "[object Array]") {
-		if ( typeof o.every == "function" ) {
+	if (is(o, "Array")) {
+		if ( typeof o.every == "function" )
 			return o.every(callback, scope);
-		}
+
 		len = o.length;
 		for ( key = 0; key < len; key++ ) {
 			if ( argLen > 2 ) {
-				if ( callback.call(scope, o[key], key, o) === false ) {
+				if ( callback.call(scope, o[key], key, o) === false )
 					return false;
-				}
 			} else {
-				if ( callback(o[key], key, o) === false ) {
+				if ( callback(o[key], key, o) === false )
 					return false;
-				}
 			}
 		}
 	} else {
 		for ( key in o ) {
 			if ( argLen > 2 ) {
-				if ( callback.call(scope, o[key], key, o) === false ) { 
+				if ( callback.call(scope, o[key], key, o) === false )
 					return false;
-				}
 			} else {
-				if ( callback(o[key], key, o) === false ) { 
+				if ( callback(o[key], key, o) === false )
 					return false;
-				}
 			}
 		}
 	}
@@ -543,7 +566,7 @@ function every(o, callback, scope)
 		return false;
 	}
 	
-	if (Object.prototype.toString.call(o) == "[object Array]") {
+	if (is(o, "Array")) {
 		if ( typeof o.some == "function" ) {
 			return o.some(callback, scope);
 		}
@@ -578,9 +601,8 @@ function every(o, callback, scope)
 function keys(o, all) {
 	var out = [], x;
 	for (x in o) {
-		if (all || o.hasOwnProperty(x)) {
+		if (all || o.hasOwnProperty(x))
 			out.push(x);
-		}
 	}
 	return out;
 }
@@ -644,38 +666,32 @@ function createTable(name, fields, ifNotExists, database, next)
 	return database.createTable(name, fields, ifNotExists, next);
 }*/
 
-function isArray(x) 
-{
-	return Object.prototype.toString.call(x) == "[object Array]";
+function isArray(x) {
+	return is(x, "Array");
 }
 
-function isFunction(x)
-{
-	return Object.prototype.toString.call(x) == "[object Function]";
+function isFunction(x) {
+	return is(x, "Function");
 }
 
-function isNumeric(x)
-{
+function isNumeric(x) {
 	return trim(x * 1) === trim(x);
-	//var n = parseFloat(x);
-	//return !isNaN(n) && isFinite(n);
 }
 
-function binarySearch(haystack, needle, comparator, low, high) 
-{
+function binarySearch(haystack, needle, comparator, low, high) {
 	var mid, cmp;
 
-	if (low === undefined) {
+	if (low === undefined)
     	low = 0;
-	} else {
+	else {
     	low = low|0;
     	if (low < 0 || low >= haystack.length)
 			throw new RangeError("invalid lower bound");
 	}
 
-	if (high === undefined) {
+	if (high === undefined)
     	high = haystack.length - 1;
-	} else {
+	else {
     	high = high|0;
     	if(high < low || high >= haystack.length)
 			throw new RangeError("invalid upper bound");
@@ -704,38 +720,29 @@ function binarySearch(haystack, needle, comparator, low, high)
 	return ~low;
 }
 
-function assertType(obj, type, msg)
-{
-	if ( Object.prototype.toString.call(obj).toLowerCase() != "[object " + type + "]") {
+function assertType(obj, type, msg) {
+	if ( !is(obj, type) )
 		throw new TypeError(msg || "Invalid type ('" + type + "' is required)");
-	}
 }
 
-function assertInstance(obj, constructor, msg)
-{
-	if (!(obj instanceof constructor)) {
+function assertInstance(obj, constructor, msg) {
+	if (!(obj instanceof constructor))
 		throw new TypeError(msg || "Invalid object type");
-	}
 }
 
-function assertInBounds(val, arr, msg)
-{
-	if (val < 0 || val >= arr.length) {
+function assertInBounds(val, arr, msg) {
+	if (val < 0 || val >= arr.length)
 		throw new RangeError(msg || "value out of bounds");
-	}
 }
 
-function assertInObject(key, obj, msg)
-{
-	if ( !(key in obj) ) {
+function assertInObject(key, obj, msg) {
+	if ( !(key in obj) )
 		throw new Error(msg || "No such property '" + key + "'.");
-	}
 }
 
 function assert(condition, msg) {
-	if (!(condition)) {
+	if (!(condition))
 		throw new Error(msg || "Assertion failed");
-	}
 }
 
 /*function defaultErrorHandler(e) 
@@ -751,8 +758,7 @@ function createNextHandler(fn) {
 	};
 }
 
-function mixin()
-{
+function mixin() {
 	var l = arguments.length, key, len, tmp, i, a, b;
 
 	if (l < 1)
@@ -773,11 +779,10 @@ function mixin()
 			for ( key = 0; key < len; key++ ) 
 			{
 				tmp = b[key];
-				if ( tmp && typeof tmp == "object" ) {
+				if ( tmp && typeof tmp == "object" )
 					a[key] = mixin(isArray(tmp) ? [] : {}, a[key], tmp);
-				} else {
+				else
 					a[key] = tmp;
-				}
 			}
 		} 
 		else if (b && typeof b == "object")
@@ -787,11 +792,10 @@ function mixin()
 				if ( b.hasOwnProperty(key) ) 
 				{
 					tmp = b[key];
-					if ( tmp && typeof tmp == "object" ) {
+					if ( tmp && typeof tmp == "object" )
 						a[key] = mixin(isArray(tmp) ? [] : {}, a[key], tmp);
-					} else {
+					else
 						a[key] = tmp;
-					}
 				}
 			}
 		}
@@ -844,24 +848,20 @@ function parseISO8601(input) {
 
 		tz = String(m[12]).toUpperCase();
 
-		if (tz == "Z") {
+		if (tz == "Z")
 			date._offset = 0;
-		}
 		else if (m[14]) {
 
 			// custom hours offset
-			if (m[15]) {
+			if (m[15])
 				date._offset = parseInt(m[14] + m[15], 10) * HOUR;
-			}
 
 			// custom minutes offset
-			if (m[17]) {
+			if (m[17])
 				date._offset += parseInt(m[14] + m[17], 10) * MINUTE;
-			}
 		}
-	} else {
+	} else
 		date.setFullYear(0);
-	}
 
 	date.toString = dateToISO8601;
 
@@ -877,34 +877,27 @@ function parseDate(input, mods) {
 	var type = Object.prototype.toString.call(input), date;
 
 	// By Date object
-	if (type == "[object Date]") {
+	if (type == "[object Date]")
 		date = input;
-	}
 
 	// By unix time number
-	else if (type == "[object Number]") {
+	else if (type == "[object Number]")
 		date = new Date(input);
-	}
 
 	// Require string argument from now on
-	else if (type != "[object String]") {
+	else if (type != "[object String]")
 		date = parseISO8601(0);
-		//throw new Error("Invalid argument " + type);
-	}
 
 	// By "now" string
-	else if (input.toLowerCase() == "now") {
+	else if (input.toLowerCase() == "now")
 		date = new Date(Date.now());
-	}
 
 	// By unix time as string
-	else if (isNumeric(input)) {
+	else if (isNumeric(input))
 		date = new Date(input * 1);
-	}
 
-	else {
+	else
 		date = parseISO8601(input);
-	}
 
 	if (!isNaN(date * 1)) {
 		mods = isArray(mods) ? mods : makeArray(arguments).slice(1);
@@ -921,9 +914,6 @@ function parseDate(input, mods) {
 function dateModify(date, mod) {
 	var m = mod.match(/^\s*([+-]?\d+(\.\d+)?\s+)?(.*)?\s*$/), tmp;
 
-	//date.__is_utc__ = date.getTimezoneOffset() === 0;
-
-	//console.log(m);
 	if (m) {
 
 		// simply add the specified amount of time to the date and time 
@@ -981,9 +971,8 @@ function dateModify(date, mod) {
 
 				// Adjusts the time so that it displays localtime.
 				case "localtime":
-					if (date._offset) {
+					if (date._offset)
 						date.setTime(date.getTime() - date._offset);
-					}
 					date._offset = date.getTimezoneOffset() * MINUTE;
 					date.setTime(date.getTime() + date._offset);
 					break;
@@ -1007,7 +996,7 @@ function dateModify(date, mod) {
 					if (match) {
 						n = date.getDay();
 						d = parseInt(match[1]);
-						date.setDate(date.getDate() + (d < n ? 7 + d - n : d - n));
+						date.setDate(date.getDate() + (d<n ? 7+d-n : d-n));
 					}
 					break;
 			}
@@ -1016,13 +1005,10 @@ function dateModify(date, mod) {
 }
 
 function strftime(format, date, mods) {
-	mods = Array.prototype.slice.call(arguments, 2);
-	date = parseDate(date || 0, mods);
+	format = format || DATEFORMAT_ISO8601;
+	mods   = Array.prototype.slice.call(arguments, 2);
+	date   = parseDate(date || "now", mods);
 	
-	var time = date.getTime(),
-		d    = new Date(date.getFullYear(), 0, 0, 24, 0, 0, 0), 
-		t    = time - d.getTime();
-
 	return format
 		.replace(/%%/g, "__DOUBLE_%__")
 
@@ -1030,13 +1016,16 @@ function strftime(format, date, mods) {
 		.replace(/%d/g, prependZero(date.getDate(), 2))
 		
 		// float seconds (00-59).(000-999)
-		.replace(/%f/g, prependZero(date.getSeconds(), 2) + "." + prependZero(date.getMilliseconds(), 3))
+		.replace(/%f/g, prependZero(date.getSeconds(), 2) + "." + 
+			prependZero(date.getMilliseconds(), 3))
 		
 		// Hours (00-23)
 		.replace(/%H/g, prependZero(date.getHours(), 2))
 		
 		// Day of year (001-365/366)
-		.replace(/%j/g, prependZero(Math.ceil((+date - (new Date(date.getFullYear(), 0, 0, 24, 0, 0, 0))*1)/DAY), 3))
+		.replace(/%j/g, prependZero(Math.ceil((+date - 
+				(new Date(date.getFullYear(), 0, 0, 24, 0, 0, 0))*1
+			)/DAY), 3))
 
 		// Month (01-12)
 		.replace(/%m/g, prependZero(date.getMonth() + 1, 2))
@@ -1072,7 +1061,8 @@ function strftime(format, date, mods) {
 					"" : 
 					(date._offset < 0 ? "-" : "+") + 
 					prependZero(Math.floor(Math.abs(date._offset) / HOUR), 2) + 
-					prependZero(Math.floor((Math.abs(date._offset) % HOUR) / MINUTE), 2)
+					prependZero(
+						Math.floor((Math.abs(date._offset) % HOUR) / MINUTE), 2)
 		)
 
 		.replace(/__DOUBLE_%__/g, "%");
@@ -1081,15 +1071,38 @@ function strftime(format, date, mods) {
 
 jsSQL.parseDate  = parseDate;
 jsSQL.strftime   = strftime;
-//window.parseISO8601 = parseISO8601;
-//window.prependZero = prependZero;
 
 
 
 var SQL_FUNCTIONS = {
-	date : function(input) {
-		if (input == "now")
-			return Date.now();
+	
+	// Date & Time -------------------------------------------------------------
+	DATE      : strftime,
+	NOW       : function() { return strftime("%s", "now"); },
+	//DATEDIFF : function() {},
+
+	//DEFAULT : function() {},
+	//UUID     : function() {},
+	//SLEEP   : function() {},
+
+	// Math --------------------------------------------------------------------
+	//ABS      : Math.abs,
+	RAND      : Math.random,
+	ROUND     : roundToPrecision,
+	TRUNCATE  : truncate,
+
+	
+	//IF       : function() {},
+	//IFNULL   : function() {},
+	//NULLIF   : function() {}
+
+	// Other -------------------------------------------------------------------
+	BENCHMARK : function(count, expr) {
+		var start = Date.now(), scope = {}, sandbox = { BENCHMARK : null };
+		for (var i = 0; i < count; i++) {
+			executeCondition(expr, scopebv, sandbox);
+		}
+		return Date.now() - start;
 	}
 };
 
@@ -1138,12 +1151,14 @@ function executeInSandbox(options)
 {
 	var args         = [],
 		values       = [],
-		sandbox      = options.sandbox || {},
+		sandbox      = mixin({}, SQL_FUNCTIONS, options.sandbox),
 		translations = options.translations || {},
 		scope        = options.scope || {},
 		body         = options.code || '',
 		context      = options.context || options.context === null ? options.context : {},
 		key;
+
+	//console.log(body, scope);
 
 	for ( key in sandbox ) {
 		args.push( key );
@@ -1151,32 +1166,44 @@ function executeInSandbox(options)
 	}
 
 	for ( key in scope ) {
-		body = body.replace(
-			new RegExp("\\b" + key + "\\b", "gi"),
-			isNaN(parseFloat(key)) ? 
-				"__scope__['" + key + "']" :
-				key
-		);
+		if (RE_VARIABLE.test(key)) {
+			args.push( key );
+			values.push( scope[key] );
+		}
 	}
 
-	args.push( "__scope__" );
-	values.push( scope );
+	// Replace what looks like variables to __scope__[variable]
+	//for ( key in scope ) {
+	//	if (/^[a-zA-Z\$_][a-zA-Z0-9\$_]*$/.test(key)) {
+	//		body = body.replace(
+	//			new RegExp("\\b" + key + "\\b", "gi"),
+	//			"__scope__['" + key + "']"
+	//		);
+	//	}
+	//}
 
-	for ( key in translations ) {
+	//args.push( "__scope__" );
+	//values.push( scope );
+
+	for ( key in translations )
 		body = body.replace(new RegExp(key, "gi"), translations[key]);
-	}
 
 	body = body.replace(/^(\s*return\s+)?/, "return ");
 
-	//console.log(body, args, values, context);
+	//console.log("body: ", body);
+	//console.log("args: ", args); 
+	//console.log("context: ", context);
+	//console.log("values: ", values);
+	//console.log("scope: ", scope); 
+	
 	return (new Function( args.join(", "), body )).apply( context, values );
 }
 
-function executeCondition(condition, scope) 
+function executeCondition(condition, scope, sandbox) 
 {//console.log(condition, scope);
 	return executeInSandbox({
 		code    : condition, 
-		sandbox : {},
+		sandbox : sandbox || {},
 		translations : {
 			"={1,}"   : "===",
 			"\\bOR\\b"  : "||",
@@ -1229,9 +1256,7 @@ function crossJoin2(arrays)
 		if ( ai === 0 )
 		{
 			for ( ri = 0; ri < rl; ri++ )
-			{
 				ll = left.push(mixin(right[ri]));
-			}
 		}
 		else
 		{
@@ -1242,11 +1267,8 @@ function crossJoin2(arrays)
 				for ( ri = 0; ri < rl; ri++ )
 				{
 					if (++y === 1) 
-					{
 						mixin(left[li], right[ri]);
-					} 
-					else 
-					{
+					else {
 						left.splice(++li, 0, mixin({}, row, right[ri]));
 						ll++;
 					}
@@ -1572,6 +1594,7 @@ function getQueries(sql)
 	sql = normalizeQueryList(sql);
 
 	var queries = new QueryList(),
+		//state   = { level : 0 },
 		tokens  = getTokens(sql, {
 			skipComments : true,
 			skipSpace    : true,
@@ -1962,8 +1985,7 @@ function Observer() {
 //                              SQL Tokenizer                                 //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
-function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
-{
+function tokenize(sql, tokenCallback, openBlock, closeBlock, options) {
 	var pos   = 0,
 		buf   = "",
 		state = TOKEN_TYPE_UNKNOWN,
@@ -1971,6 +1993,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 		col   = 0,
 		start = 0,
 		i     = 0,
+		level = 0,
 		cfg   = options || {},
 		token, cur, next, inStream, tmp;
 
@@ -1979,8 +2002,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 	var SKIP_COMMENTS  = !!cfg.skipComments;
 	var SKIP_STR_QUOTS = !!cfg.skipStrQuots;
 
-	function _error(msg)
-	{
+	function _error(msg) {
 		var args = Array.prototype.slice.call(arguments, 1);
 		args.unshift({
 			message : msg,
@@ -1993,8 +2015,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 		error.apply({}, args);
 	}
 
-	function commit()
-	{
+	function commit() {
 		var msg,
 			skip = (SKIP_SPACE && state === TOKEN_TYPE_SPACE) || 
 				   (SKIP_EOL   && state === TOKEN_TYPE_EOL) || 
@@ -2017,8 +2038,9 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 				//line,          // line
 				//col,           // col
 				start, // start
-				pos//,       // end
+				pos,//,       // end
 				//_len  // length
+				level
 			];
 
 			msg = tokenCallback(token);
@@ -2028,11 +2050,10 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 		state = TOKEN_TYPE_UNKNOWN;
 		start = pos;
 		
-		if (msg && msg !== true) {
+		if (msg && msg !== true)
 			_error(msg);
-		} else if (msg === false) {
+		else if (msg === false)
 			pos = -1;
-		}
 	}
 
 	while ( (cur = sql[pos]) ) 
@@ -2053,9 +2074,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 
 				// if inside a string or comment - just append
 				if (inStream) 
-				{
 					buf += cur;
-				}
 				else 
 				{
 					// Should we start a single line comment?
@@ -2106,10 +2125,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 						buf += cur;
 						pos++;
 						if (sql[pos - 2] == "*") 
-						{
 							if (buf) commit(); // close
-						}
-						
 					}
 					else
 					{
@@ -2307,6 +2323,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 					buf = cur;
 					pos++;
 					commit();
+					level++;
 					openBlock();
 				}
 			break;
@@ -2322,6 +2339,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 					state = TOKEN_TYPE_PUNCTOATOR;
 					buf = cur;
 					pos++;
+					level--;
 					commit();
 				}
 				//pos++;
@@ -2427,9 +2445,9 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 			
 			// punctoators -----------------------------------------------------
 			case ".":
-				if (inStream) {
+				if (inStream)
 					buf += cur;
-				} else {
+				else {
 					if (buf && (/^-?\d+$/).test(buf)) {
 						state = TOKEN_TYPE_NUMBER;
 						buf += cur;
@@ -2450,9 +2468,9 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 			break;
 
 			case ",": 
-				if (inStream) {
+				if (inStream)
 					buf += cur;
-				} else {
+				else {
 					if (buf) commit();
 					state = TOKEN_TYPE_PUNCTOATOR;
 					buf += cur;
@@ -2481,9 +2499,8 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 			
 			// Everything else ---------------------------------------------
 			default:
-				if (state === TOKEN_TYPE_SPACE) {
+				if (state === TOKEN_TYPE_SPACE)
 					if (buf) commit();
-				}
 				buf += cur;
 				pos++;
 			break;
@@ -2492,17 +2509,17 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 		col++;
 	}
 
-	if (buf) commit();
+	if (buf)
+		commit();
 
-	if (state === TOKEN_TYPE_SINGLE_QUOTE_STRING) {
+	if (state === TOKEN_TYPE_SINGLE_QUOTE_STRING)
 		throw 'Unexpected end of input. Expecting \'.';
-	} else if (state === TOKEN_TYPE_DOUBLE_QUOTE_STRING) {
+	else if (state === TOKEN_TYPE_DOUBLE_QUOTE_STRING)
 		throw 'Unexpected end of input. Expecting ".';
-	} else if (state === TOKEN_TYPE_BACK_TICK_STRING) {
+	else if (state === TOKEN_TYPE_BACK_TICK_STRING)
 		throw 'Unexpected end of input. Expecting `.';
-	} else if (state === TOKEN_TYPE_MULTI_COMMENT) {
+	else if (state === TOKEN_TYPE_MULTI_COMMENT)
 		throw 'Unexpected end of input. Expecting */.';
-	}
 
 	if (cfg.addEOF) {
 		state = TOKEN_TYPE_EOF;
@@ -3009,9 +3026,32 @@ Walker.prototype = {
      *                            not found.
      * @return {Walker} Returns the instance
      */
-	nextUntil : function(value, callback) 
+	nextUntil : function(value, callback, sameLevel) 
 	{ 
-		while ( !this.is(value) ) 
+		var cur   = this.current(),
+			level = cur ? cur[4] : -1;
+		/*
+		var cur   = this.current(),
+			level = cur ? cur[4] : -1;
+			//debugger;
+		while (cur) {
+			
+			//if ( !sameLevel || (sameLevel && cur[4] !== level) ) {
+				if ( this.is(value) ) {
+					if ( callback )
+						callback.call( this, cur );
+
+					break;
+				}	
+			//}
+
+			cur = this.next();
+
+		}
+		
+		return this; 
+		*/
+		while ( !this.is(value) || (sameLevel && this.current()[4] !== level) ) 
 		{
 			if ( callback )
 				callback.call( this, this.current() );
@@ -4683,32 +4723,40 @@ STATEMENTS.SELECT = function(walker) {
 			database : null, 
 			table    : null,
 			field    : null,
-			isExpr   : false
-		};
+			isExpr   : true
+		},
+		name  = identifier,
+		start = walker.current()[2],
+		end   = walker.current()[3];
 
-		var name = identifier;
-		if (options.allowAll) {
+		if (options.allowAll)
 			name += "|*";
-		}
-		if (options.allowIndexes) {
+
+		if (options.allowIndexes)
 			name += "|@" + TOKEN_TYPE_NUMBER;
-		}
 
-		if (options.includeAlias) {
+		if (options.includeAlias)
 			out.alias = null;
-		}
 
-		try {
-			walker.require(name);
+		do {
+			
+			// Field name
+			if (!walker.is(name)) break;
 			out.field = walker.get();
 			walker.forward();
+
+			// Field table
 			if (walker.is(".")) {
-				walker.forward().require(name);
+				walker.forward();
+				if (!walker.is(name)) break;
 				out.table = out.field;
 				out.field = walker.get();
 				walker.forward();
+
+				// Field database
 				if (options.includeDB && walker.is(".")) {
-					walker.forward().require(name);
+					walker.forward();
+					if (!walker.is(name)) break;
 					out.database = out.table;
 					out.table    = out.field;
 					out.field    = walker.get();
@@ -4719,36 +4767,35 @@ STATEMENTS.SELECT = function(walker) {
 			// now check what we have so far
 			if (isNumeric(out.field)) {
 				out.field = intVal(out.field);
-				if (out.field < 0) {
+				if (out.field < 0)
 					throw new SQLParseError('Negative column index is not allowed.');	
-				}
-			} else if (!out.field) {
+
+			} else if (!out.field)
 				throw new SQLParseError('Expecting a field name');
-			}
 
-			if (out.table == "*") {
+			if (out.table == "*")
 				throw new SQLParseError('You cannot use "*" as table name');
-			} else if (isNumeric(out.table)) {
+			else if (isNumeric(out.table))
 				throw new SQLParseError('You cannot use number as table name');
-			}
 
-			if (out.database == "*") {
+			if (out.database == "*")
 				throw new SQLParseError('You cannot use "*" as database name');
-			} else if (isNumeric(out.database)) {
+			else if (isNumeric(out.database))
 				throw new SQLParseError('You cannot use number as database name');
-			}
-		} catch(e) {
-			
-			var start = walker.current()[2],
-				end   = walker.current()[3];
 
-			walker.nextUntil(",|AS|FROM|WHERE|GROUP|ORDER|LIMIT|OFFSET|;", function(tok) {
-				end = tok[3];
-			});
+			out.isExpr = false;
 
-			out.field = walker._input.substring(start, end);
+		} while (0);
+
+		// so far the input might appear like a field refference but we can't be
+		// sure yet!
+		walker.nextUntil(",|AS|FROM|WHERE|GROUP|ORDER|LIMIT|OFFSET|;", function(tok) {
+			end = tok[3];
 			out.isExpr = true;
-		}
+		}, true);
+
+		if (out.isExpr)
+			out.field = walker._input.substring(start, end);
 
 		// now check for an alias or just continue
 		if (options.includeAlias) {
@@ -4768,6 +4815,8 @@ STATEMENTS.SELECT = function(walker) {
 				}
 			}
 		}
+
+		//console.dir(out);
 
 		return out;
 	}
@@ -4899,21 +4948,20 @@ STATEMENTS.SELECT = function(walker) {
 		if (walker.is("LIMIT")) {
 			walker.forward();
 
-			if ( !walker.is("@" + TOKEN_TYPE_NUMBER) ) {
+			if ( !walker.is("@" + TOKEN_TYPE_NUMBER) )
 				throw new SQLParseError(
 					"Expecting a number for the LIMIT clause"
 				);
-			}
 
 			limit = intVal(walker.get());
 			walker.forward();
 
 			if (walker.is(",")) {
-				if (!walker.forward().is("@" + TOKEN_TYPE_NUMBER)) {
+				if (!walker.forward().is("@" + TOKEN_TYPE_NUMBER))
 					throw new SQLParseError(
 						"Expecting a number for the offset part of the LIMIT clause"
 					);
-				}
+
 				offset = intVal(walker.get());
 				walker.forward();
 			}
@@ -4921,16 +4969,15 @@ STATEMENTS.SELECT = function(walker) {
 
 		if (walker.is("OFFSET")) {//console.log(walker._tokens[walker._pos]);
 			walker.forward();
-			if (!walker.is("@" + TOKEN_TYPE_NUMBER)) {
-				//console.log(walker._tokens[walker._pos]);
+			if (!walker.is("@" + TOKEN_TYPE_NUMBER))
 				throw new SQLParseError(
 					"Expecting a number for the OFFSET clause"
 				);
-			}
+
 			offset = intVal(walker.get());
 			walker.forward();
 		}
-		//console.warn(walker._input, limit, offset);
+		
 		return {
 			limit : limit,
 			offset: offset
@@ -4963,9 +5010,8 @@ STATEMENTS.SELECT = function(walker) {
 			walker.forward();
 		}
 
-		if (l) {
+		if (l)
 			join.push("JOIN");
-		}
 
 		return join.join(" ");
 	}
@@ -5001,9 +5047,8 @@ STATEMENTS.SELECT = function(walker) {
 			//	query.tables[i].database
 			//);
 
-			if (query.tables[i].alias) {
+			if (query.tables[i].alias)
 				tables[query.tables[i].alias] = tables[i];
-			}
 		}
 
 		return tables;
@@ -5046,6 +5091,7 @@ STATEMENTS.SELECT = function(walker) {
 	 */
 	function execute(query)
 	{//debugger;
+		//console.dir(query.fields);
 		var ENV          = getEnvironment(),
 			rows         = [],
 			cols         = [],
@@ -5088,11 +5134,8 @@ STATEMENTS.SELECT = function(walker) {
 				isExpr   : fld.isExpr
 			};
 
-			//console.log("fld: ", fld);
-
 			if (fld.table) {
 				table = walker.server.getDatabase(fld.table.database).getTable(fld.table.table);
-				//table = getTable(fld.table.table, fld.table.database);
 
 				if (!_tables.hasOwnProperty(table.name))
 					_tables[table.name] = { name : table.name };
@@ -5108,14 +5151,12 @@ STATEMENTS.SELECT = function(walker) {
 			}
 
 			ENV[fld.field] = null;
-			if (fld.alias) {
+			if (fld.alias)
 				ENV[fld.alias] = null;
-			}
 
 			rowProto[i] = rowProto[fld.field] = col;
-			if (fld.alias) {
+			if (fld.alias)
 				rowProto[fld.alias] = col;
-			}
 
 			cols.push(col.alias || col.name);
 		}
@@ -5133,7 +5174,6 @@ STATEMENTS.SELECT = function(walker) {
 					table = walker.server.getDatabase(fld.database).getTable(fld.table);
 					//table = getTable(fld.table, fld.database);
 					for ( colName in table.cols ) 
-					{
 						prepareField({
 							field    : colName,
 							alias    : null,
@@ -5141,7 +5181,6 @@ STATEMENTS.SELECT = function(walker) {
 							database : table._db.name,
 							isExpr   : false
 						}, y++);
-					}
 				}
 				else
 				{
@@ -5149,7 +5188,6 @@ STATEMENTS.SELECT = function(walker) {
 					{
 						table = tables[j];
 						for ( colName in table.cols ) 
-						{
 							prepareField({
 								field    : colName,
 								alias    : null,
@@ -5157,7 +5195,6 @@ STATEMENTS.SELECT = function(walker) {
 								database : table._db.name,
 								isExpr   : false
 							}, y++);
-						}
 					}
 				}
 			} 
@@ -5168,12 +5205,10 @@ STATEMENTS.SELECT = function(walker) {
 				if (!fld.isExpr && !fld.table) 
 				{
 					if ( tablesLength !== 1 )
-					{
 						throw new SQLParseError(
 							'The column "%s" needs to have it\'s table specified',
 							fld.field
 						);
-					}
 
 					fld.table = query.tables[0];
 				}
@@ -5193,9 +5228,7 @@ STATEMENTS.SELECT = function(walker) {
 			arr = [];
 			table = tables[i];
 			for ( rowId in table.rows )
-			{
 				arr.push(table.rows[rowId].toJSON("object"));
-			}
 			_data.push(arr);
 		}
 
@@ -5210,9 +5243,7 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		}
 
-		//console.dir(_data);
 		rows = crossJoin2(_data);
-		
 
 		// orderBy -------------------------------------------------------------
 		if ( query.orderBy ) {
@@ -5231,12 +5262,10 @@ STATEMENTS.SELECT = function(walker) {
 					valA = a[col];
 					valB = b[col];
 
-					if (valA > valB) {
+					if (valA > valB)
 						out += term.direction == "ASC" ? 1 : -1;
-					}
-					else if (valA < valB) {
+					else if (valA < valB)
 						out += term.direction == "ASC" ? -1 : 1;
-					}
 
 					if (out !== 0)
 						break;
@@ -5249,9 +5278,8 @@ STATEMENTS.SELECT = function(walker) {
 			offset = query.bounds.offset,
 			len    = rows.length;
 
-		if (offset < 0) {
+		if (offset < 0)
 			offset = len + offset;
-		}
 
 		l = rows.length;
 
@@ -5260,9 +5288,8 @@ STATEMENTS.SELECT = function(walker) {
 			row = rows[i];
 			for ( fieldName in row ) {
 				f = rowProto[fieldName];
-				if (f && f.isExpr) {
+				if (f && f.isExpr)
 					row[fieldName] = executeCondition(row[fieldName], row);
-				}
 			}
 		}
 
@@ -5272,33 +5299,26 @@ STATEMENTS.SELECT = function(walker) {
 			
 			// Apply OFFSET
 			// -----------------------------------------------------------------
-			if (i < offset) {
+			if (i < offset)
 				continue;
-			}
 
 			// Apply LIMIT -----------------------------------------------------
-			if (limit && i >= offset + limit) {
+			if (limit && i >= offset + limit)
 				continue;
-			}
 
 			row = rows[i];
 
 			// Apply the "WHERE" conditions
 			// -----------------------------------------------------------------
-			if (query.where && !executeCondition(query.where, row)) {
+			if (query.where && !executeCondition(query.where, row))
 				continue;
-			}
 
 			// Exclude unused fields from the result rows
 			// -----------------------------------------------------------------
 			for ( fieldName in row ) {
 				f = rowProto[fieldName];
-				if (!f) {
+				if (!f || (f.alias && f.alias !== fieldName))
 					delete row[fieldName];
-				} 
-				else if (f.alias && f.alias !== fieldName) {
-					delete row[fieldName];
-				}
 			}
 
 			rows2.push(row);
@@ -5312,17 +5332,15 @@ STATEMENTS.SELECT = function(walker) {
 
 	return new Task({
 		name : "SELECT Query",
-		execute : function(next) {//console.log("WALK SELECT");
-			//debugger;
+		execute : function(next) {
+			
 			var query = {
 				fields : [],
 				tables : []
 			};
-			//debugger;
+			
 			collectFieldRefs(query.fields);
 
-			
-			//console.log("current: ", walker.current()[0]);
 			walker.optional({
 				"FROM" : function() {//console.log("current: ", walker.current()[0]);
 					collectTableRefs(query.tables);
@@ -5332,18 +5350,11 @@ STATEMENTS.SELECT = function(walker) {
 			query.where   = walkWhere(); 
 			query.orderBy = walkOrderBy();
 			query.bounds  = walkLimitAndOffset();
-			//console.log("query: ", query);
-			
-			// table -------------------------------------------------------
-			//var //tbl   = tableRef(),
-			//	table = getTable(query.tables[0].table, query.tables[0].database);
 			
 			walker
 			.errorUntil(";")
-			.commit(function() {//console.log("EXEC SELECT");
-				//console.dir(query);
+			.commit(function() {
 				var result = execute(query);
-				//console.dir(result);
 				next(null, {
 					cols : result.cols,
 					rows : result.rows
@@ -7106,11 +7117,15 @@ var Server = Persistable.extend({
 	},
 
 	query : function(sql, callback) {
-		var 
+		var queries, len;
 
 		// First we need to split the SQL into queries because the behavior is
 		// very different for single vs multiple queries
-		queries = sql instanceof QueryList ? sql : getQueries(sql),
+		try {
+			queries = sql instanceof QueryList ? sql : getQueries(sql);
+		} catch (err) {
+			return callback(err, null, -1, 0);
+		}
 
 		// The number of SQL queries
 		len = queries.length;
@@ -7506,8 +7521,8 @@ var Table = Persistable.extend({
 	createIndex : function(options) 
 	{
 		var name;
-		assertType(options, "object", "Invalid argument for Table.createIndex");
-		assertType(options.name, "string", "Invalid index name");
+		assertType(options, "Object", "Invalid argument for Table.createIndex");
+		assertType(options.name, "String", "Invalid index name");
 		name = trim(options.name);
 		assert(name, "Index name is required");
 		assert(!this.keys.hasOwnProperty(name), 'Index "%s" already exists');
@@ -9925,7 +9940,7 @@ TableIndex.prototype = {
 	 */
 	setColumns : function(cols)
 	{
-		assertType(cols, "array");
+		assertType(cols, "Array");
 		this.columns = cols.slice();
 	},
 
@@ -9975,7 +9990,7 @@ TableIndex.prototype = {
 	 */
 	setName : function(name)
 	{
-		assertType(name, "string", "The name of the index must be a string");
+		assertType(name, "String", "The name of the index must be a string");
 		name = trim(name);
 		assert(name, "The name of the index cannot be empty");
 
@@ -10625,5 +10640,5 @@ Result.prototype = {
 
 
 
-jsSQL.version = '0.0.1524';
+jsSQL.version = '0.1.153';
 })(window);
