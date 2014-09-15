@@ -1,6 +1,11 @@
 /**
  * @namespace Utils
  */
+var objectToString = Object.prototype.toString;
+
+function is(x, type) {
+	return objectToString.call(x) == "[object " + type + "]";
+}
 
 /**
  * Returns the float representation of the first argument or the
@@ -29,12 +34,10 @@
  *                         converted to integer too.
  * @return {Number} The resulting integer.
  */
-function intVal(x, defaultValue) 
-{
+function intVal(x, defaultValue) {
     var out = parseInt(x, 10);
-    if (isNaN(out) || !isFinite(out)) {
+    if (isNaN(out) || !isFinite(out))
         out = defaultValue === undefined ? 0 : intVal(defaultValue);
-    }
     return out;
 }
 
@@ -43,21 +46,53 @@ function intVal(x, defaultValue)
  * @memberof Utils
  * @param {numeric} n The argument to round.
  * @param {Number} p The precision (number of digits after the
- *                   decimal point) to use.
+ *                   decimal point) to use. "p" can be negative to cause p 
+ *                   digits left of the decimal point of the value X to become 
+ *                   zero.
  * @return {Number} The resulting number.
  */
-//function roundToPrecision(n, p) 
-//{
-//    n = parseFloat(n);
-//    if (isNaN(n) || !isFinite(n)) {
-//        return NaN;
-//    }
-//    if (!p || isNaN(p) || !isFinite(p) || p < 1) {
-//        return Math.round(n);
-//    }
-//    var q = Math.pow(10, p);
-//    return Math.round(n * q) / q;
-//}
+function roundToPrecision(n, p) {
+    n = parseFloat(n);
+
+    if (isNaN(n) || !isFinite(n))
+        return n;
+
+    if (!p || isNaN(p) || !isFinite(p))
+        return Math.round(n);
+
+    if (p < 0)
+    	return truncate(n, p);
+
+    var q = Math.pow(10, p);
+    return Math.round(n * q) / q;
+}
+
+/**
+ * Returns the number X, truncated to D decimal places. If D is 0, the result 
+ * has no decimal point or fractional part. D can be negative to cause D digits 
+ * left of the decimal point of the value X to become zero.
+ * @param {Number} X
+ * @param {Number} D
+ * @return {Number}
+ */
+function truncate(X, D) {
+	D = D || 0;
+
+	if (D === 0)
+		return X < 0 ? Math.ceil(X) : Math.floor(X);
+
+	if (D < 0) {
+		D = Math.pow(10, D * -1);
+		return Math.floor(X/D) * D;
+	}
+
+	var toks = String(X).split("."),
+		outI = toks[0],
+		outF = toks[1] || "0";
+
+	D = Math.pow(10, Math.max(0, outF.length - D));
+	return parseFloat(outI + "."  + Math.floor(outF / D) * D);
+}
 
 /**
  * Simplified version of printf. Just replaces all the occurrences of "%s" with
@@ -68,13 +103,10 @@ function intVal(x, defaultValue)
  * @param {*} ... The rest of the arguments are used for the replacements
  * @return {String}
  */
-function strf(s) 
-{
-	var args = arguments, 
-		l = args.length, 
-		i = 0;
-	return String(s || "").replace(/(%s)/g, function(a, match) {
-		return ++i > l ? match : args[i];
+function strf(s) {
+	var args = arguments, l = args.length, i = 0;
+	return String(s || "").replace(/(%s)/g, function(a) {
+		return ++i > l ? "" : args[i];
 	});
 }
 
@@ -85,23 +117,21 @@ function strf(s)
  * @param {Array} The array to join
  * @return {String} 
  */
-function prettyList(arr) 
-{
+function prettyList(arr) {
 	var len = arr.length, last;
-	if (len === 0) {
+	if (len === 0)
 		return '';
-	}
-	if (len === 1) {
+
+	if (len === 1)
 		return quote(arr[0]);
-	}
-	if (len == 2) {
+
+	if (len == 2)
 		return quote(arr[0]) + " or " + quote(arr[1]);
-	}
 	
 	var out = [], i;
-	for(i = 0; i < arr.length; i++) {
+	for(i = 0; i < arr.length; i++)
 		out.push(quote(arr[i]));
-	}
+
 	last = out.pop();
 
 	return "one of " + out.join(", ") + " or " + last;
@@ -112,34 +142,25 @@ function prettyList(arr)
  * @memberof Utils
  * @param {String} 
  */
-function quote(str, q) 
-{
+function quote(str, q) {
 	q = q || '"';
 	return q + String(str).replace(q, q + "" + q) + q;
 }
 
-function makeArray(x)
-{
+function makeArray(x) {
 	if ( isArray(x) )
-	{
 		return x;
-	}
 
 	if ( x && typeof x.toArray == "function" )
-	{
 		return makeArray(x.toArray());
-	}
 
 	if ( x && typeof x == "object" && "length" in x )
-	{
 		return Array.prototype.slice.call(x);
-	}
 
 	return [x];
 }
 
-/*function error(options)
-{
+function error(options) {
 	options = typeof options == "string" ? 
 		{ message : options } : 
 		options || { message : "Unknown error" };
@@ -158,14 +179,17 @@ function makeArray(x)
 		msg += "%c \n   file: %s";
 		params.push("font-weight:bold;", options.file);
 	}
+
 	if ("line" in options) {
 		msg += "%c \n   line: %i";
 		params.push("font-weight:bold", options.line);
 	}
+
 	if ("col" in options) {
 		msg += "%c \n column: %i";
 		params.push("font-weight:bold", options.col);
 	}
+
 	if ("token" in options) {
 		msg += "%c \n   char: %i";
 		params.push("font-weight:bold", options.token[2]);//console.log(options.token);
@@ -197,11 +221,10 @@ function makeArray(x)
 	//console.log(params.join(""))
 	console.log.apply(console, params);
 	throw new SyntaxError(txt);
-}*/
+}
 
-function trim(str)
-{
-	return String(str).replace(/^\s+|\s+$/, "");
+function trim(str) {
+	return String(str).replace(RE_SURROUNDING_SPACE, "");
 }
 
 function getTokens(sql, options)
@@ -224,60 +247,50 @@ function getTokens(sql, options)
 			options.onBlockClose(level);
 	}
 
-	function handleToken(tok)
-	{
+	function handleToken(tok) {
 		tokens[i++] = tok;
 	}
 
 	tokenize(sql, handleToken, openBlock, closeBlock, options);
 
-	if (level > 0) {
+	if (level > 0)
 		throw new SyntaxError("Unclosed block");
-	}
 
-	if (level < 0) {
+	if (level < 0)
 		throw new SyntaxError("Extra closing block");
-	}
 
 	return tokens;
 }
 
-function each(o, callback, scope)
-{
+function each(o, callback, scope) {
 	var key, len, argLen = arguments.length;
 	
-	if (argLen < 2 || !o || typeof o != "object") {
-		return;
-	}
+	if (argLen < 2 || !o || typeof o != "object")
+		throw "Invalid arguments";
 	
-	if (Object.prototype.toString.call(o) == "[object Array]") {
+	if (is(o, "Array")) {
 		//if ( typeof o.every == "function" ) {
 		//	return o.every(callback, scope);
 		//}
 		len = o.length;
 		for ( key = 0; key < len; key++ ) {
 			if ( argLen > 2 ) {
-				if ( callback.call(scope, o[key], key, o) === false ) {
+				if ( callback.call(scope, o[key], key, o) === false )
 					break;
-				}
 			} else {
-				if ( callback(o[key], key, o) === false ) {
+				if ( callback(o[key], key, o) === false )
 					break;
-				}
 			}
 		}
 	} else {
-		for ( key in o ) {
+		for ( key in o )
 			if ( argLen > 2 ) {
-				if ( callback.call(scope, o[key], key, o) === false ) { 
+				if ( callback.call(scope, o[key], key, o) === false )
 					break;
-				}
 			} else {
-				if ( callback(o[key], key, o) === false ) { 
+				if ( callback(o[key], key, o) === false )
 					break;
-				}
 			}
-		}
 	}
 }
 
@@ -285,36 +298,31 @@ function every(o, callback, scope)
 {
 	var key, len, argLen = arguments.length;
 	
-	if (argLen < 2 || !o || typeof o != "object") {
+	if (argLen < 2 || !o || typeof o != "object")
 		return false;
-	}
 	
-	if (Object.prototype.toString.call(o) == "[object Array]") {
-		if ( typeof o.every == "function" ) {
+	if (is(o, "Array")) {
+		if ( typeof o.every == "function" )
 			return o.every(callback, scope);
-		}
+
 		len = o.length;
 		for ( key = 0; key < len; key++ ) {
 			if ( argLen > 2 ) {
-				if ( callback.call(scope, o[key], key, o) === false ) {
+				if ( callback.call(scope, o[key], key, o) === false )
 					return false;
-				}
 			} else {
-				if ( callback(o[key], key, o) === false ) {
+				if ( callback(o[key], key, o) === false )
 					return false;
-				}
 			}
 		}
 	} else {
 		for ( key in o ) {
 			if ( argLen > 2 ) {
-				if ( callback.call(scope, o[key], key, o) === false ) { 
+				if ( callback.call(scope, o[key], key, o) === false )
 					return false;
-				}
 			} else {
-				if ( callback(o[key], key, o) === false ) { 
+				if ( callback(o[key], key, o) === false )
 					return false;
-				}
 			}
 		}
 	}
@@ -329,7 +337,7 @@ function every(o, callback, scope)
 		return false;
 	}
 	
-	if (Object.prototype.toString.call(o) == "[object Array]") {
+	if (is(o, "Array")) {
 		if ( typeof o.some == "function" ) {
 			return o.some(callback, scope);
 		}
@@ -364,9 +372,8 @@ function every(o, callback, scope)
 function keys(o, all) {
 	var out = [], x;
 	for (x in o) {
-		if (all || o.hasOwnProperty(x)) {
+		if (all || o.hasOwnProperty(x))
 			out.push(x);
-		}
 	}
 	return out;
 }
@@ -430,38 +437,32 @@ function createTable(name, fields, ifNotExists, database, next)
 	return database.createTable(name, fields, ifNotExists, next);
 }*/
 
-function isArray(x) 
-{
-	return Object.prototype.toString.call(x) == "[object Array]";
+function isArray(x) {
+	return is(x, "Array");
 }
 
-function isFunction(x)
-{
-	return Object.prototype.toString.call(x) == "[object Function]";
+function isFunction(x) {
+	return is(x, "Function");
 }
 
-function isNumeric(x)
-{
+function isNumeric(x) {
 	return trim(x * 1) === trim(x);
-	//var n = parseFloat(x);
-	//return !isNaN(n) && isFinite(n);
 }
 
-function binarySearch(haystack, needle, comparator, low, high) 
-{
+function binarySearch(haystack, needle, comparator, low, high) {
 	var mid, cmp;
 
-	if (low === undefined) {
+	if (low === undefined)
     	low = 0;
-	} else {
+	else {
     	low = low|0;
     	if (low < 0 || low >= haystack.length)
 			throw new RangeError("invalid lower bound");
 	}
 
-	if (high === undefined) {
+	if (high === undefined)
     	high = haystack.length - 1;
-	} else {
+	else {
     	high = high|0;
     	if(high < low || high >= haystack.length)
 			throw new RangeError("invalid upper bound");
@@ -490,38 +491,29 @@ function binarySearch(haystack, needle, comparator, low, high)
 	return ~low;
 }
 
-function assertType(obj, type, msg)
-{
-	if ( Object.prototype.toString.call(obj).toLowerCase() != "[object " + type + "]") {
+function assertType(obj, type, msg) {
+	if ( !is(obj, type) )
 		throw new TypeError(msg || "Invalid type ('" + type + "' is required)");
-	}
 }
 
-function assertInstance(obj, constructor, msg)
-{
-	if (!(obj instanceof constructor)) {
+function assertInstance(obj, constructor, msg) {
+	if (!(obj instanceof constructor))
 		throw new TypeError(msg || "Invalid object type");
-	}
 }
 
-function assertInBounds(val, arr, msg)
-{
-	if (val < 0 || val >= arr.length) {
+function assertInBounds(val, arr, msg) {
+	if (val < 0 || val >= arr.length)
 		throw new RangeError(msg || "value out of bounds");
-	}
 }
 
-function assertInObject(key, obj, msg)
-{
-	if ( !(key in obj) ) {
+function assertInObject(key, obj, msg) {
+	if ( !(key in obj) )
 		throw new Error(msg || "No such property '" + key + "'.");
-	}
 }
 
 function assert(condition, msg) {
-	if (!(condition)) {
+	if (!(condition))
 		throw new Error(msg || "Assertion failed");
-	}
 }
 
 /*function defaultErrorHandler(e) 
@@ -537,8 +529,7 @@ function createNextHandler(fn) {
 	};
 }
 
-function mixin()
-{
+function mixin() {
 	var l = arguments.length, key, len, tmp, i, a, b;
 
 	if (l < 1)
@@ -559,11 +550,10 @@ function mixin()
 			for ( key = 0; key < len; key++ ) 
 			{
 				tmp = b[key];
-				if ( tmp && typeof tmp == "object" ) {
+				if ( tmp && typeof tmp == "object" )
 					a[key] = mixin(isArray(tmp) ? [] : {}, a[key], tmp);
-				} else {
+				else
 					a[key] = tmp;
-				}
 			}
 		} 
 		else if (b && typeof b == "object")
@@ -573,11 +563,10 @@ function mixin()
 				if ( b.hasOwnProperty(key) ) 
 				{
 					tmp = b[key];
-					if ( tmp && typeof tmp == "object" ) {
+					if ( tmp && typeof tmp == "object" )
 						a[key] = mixin(isArray(tmp) ? [] : {}, a[key], tmp);
-					} else {
+					else
 						a[key] = tmp;
-					}
 				}
 			}
 		}
@@ -630,24 +619,20 @@ function parseISO8601(input) {
 
 		tz = String(m[12]).toUpperCase();
 
-		if (tz == "Z") {
+		if (tz == "Z")
 			date._offset = 0;
-		}
 		else if (m[14]) {
 
 			// custom hours offset
-			if (m[15]) {
+			if (m[15])
 				date._offset = parseInt(m[14] + m[15], 10) * HOUR;
-			}
 
 			// custom minutes offset
-			if (m[17]) {
+			if (m[17])
 				date._offset += parseInt(m[14] + m[17], 10) * MINUTE;
-			}
 		}
-	} else {
+	} else
 		date.setFullYear(0);
-	}
 
 	date.toString = dateToISO8601;
 
@@ -663,34 +648,27 @@ function parseDate(input, mods) {
 	var type = Object.prototype.toString.call(input), date;
 
 	// By Date object
-	if (type == "[object Date]") {
+	if (type == "[object Date]")
 		date = input;
-	}
 
 	// By unix time number
-	else if (type == "[object Number]") {
+	else if (type == "[object Number]")
 		date = new Date(input);
-	}
 
 	// Require string argument from now on
-	else if (type != "[object String]") {
+	else if (type != "[object String]")
 		date = parseISO8601(0);
-		//throw new Error("Invalid argument " + type);
-	}
 
 	// By "now" string
-	else if (input.toLowerCase() == "now") {
+	else if (input.toLowerCase() == "now")
 		date = new Date(Date.now());
-	}
 
 	// By unix time as string
-	else if (isNumeric(input)) {
+	else if (isNumeric(input))
 		date = new Date(input * 1);
-	}
 
-	else {
+	else
 		date = parseISO8601(input);
-	}
 
 	if (!isNaN(date * 1)) {
 		mods = isArray(mods) ? mods : makeArray(arguments).slice(1);
@@ -707,9 +685,6 @@ function parseDate(input, mods) {
 function dateModify(date, mod) {
 	var m = mod.match(/^\s*([+-]?\d+(\.\d+)?\s+)?(.*)?\s*$/), tmp;
 
-	//date.__is_utc__ = date.getTimezoneOffset() === 0;
-
-	//console.log(m);
 	if (m) {
 
 		// simply add the specified amount of time to the date and time 
@@ -767,9 +742,8 @@ function dateModify(date, mod) {
 
 				// Adjusts the time so that it displays localtime.
 				case "localtime":
-					if (date._offset) {
+					if (date._offset)
 						date.setTime(date.getTime() - date._offset);
-					}
 					date._offset = date.getTimezoneOffset() * MINUTE;
 					date.setTime(date.getTime() + date._offset);
 					break;
@@ -793,7 +767,7 @@ function dateModify(date, mod) {
 					if (match) {
 						n = date.getDay();
 						d = parseInt(match[1]);
-						date.setDate(date.getDate() + (d < n ? 7 + d - n : d - n));
+						date.setDate(date.getDate() + (d<n ? 7+d-n : d-n));
 					}
 					break;
 			}
@@ -802,13 +776,10 @@ function dateModify(date, mod) {
 }
 
 function strftime(format, date, mods) {
-	mods = Array.prototype.slice.call(arguments, 2);
-	date = parseDate(date || 0, mods);
+	format = format || DATEFORMAT_ISO8601;
+	mods   = Array.prototype.slice.call(arguments, 2);
+	date   = parseDate(date || "now", mods);
 	
-	var time = date.getTime(),
-		d    = new Date(date.getFullYear(), 0, 0, 24, 0, 0, 0), 
-		t    = time - d.getTime();
-
 	return format
 		.replace(/%%/g, "__DOUBLE_%__")
 
@@ -816,13 +787,16 @@ function strftime(format, date, mods) {
 		.replace(/%d/g, prependZero(date.getDate(), 2))
 		
 		// float seconds (00-59).(000-999)
-		.replace(/%f/g, prependZero(date.getSeconds(), 2) + "." + prependZero(date.getMilliseconds(), 3))
+		.replace(/%f/g, prependZero(date.getSeconds(), 2) + "." + 
+			prependZero(date.getMilliseconds(), 3))
 		
 		// Hours (00-23)
 		.replace(/%H/g, prependZero(date.getHours(), 2))
 		
 		// Day of year (001-365/366)
-		.replace(/%j/g, prependZero(Math.ceil((+date - (new Date(date.getFullYear(), 0, 0, 24, 0, 0, 0))*1)/DAY), 3))
+		.replace(/%j/g, prependZero(Math.ceil((+date - 
+				(new Date(date.getFullYear(), 0, 0, 24, 0, 0, 0))*1
+			)/DAY), 3))
 
 		// Month (01-12)
 		.replace(/%m/g, prependZero(date.getMonth() + 1, 2))
@@ -858,7 +832,8 @@ function strftime(format, date, mods) {
 					"" : 
 					(date._offset < 0 ? "-" : "+") + 
 					prependZero(Math.floor(Math.abs(date._offset) / HOUR), 2) + 
-					prependZero(Math.floor((Math.abs(date._offset) % HOUR) / MINUTE), 2)
+					prependZero(
+						Math.floor((Math.abs(date._offset) % HOUR) / MINUTE), 2)
 		)
 
 		.replace(/__DOUBLE_%__/g, "%");
@@ -867,15 +842,38 @@ function strftime(format, date, mods) {
 
 jsSQL.parseDate  = parseDate;
 jsSQL.strftime   = strftime;
-//window.parseISO8601 = parseISO8601;
-//window.prependZero = prependZero;
 
 
 
 var SQL_FUNCTIONS = {
-	date : function(input) {
-		if (input == "now")
-			return Date.now();
+	
+	// Date & Time -------------------------------------------------------------
+	DATE      : strftime,
+	NOW       : function() { return strftime("%s", "now"); },
+	//DATEDIFF : function() {},
+
+	//DEFAULT : function() {},
+	//UUID     : function() {},
+	//SLEEP   : function() {},
+
+	// Math --------------------------------------------------------------------
+	//ABS      : Math.abs,
+	RAND      : Math.random,
+	ROUND     : roundToPrecision,
+	TRUNCATE  : truncate,
+
+	
+	//IF       : function() {},
+	//IFNULL   : function() {},
+	//NULLIF   : function() {}
+
+	// Other -------------------------------------------------------------------
+	BENCHMARK : function(count, expr) {
+		var start = Date.now(), scope = {}, sandbox = { BENCHMARK : null };
+		for (var i = 0; i < count; i++) {
+			executeCondition(expr, scopebv, sandbox);
+		}
+		return Date.now() - start;
 	}
 };
 
@@ -924,12 +922,14 @@ function executeInSandbox(options)
 {
 	var args         = [],
 		values       = [],
-		sandbox      = mixin(SQL_FUNCTIONS, options.sandbox),
+		sandbox      = mixin({}, SQL_FUNCTIONS, options.sandbox),
 		translations = options.translations || {},
 		scope        = options.scope || {},
 		body         = options.code || '',
 		context      = options.context || options.context === null ? options.context : {},
 		key;
+
+	//console.log(body, scope);
 
 	for ( key in sandbox ) {
 		args.push( key );
@@ -937,32 +937,44 @@ function executeInSandbox(options)
 	}
 
 	for ( key in scope ) {
-		body = body.replace(
-			new RegExp("\\b" + key + "\\b", "gi"),
-			isNaN(parseFloat(key)) ? 
-				"__scope__['" + key + "']" :
-				key
-		);
+		if (RE_VARIABLE.test(key)) {
+			args.push( key );
+			values.push( scope[key] );
+		}
 	}
 
-	args.push( "__scope__" );
-	values.push( scope );
+	// Replace what looks like variables to __scope__[variable]
+	//for ( key in scope ) {
+	//	if (/^[a-zA-Z\$_][a-zA-Z0-9\$_]*$/.test(key)) {
+	//		body = body.replace(
+	//			new RegExp("\\b" + key + "\\b", "gi"),
+	//			"__scope__['" + key + "']"
+	//		);
+	//	}
+	//}
 
-	for ( key in translations ) {
+	//args.push( "__scope__" );
+	//values.push( scope );
+
+	for ( key in translations )
 		body = body.replace(new RegExp(key, "gi"), translations[key]);
-	}
 
 	body = body.replace(/^(\s*return\s+)?/, "return ");
 
-	//console.log(body, args, values, context);
+	//console.log("body: ", body);
+	//console.log("args: ", args); 
+	//console.log("context: ", context);
+	//console.log("values: ", values);
+	//console.log("scope: ", scope); 
+	
 	return (new Function( args.join(", "), body )).apply( context, values );
 }
 
-function executeCondition(condition, scope) 
+function executeCondition(condition, scope, sandbox) 
 {//console.log(condition, scope);
 	return executeInSandbox({
 		code    : condition, 
-		sandbox : {},
+		sandbox : sandbox || {},
 		translations : {
 			"={1,}"   : "===",
 			"\\bOR\\b"  : "||",
@@ -1015,9 +1027,7 @@ function crossJoin2(arrays)
 		if ( ai === 0 )
 		{
 			for ( ri = 0; ri < rl; ri++ )
-			{
 				ll = left.push(mixin(right[ri]));
-			}
 		}
 		else
 		{
@@ -1028,11 +1038,8 @@ function crossJoin2(arrays)
 				for ( ri = 0; ri < rl; ri++ )
 				{
 					if (++y === 1) 
-					{
 						mixin(left[li], right[ri]);
-					} 
-					else 
-					{
+					else {
 						left.splice(++li, 0, mixin({}, row, right[ri]));
 						ll++;
 					}
@@ -1358,6 +1365,7 @@ function getQueries(sql)
 	sql = normalizeQueryList(sql);
 
 	var queries = new QueryList(),
+		//state   = { level : 0 },
 		tokens  = getTokens(sql, {
 			skipComments : true,
 			skipSpace    : true,
