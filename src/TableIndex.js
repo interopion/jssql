@@ -254,7 +254,7 @@ TableIndex.prototype = {
 	 */
 	setColumns : function(cols)
 	{
-		assertType(cols, "array");
+		assertType(cols, "Array");
 		this.columns = cols.slice();
 	},
 
@@ -304,7 +304,7 @@ TableIndex.prototype = {
 	 */
 	setName : function(name)
 	{
-		assertType(name, "string", "The name of the index must be a string");
+		assertType(name, "String", "The name of the index must be a string");
 		name = trim(name);
 		assert(name, "The name of the index cannot be empty");
 

@@ -83,8 +83,8 @@ var Table = Persistable.extend({
 	createIndex : function(options) 
 	{
 		var name;
-		assertType(options, "object", "Invalid argument for Table.createIndex");
-		assertType(options.name, "string", "Invalid index name");
+		assertType(options, "Object", "Invalid argument for Table.createIndex");
+		assertType(options.name, "String", "Invalid index name");
 		name = trim(options.name);
 		assert(name, "Index name is required");
 		assert(!this.keys.hasOwnProperty(name), 'Index "%s" already exists');
