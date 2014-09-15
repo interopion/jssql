@@ -150,6 +150,9 @@ DATA_TYPES = [
 //DATABASES = {},
 //CURRENT_DATABASE,
 
+// Regular Expressions
+RE_VARIABLE = /^[a-zA-Z\$_][a-zA-Z0-9\$_]*$/,
+RE_SURROUNDING_SPACE = /^\s+|\s+$/,
 RE_ISO8601 = new RegExp([
 	"^",
 	"(",                                 // \1  - date
@@ -180,6 +183,9 @@ RE_ISO8601 = new RegExp([
 	")?",
 	"\\s*$"
 ].join("")),
+
+DATEFORMAT_ISO8601    = "%Y-%m-%dT%H:%M:%S%z",
+DATEFORMAT_ISO8601_MS = "%Y-%m-%dT%H:%M:%f%z",
 
 MILLISECOND = 1,
 SECOND      = MILLISECOND * 1000, // 1000
