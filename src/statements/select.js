@@ -98,24 +98,21 @@ STATEMENTS.SELECT = function(walker) {
 			// now check what we have so far
 			if (isNumeric(out.field)) {
 				out.field = intVal(out.field);
-				if (out.field < 0) {
+				if (out.field < 0)
 					throw new SQLParseError('Negative column index is not allowed.');	
-				}
-			} else if (!out.field) {
+
+			} else if (!out.field)
 				throw new SQLParseError('Expecting a field name');
-			}
 
-			if (out.table == "*") {
+			if (out.table == "*")
 				throw new SQLParseError('You cannot use "*" as table name');
-			} else if (isNumeric(out.table)) {
+			else if (isNumeric(out.table))
 				throw new SQLParseError('You cannot use number as table name');
-			}
 
-			if (out.database == "*") {
+			if (out.database == "*")
 				throw new SQLParseError('You cannot use "*" as database name');
-			} else if (isNumeric(out.database)) {
+			else if (isNumeric(out.database))
 				throw new SQLParseError('You cannot use number as database name');
-			}
 
 			out.isExpr = false;
 
@@ -126,12 +123,10 @@ STATEMENTS.SELECT = function(walker) {
 		walker.nextUntil(",|AS|FROM|WHERE|GROUP|ORDER|LIMIT|OFFSET|;", function(tok) {
 			end = tok[3];
 			out.isExpr = true;
-		});
+		}, true);
 
 		if (out.isExpr)
 			out.field = walker._input.substring(start, end);
-
-		//console.dir(out);
 
 		// now check for an alias or just continue
 		if (options.includeAlias) {
@@ -151,6 +146,8 @@ STATEMENTS.SELECT = function(walker) {
 				}
 			}
 		}
+
+		//console.dir(out);
 
 		return out;
 	}
@@ -282,21 +279,20 @@ STATEMENTS.SELECT = function(walker) {
 		if (walker.is("LIMIT")) {
 			walker.forward();
 
-			if ( !walker.is("@" + TOKEN_TYPE_NUMBER) ) {
+			if ( !walker.is("@" + TOKEN_TYPE_NUMBER) )
 				throw new SQLParseError(
 					"Expecting a number for the LIMIT clause"
 				);
-			}
 
 			limit = intVal(walker.get());
 			walker.forward();
 
 			if (walker.is(",")) {
-				if (!walker.forward().is("@" + TOKEN_TYPE_NUMBER)) {
+				if (!walker.forward().is("@" + TOKEN_TYPE_NUMBER))
 					throw new SQLParseError(
 						"Expecting a number for the offset part of the LIMIT clause"
 					);
-				}
+
 				offset = intVal(walker.get());
 				walker.forward();
 			}
@@ -304,16 +300,15 @@ STATEMENTS.SELECT = function(walker) {
 
 		if (walker.is("OFFSET")) {//console.log(walker._tokens[walker._pos]);
 			walker.forward();
-			if (!walker.is("@" + TOKEN_TYPE_NUMBER)) {
-				//console.log(walker._tokens[walker._pos]);
+			if (!walker.is("@" + TOKEN_TYPE_NUMBER))
 				throw new SQLParseError(
 					"Expecting a number for the OFFSET clause"
 				);
-			}
+
 			offset = intVal(walker.get());
 			walker.forward();
 		}
-		//console.warn(walker._input, limit, offset);
+		
 		return {
 			limit : limit,
 			offset: offset
@@ -346,9 +341,8 @@ STATEMENTS.SELECT = function(walker) {
 			walker.forward();
 		}
 
-		if (l) {
+		if (l)
 			join.push("JOIN");
-		}
 
 		return join.join(" ");
 	}
@@ -384,9 +378,8 @@ STATEMENTS.SELECT = function(walker) {
 			//	query.tables[i].database
 			//);
 
-			if (query.tables[i].alias) {
+			if (query.tables[i].alias)
 				tables[query.tables[i].alias] = tables[i];
-			}
 		}
 
 		return tables;
@@ -472,11 +465,8 @@ STATEMENTS.SELECT = function(walker) {
 				isExpr   : fld.isExpr
 			};
 
-			//console.log("fld: ", fld);
-
 			if (fld.table) {
 				table = walker.server.getDatabase(fld.table.database).getTable(fld.table.table);
-				//table = getTable(fld.table.table, fld.table.database);
 
 				if (!_tables.hasOwnProperty(table.name))
 					_tables[table.name] = { name : table.name };
@@ -492,14 +482,12 @@ STATEMENTS.SELECT = function(walker) {
 			}
 
 			ENV[fld.field] = null;
-			if (fld.alias) {
+			if (fld.alias)
 				ENV[fld.alias] = null;
-			}
 
 			rowProto[i] = rowProto[fld.field] = col;
-			if (fld.alias) {
+			if (fld.alias)
 				rowProto[fld.alias] = col;
-			}
 
 			cols.push(col.alias || col.name);
 		}
@@ -517,7 +505,6 @@ STATEMENTS.SELECT = function(walker) {
 					table = walker.server.getDatabase(fld.database).getTable(fld.table);
 					//table = getTable(fld.table, fld.database);
 					for ( colName in table.cols ) 
-					{
 						prepareField({
 							field    : colName,
 							alias    : null,
@@ -525,7 +512,6 @@ STATEMENTS.SELECT = function(walker) {
 							database : table._db.name,
 							isExpr   : false
 						}, y++);
-					}
 				}
 				else
 				{
@@ -533,7 +519,6 @@ STATEMENTS.SELECT = function(walker) {
 					{
 						table = tables[j];
 						for ( colName in table.cols ) 
-						{
 							prepareField({
 								field    : colName,
 								alias    : null,
@@ -541,7 +526,6 @@ STATEMENTS.SELECT = function(walker) {
 								database : table._db.name,
 								isExpr   : false
 							}, y++);
-						}
 					}
 				}
 			} 
@@ -552,12 +536,10 @@ STATEMENTS.SELECT = function(walker) {
 				if (!fld.isExpr && !fld.table) 
 				{
 					if ( tablesLength !== 1 )
-					{
 						throw new SQLParseError(
 							'The column "%s" needs to have it\'s table specified',
 							fld.field
 						);
-					}
 
 					fld.table = query.tables[0];
 				}
@@ -577,9 +559,7 @@ STATEMENTS.SELECT = function(walker) {
 			arr = [];
 			table = tables[i];
 			for ( rowId in table.rows )
-			{
 				arr.push(table.rows[rowId].toJSON("object"));
-			}
 			_data.push(arr);
 		}
 
@@ -594,9 +574,7 @@ STATEMENTS.SELECT = function(walker) {
 			}
 		}
 
-		//console.dir(_data);
 		rows = crossJoin2(_data);
-		
 
 		// orderBy -------------------------------------------------------------
 		if ( query.orderBy ) {
@@ -615,12 +593,10 @@ STATEMENTS.SELECT = function(walker) {
 					valA = a[col];
 					valB = b[col];
 
-					if (valA > valB) {
+					if (valA > valB)
 						out += term.direction == "ASC" ? 1 : -1;
-					}
-					else if (valA < valB) {
+					else if (valA < valB)
 						out += term.direction == "ASC" ? -1 : 1;
-					}
 
 					if (out !== 0)
 						break;
@@ -633,9 +609,8 @@ STATEMENTS.SELECT = function(walker) {
 			offset = query.bounds.offset,
 			len    = rows.length;
 
-		if (offset < 0) {
+		if (offset < 0)
 			offset = len + offset;
-		}
 
 		l = rows.length;
 
@@ -644,9 +619,8 @@ STATEMENTS.SELECT = function(walker) {
 			row = rows[i];
 			for ( fieldName in row ) {
 				f = rowProto[fieldName];
-				if (f && f.isExpr) {
+				if (f && f.isExpr)
 					row[fieldName] = executeCondition(row[fieldName], row);
-				}
 			}
 		}
 
@@ -656,33 +630,26 @@ STATEMENTS.SELECT = function(walker) {
 			
 			// Apply OFFSET
 			// -----------------------------------------------------------------
-			if (i < offset) {
+			if (i < offset)
 				continue;
-			}
 
 			// Apply LIMIT -----------------------------------------------------
-			if (limit && i >= offset + limit) {
+			if (limit && i >= offset + limit)
 				continue;
-			}
 
 			row = rows[i];
 
 			// Apply the "WHERE" conditions
 			// -----------------------------------------------------------------
-			if (query.where && !executeCondition(query.where, row)) {
+			if (query.where && !executeCondition(query.where, row))
 				continue;
-			}
 
 			// Exclude unused fields from the result rows
 			// -----------------------------------------------------------------
 			for ( fieldName in row ) {
 				f = rowProto[fieldName];
-				if (!f) {
+				if (!f || (f.alias && f.alias !== fieldName))
 					delete row[fieldName];
-				} 
-				else if (f.alias && f.alias !== fieldName) {
-					delete row[fieldName];
-				}
 			}
 
 			rows2.push(row);
@@ -696,17 +663,15 @@ STATEMENTS.SELECT = function(walker) {
 
 	return new Task({
 		name : "SELECT Query",
-		execute : function(next) {//console.log("WALK SELECT");
-			//debugger;
+		execute : function(next) {
+			
 			var query = {
 				fields : [],
 				tables : []
 			};
-			//debugger;
+			
 			collectFieldRefs(query.fields);
 
-			
-			//console.log("current: ", walker.current()[0]);
 			walker.optional({
 				"FROM" : function() {//console.log("current: ", walker.current()[0]);
 					collectTableRefs(query.tables);
@@ -716,18 +681,11 @@ STATEMENTS.SELECT = function(walker) {
 			query.where   = walkWhere(); 
 			query.orderBy = walkOrderBy();
 			query.bounds  = walkLimitAndOffset();
-			//console.log("query: ", query);
-			
-			// table -------------------------------------------------------
-			//var //tbl   = tableRef(),
-			//	table = getTable(query.tables[0].table, query.tables[0].database);
 			
 			walker
 			.errorUntil(";")
-			.commit(function() {//console.log("EXEC SELECT");
-				//console.dir(query);
+			.commit(function() {
 				var result = execute(query);
-				//console.dir(result);
 				next(null, {
 					cols : result.cols,
 					rows : result.rows
