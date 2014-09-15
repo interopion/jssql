@@ -3,8 +3,7 @@
 //                              SQL Tokenizer                                 //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
-function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
-{
+function tokenize(sql, tokenCallback, openBlock, closeBlock, options) {
 	var pos   = 0,
 		buf   = "",
 		state = TOKEN_TYPE_UNKNOWN,
@@ -12,6 +11,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 		col   = 0,
 		start = 0,
 		i     = 0,
+		level = 0,
 		cfg   = options || {},
 		token, cur, next, inStream, tmp;
 
@@ -20,8 +20,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 	var SKIP_COMMENTS  = !!cfg.skipComments;
 	var SKIP_STR_QUOTS = !!cfg.skipStrQuots;
 
-	function _error(msg)
-	{
+	function _error(msg) {
 		var args = Array.prototype.slice.call(arguments, 1);
 		args.unshift({
 			message : msg,
@@ -34,8 +33,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 		error.apply({}, args);
 	}
 
-	function commit()
-	{
+	function commit() {
 		var msg,
 			skip = (SKIP_SPACE && state === TOKEN_TYPE_SPACE) || 
 				   (SKIP_EOL   && state === TOKEN_TYPE_EOL) || 
@@ -58,8 +56,9 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 				//line,          // line
 				//col,           // col
 				start, // start
-				pos//,       // end
+				pos,//,       // end
 				//_len  // length
+				level
 			];
 
 			msg = tokenCallback(token);
@@ -69,11 +68,10 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 		state = TOKEN_TYPE_UNKNOWN;
 		start = pos;
 		
-		if (msg && msg !== true) {
+		if (msg && msg !== true)
 			_error(msg);
-		} else if (msg === false) {
+		else if (msg === false)
 			pos = -1;
-		}
 	}
 
 	while ( (cur = sql[pos]) ) 
@@ -94,9 +92,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 
 				// if inside a string or comment - just append
 				if (inStream) 
-				{
 					buf += cur;
-				}
 				else 
 				{
 					// Should we start a single line comment?
@@ -147,10 +143,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 						buf += cur;
 						pos++;
 						if (sql[pos - 2] == "*") 
-						{
 							if (buf) commit(); // close
-						}
-						
 					}
 					else
 					{
@@ -348,6 +341,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 					buf = cur;
 					pos++;
 					commit();
+					level++;
 					openBlock();
 				}
 			break;
@@ -363,6 +357,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 					state = TOKEN_TYPE_PUNCTOATOR;
 					buf = cur;
 					pos++;
+					level--;
 					commit();
 				}
 				//pos++;
@@ -468,9 +463,9 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 			
 			// punctoators -----------------------------------------------------
 			case ".":
-				if (inStream) {
+				if (inStream)
 					buf += cur;
-				} else {
+				else {
 					if (buf && (/^-?\d+$/).test(buf)) {
 						state = TOKEN_TYPE_NUMBER;
 						buf += cur;
@@ -491,9 +486,9 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 			break;
 
 			case ",": 
-				if (inStream) {
+				if (inStream)
 					buf += cur;
-				} else {
+				else {
 					if (buf) commit();
 					state = TOKEN_TYPE_PUNCTOATOR;
 					buf += cur;
@@ -522,9 +517,8 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 			
 			// Everything else ---------------------------------------------
 			default:
-				if (state === TOKEN_TYPE_SPACE) {
+				if (state === TOKEN_TYPE_SPACE)
 					if (buf) commit();
-				}
 				buf += cur;
 				pos++;
 			break;
@@ -533,17 +527,17 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options)
 		col++;
 	}
 
-	if (buf) commit();
+	if (buf)
+		commit();
 
-	if (state === TOKEN_TYPE_SINGLE_QUOTE_STRING) {
+	if (state === TOKEN_TYPE_SINGLE_QUOTE_STRING)
 		throw 'Unexpected end of input. Expecting \'.';
-	} else if (state === TOKEN_TYPE_DOUBLE_QUOTE_STRING) {
+	else if (state === TOKEN_TYPE_DOUBLE_QUOTE_STRING)
 		throw 'Unexpected end of input. Expecting ".';
-	} else if (state === TOKEN_TYPE_BACK_TICK_STRING) {
+	else if (state === TOKEN_TYPE_BACK_TICK_STRING)
 		throw 'Unexpected end of input. Expecting `.';
-	} else if (state === TOKEN_TYPE_MULTI_COMMENT) {
+	else if (state === TOKEN_TYPE_MULTI_COMMENT)
 		throw 'Unexpected end of input. Expecting */.';
-	}
 
 	if (cfg.addEOF) {
 		state = TOKEN_TYPE_EOF;
