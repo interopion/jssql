@@ -493,9 +493,32 @@ Walker.prototype = {
      *                            not found.
      * @return {Walker} Returns the instance
      */
-	nextUntil : function(value, callback) 
+	nextUntil : function(value, callback, sameLevel) 
 	{ 
-		while ( !this.is(value) ) 
+		var cur   = this.current(),
+			level = cur ? cur[4] : -1;
+		/*
+		var cur   = this.current(),
+			level = cur ? cur[4] : -1;
+			//debugger;
+		while (cur) {
+			
+			//if ( !sameLevel || (sameLevel && cur[4] !== level) ) {
+				if ( this.is(value) ) {
+					if ( callback )
+						callback.call( this, cur );
+
+					break;
+				}	
+			//}
+
+			cur = this.next();
+
+		}
+		
+		return this; 
+		*/
+		while ( !this.is(value) || (sameLevel && this.current()[4] !== level) ) 
 		{
 			if ( callback )
 				callback.call( this, this.current() );
