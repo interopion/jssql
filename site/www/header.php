@@ -18,7 +18,7 @@ if (!isset($head))
 	<body>
 		<div id="main">
 			<div class="header">
-				<img name="logo" alt="JSSQL Logo" height="64" src="logo.png" style="vertical-align:middle;margin-right:1em;">
+				<img name="logo" alt="JSSQL Logo" width="64" height="64" src="logo.png" style="vertical-align:middle;margin-right:1em;">
 				<a href="/">Home</a> | 
 				<a href="/">Manual</a> | 
 				<a href="/jsdoc.php">API</a> | 

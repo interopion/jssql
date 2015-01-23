@@ -1,6 +1,6 @@
 {
   "name": "jssql",
-  "version": "0.1.153",
+  "version": "0.1.182",
   "description": "Javascript SQL Database Server",
   "main": "index.js",
   "scripts": {
