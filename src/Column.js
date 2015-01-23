@@ -1029,7 +1029,7 @@ var Column_DATETIME = DateTimeColumn.extend({
 			}
 			this.typeParams = [this.length];
 		}
-		console.log(this);
+		//console.log(this);
 		Column.prototype.init.call(this, options);
 	},
 
