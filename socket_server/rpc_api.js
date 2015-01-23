@@ -161,26 +161,51 @@ function keyToPath(key) {
 }
 
 exports.set = function(key, value, cb) {
-	writeFile(keyToPath(key), value, function(err) {
-		if (err) 
-			return cb(err, null);
-		return cb(null, value);
-	});
+	writeFile(
+		keyToPath(key), 
+		typeof value == "string" ? value : JSON.stringify(value), 
+		function(err) {
+			if (err) 
+				return cb(err, null);
+			return cb(null, value);
+		}
+	);
 };
 
 exports.get = function(key, cb) {
-	var t = key.split(".");
+	var t = key.split("."), out, next = function(err, out) {
+		if (err) {
+			out = null;
+		}
+
+		try {
+			if (out && typeof out == "string" && (
+				out.indexOf("{") === 0 || out.indexOf("[") === 0)) {
+				out = JSON.parse(out);
+			}
+		} catch (err) {
+			return cb(err);
+		}
+
+		cb(null, out || null);
+	};
+
 	switch (t.length) {
 		case 1:
-			return readServer(t[0], cb);
+			readServer(t[0], next);
+			break;
 		case 2:
-			return readDatabase(t[0], t[1], cb);
+			readDatabase(t[0], t[1], next);
+			break;
 		case 3:
-			return readTable(t[0], t[1], t[2], cb);
+			readTable(t[0], t[1], t[2], next);
+			break;
 		case 4:
-			return readRow(t[0], t[1], t[2], t[3], cb);
+			readRow(t[0], t[1], t[2], t[3], next);
+			break;
+		default:
+			return cb(new Error("Invalid key: " + key));		
 	}
-	cb(new Error("Invalid key: " + key));
 };
 
 exports.unset = function(key, cb) {
