@@ -267,7 +267,6 @@ var Server = Persistable.extend({
 					if ( !json || !json.databases )
 						return next(null, server);
 
-					//console.log("SERVER JSON: ", json);
 					for ( var dbName in json.databases ) {
 						createDatabaseLoader(dbName);
 					}

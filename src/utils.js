@@ -629,7 +629,7 @@ function parseISO8601(input) {
 
       // custom minutes offset
       if (m[17])
-        date._offset += parseInt(m[14] + m[17], 10) * MINUTE;
+        date._offset += parseInt(m[14] + m[17].replace(/^0/, ""), 10) * MINUTE;
     }
   } else
     date.setFullYear(0);
