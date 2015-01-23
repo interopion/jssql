@@ -66,7 +66,7 @@ var Persistable = Class.extend({
 
 		if (this._isDirty) {
 			hasChanges = true;
-			out[this.getStorageKey()] = JSON.stringify(this.toJSON());
+			out[this.getStorageKey()] = this.toJSON();//JSON.stringify(this.toJSON());
 		}
 
 		for ( name in this.children) {
