@@ -9,9 +9,7 @@ require('header.php'); ?>
 		<label for="snippets">Examples:&nbsp;</label>
 	</td>
 	<td>
-		<select style="width:100%;font-size:16px;" id="snippets">
-			<option value=""></option>
-		</select>
+		<select style="width:100%;font-size:16px;" id="snippets"></select>
 	</td>
 	<td width="150" align="right">
 		<button>Reset Demo Database</button>
@@ -22,7 +20,7 @@ require('header.php'); ?>
 <script type="text/javascript" src="/js/jquery.min.js"></script>
 <script type="text/javascript">
 	$.ajax({
-		url : "console/snippets.js",
+		url : "console/snippets.xml",
 		dataType : "xml"
 	}).then(function(root) {
 		var sel = $("#snippets");
@@ -48,6 +46,8 @@ require('header.php'); ?>
 				});
 			}
 		});
+
+		sel[0].selectedIndex = -1;
 	}, function() {
 		console.log(arguments);
 	});
