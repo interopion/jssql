@@ -12,7 +12,7 @@ require('header.php'); ?>
 		<select style="width:100%;font-size:16px;" id="snippets"></select>
 	</td>
 	<td width="150" align="right">
-		<button>Reset Demo Database</button>
+		<button id="reset-demo-db">Reset Demo Database</button>
 	</td>
 </table>
 <br>
@@ -51,5 +51,14 @@ require('header.php'); ?>
 	}, function() {
 		console.log(arguments);
 	});
+	(function(){
+		$.get('console/classicmodels.sql').done(function (sql){
+			sql = sql.replace(/[\r\n]+/g, '');
+			// sql = sql.replace(/;([\r\n]|\/\*.*?\*\/)+/g, ';');
+			$('#reset-demo-db').click(function(){
+				frames[0].query(sql);
+			});
+		});
+	})();
 </script>
 <?php require('footer.php'); ?>

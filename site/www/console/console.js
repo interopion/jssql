@@ -34,6 +34,9 @@ jQuery(function($) {
 
 		jsSQL(connectionOptions, function(_api) {
 			api = _api;
+			window.query = function(sql){
+				api.query(sql, onComplete);
+			};
 			console.info("Connected to %s", storageType);
 			$("#overlay").hide();
 		});
@@ -297,4 +300,5 @@ jQuery(function($) {
 		selectionEnd   : 0
 	});
 	resizeUI();
+
 });
