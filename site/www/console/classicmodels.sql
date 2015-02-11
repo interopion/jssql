@@ -1,3 +1,5 @@
+DROP DATABASE IF EXISTS `classicmodels`;
+
 CREATE DATABASE `classicmodels`;
 
 USE `classicmodels`;
