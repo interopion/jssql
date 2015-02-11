@@ -299,6 +299,17 @@ QUnit.asyncTest("Select where applied after limit", function(assert) {
 	});
 });
 
+QUnit.asyncTest("Select after comment", function(assert) {
+	TEST_API.query("/* Comment */ SELECT * FROM t1 WHERE 2 = 1", function(err, result) {
+		assert.ok(!err, err);
+		assert.deepEqual(result.data, {
+			cols : ["a", "b"],
+			rows : []
+		});
+		QUnit.start();
+	});
+});
+
 QUnit.asyncTest("CrossJoin", function(assert) {
 	TEST_API.query("SELECT * FROM t1, t2", function(err, result) {
 		assert.ok(!err, err);
