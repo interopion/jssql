@@ -20,9 +20,9 @@ require('header.php'); ?>
 								<li><a href="#sql-use">USE</a></li>
 								<li><a href="#sql-show">SHOW</a>
 									<ul>
-										<li><a href="#sql-show-databses">SHOW DATABASES</a></li>
+										<li><a href="#sql-show-databases">SHOW DATABASES</a></li>
 										<li><a href="#sql-show-tables">SHOW TABLES</a></li>
-										<li><a href="#sql-columns">SHOW COLUMNS</a></li>
+										<li><a href="#sql-show-columns">SHOW COLUMNS</a></li>
 									</ul>
 								</li>
 								<li><a href="#sql-create">CREATE</a>
@@ -31,20 +31,20 @@ require('header.php'); ?>
 										<li><a href="#sql-create-table">CREATE TABLE</a></li>
 									</ul>
 								</li>
-								<li><a href="#sql-select">UPDATE</a></li>
-								<li><a href="#sql-select">DELETE</a></li>
+								<li><a href="#sql-update">UPDATE</a></li>
+								<li><a href="#sql-delete">DELETE</a></li>
 								<li><a href="#sql-select">SELECT</a></li>
-								<li><a href="#sql-select">INSERT</a></li>
-								<li><a href="#sql-select">SOURCE</a></li>
-								<li><a href="#sql-select">DROP</a>
+								<li><a href="#sql-insert">INSERT</a></li>
+								<li><a href="#sql-source">SOURCE</a></li>
+								<li><a href="#sql-drop">DROP</a>
 									<ul>
-										<li><a href="#sql-select">DROP DATABASE</a></li>
-										<li><a href="#sql-select">DROP TABLE</a></li>
+										<li><a href="#sql-drop-database">DROP DATABASE</a></li>
+										<li><a href="#sql-drop-table">DROP TABLE</a></li>
 									</ul>
 								</li>
-								<li><a href="#sql-select">BEGIN</a></li>
-								<li><a href="#sql-select">COMMIT</a></li>
-								<li><a href="#sql-select">ROLLBACK</a></li>
+								<li><a href="#sql-begin">BEGIN</a></li>
+								<li><a href="#sql-commit">COMMIT</a></li>
+								<li><a href="#sql-rollback">ROLLBACK</a></li>
 							</ul>
 						</li>
 					</ul>
@@ -426,7 +426,7 @@ USE `mydatabase`;
 				</p>
 
 				<br>
-				<a name="sql-show-databses"></a>
+				<a name="sql-show-databases"></a>
 				<a class="pull-right" href="#top">Back to top</a>
 				<h4>SHOW DATABASES</h4>
 				<p>
@@ -456,7 +456,7 @@ SHOW TABLES FROM database;
 SHOW TABLES FROM "database";
 SHOW TABLES IN `database`;
 </pre>
-			<br>
+				<br>
 				<a name="sql-show-columns"></a>
 				<a class="pull-right" href="#top">Back to top</a>
 				<h4>SHOW COLUMNS</h4>
@@ -474,6 +474,244 @@ SHOW TABLES IN table FROM database;
 SHOW TABLES FROM `table` IN "database";
 SHOW TABLES IN 'table' IN database;
 SHOW SCHEMAS IN 'table' IN database;
+</pre>
+
+				<br>
+				<a name="sql-create"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>CREATE</h4>
+				<p>
+				The CREATE statement has two use cases:
+				</p>
+
+				<br>
+				<a name="sql-create-database"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>CREATE DATABASE</h4>
+				<p>
+					This will create a new database with the specified name.<br>
+					The "IF NOT EXISTS" part is optional - if omitted and a such a database already exists it will throw an error.
+				</p>
+				The usage is:
+				<pre>
+<code>CREATE DATABASE [IF NOT EXISTS] database</code>
+</pre>
+				And some examples are:
+				<pre class="prettyprint lang-sql">
+CREATE DATABASE IF NOT EXISTS database;
+CREATE DATABASE IF NOT EXISTS "database";
+CREATE DATABASE 'database';
+CREATE DATABASE `database`;
+</pre>
+
+				<br>
+				<a name="sql-create-table"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>CREATE TABLE</h4>
+				<p>
+					This will create a new table with the specified name.<br>
+					The "IF NOT EXISTS" part is optional - if omitted and a such a database already exists it will throw an error.
+				</p>
+				The usage is:
+				<pre>
+<code>CREATE TABLE [IF NOT EXISTS] table [\(
+	column type\(size\) (NULL|NOT NULL) [AUTO_INCREMENT] [KEY|INDEX|UNIQUE|PRIMARY KEY] [ZEROFILL] [UNSIGNED] [DEFAULT value],
+	...,
+	[CONSTRAINT name] (KEY|INDEX|UNIQUE|PRIMARY KEY|CHECK expression|FOREIGN KEY \(column\)),
+	...
+\)];</code>
+</pre>
+				And here is an example:
+				<pre class="prettyprint lang-sql">
+CREATE TABLE `employees` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `lastName` VARCHAR(50) NOT NULL,
+  `firstName` VARCHAR(50) NOT NULL,
+  `workDone` INT(11) NOT NULL DEFAULT '1',
+);
+</pre>
+
+
+				<br>
+				<a name="sql-update"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>UPDATE</h4>
+				<p>
+					This will update the specified columns in a table for all rows which match the WHERE clause.
+				</p>
+				The usage is:
+				<pre>
+<code>UPDATE table [OR (ROLLBACK|ABORT|REPLACE|FAIL|IGNORE)]
+SET column = expression [, SET column = expression]*
+WHERE expression;</code>
+</pre>
+				And here is an example:
+				<pre class="prettyprint lang-sql">
+UPDATE employees
+SET workDone = workDone + 1
+WHERE id &lt; 5 ;
+</pre>
+
+				<br>
+				<a name="sql-delete"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>DELETE</h4>
+				<p>
+					This will delete the rows in a table which match the WHERE clause.<br>
+					If a database is not specified then the current one will be used (see USE statement).
+				</p>
+				The usage is:
+				<pre>
+<code>DELETE FROM [database.]table WHERE expression</code>
+</pre>
+				And here is an example:
+				<pre class="prettyprint lang-sql">
+DELETE FROM example.employees WHERE workDone &lt; 3;
+</pre>
+
+				<br>
+				<a name="sql-select"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>SELECT</h4>
+				<p>
+					This will return the data matching the specified selection.
+				</p>
+				The usage is:
+				<pre>
+<code>SELECT (\*|columnOrExpression [AS name] [, columnOrExpression [AS name]]*)
+FROM table [, table]*
+[WHERE expression]
+[GROUP BY column]
+[ORDER BY column (ASC|DESC)]
+[LIMIT number]
+[OFFSET number]
+</code>
+</pre>
+				And here is an example:
+				<pre class="prettyprint lang-sql">
+SELECT *
+FROM employees
+WHERE id > 3
+ORDER BY workDone DESC
+LIMIT 10;
+</pre>
+
+				<br>
+				<a name="sql-insert"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>INSERT</h4>
+				<p>
+					This will insert new rows with the specified values in the specified table columns.
+				</p>
+				The usage is:
+				<pre>
+<code>INSERT [OR (ROLLBACK|ABORT|REPLACE|FAIL|IGNORE)] INTO table
+[\(column [, column]*\)]
+VALUES \(value [, value]*\) [, \(value [, value]*\)]*</code>
+</pre>
+				And here are some examples:
+				<pre class="prettyprint lang-sql">
+INSERT INTO employees VALUES (NULL, "A", "B", 6);
+INSERT INTO employees (id, firstName, workDone) VALUES (NULL, "A", 6);
+INSERT INTO employees (id, firstName, lastName)
+VALUES (NULL, "A", "B"), (NULL, "C", "D");
+</pre>
+
+				<br>
+				<a name="sql-source"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>SOURCE</h4>
+				<p>
+					This will execute the contents of the specified file.
+				</p>
+				The usage is:
+				<pre>
+<code>SOURCE filename;</code>
+</pre>
+
+				<br>
+				<a name="sql-drop"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>DROP</h4>
+				<p>
+					The DROP statement has two use cases:
+				</p>
+
+				<br>
+				<a name="sql-drop-database"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>DROP DATABASE</h4>
+				<p>
+					This will remove the specified database. <br>
+					The "IF EXISTS" part is optional - if omitted and a such a database already exists it will throw an error.
+				</p>
+				The usage is:
+				<pre>
+<code>DROP DATABASE [IF EXISTS] database</code>
+</pre>
+				And some examples are:
+				<pre class="prettyprint lang-sql">
+DROP DATABASE IF EXISTS database;
+DROP DATABASE database;
+</pre>
+
+				<br>
+				<a name="sql-drop-table"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>DROP TABLE</h4>
+				<p>
+					This will remove the specified table. <br>
+					The "IF EXISTS" part is optional - if omitted and a such a database already exists it will throw an error.<br>
+					If a database is not specified then the current one will be used (see USE statement).
+				</p>
+				The usage is:
+				<pre>
+<code>DROP TABLE [IF EXISTS] [database.]table</code>
+</pre>
+				And some examples are:
+				<pre class="prettyprint lang-sql">
+DROP TABLE IF EXISTS database.table;
+DROP TABLE IF EXISTS table;
+DROP TABLE database.table;
+DROP TABLE table;
+</pre>
+
+
+				<br>
+				<a name="sql-begin"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>BEGIN</h4>
+				<p>
+					This will begin a new transaction.
+				</p>
+				The usage is:
+				<pre>
+<code>BEGIN; statements; (COMMIT|ROLLBACK);</code>
+</pre>
+
+				<br>
+				<a name="sql-commit"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>COMMIT</h4>
+				<p>
+					This will commit the current transaction. <br>
+					It will rollback all changes if it encounters an error.
+				</p>
+				The usage is:
+				<pre>
+<code>BEGIN; statements; COMMIT;</code>
+</pre>
+
+				<br>
+				<a name="sql-rollback"></a>
+				<a class="pull-right" href="#top">Back to top</a>
+				<h4>ROLLBACK</h4>
+				<p>
+					This will rollback the effect of all statements in the transaction.
+				</p>
+				The usage is:
+				<pre>
+<code>BEGIN; statements; ROLLBACK;</code>
 </pre>
 <script type="text/javascript">
 prettyPrint();
