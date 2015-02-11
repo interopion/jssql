@@ -1,19 +1,53 @@
 <snippets>
-	<item name="DROP TABLE">
-		<description>Drops a table if exists</description>
+
+	<item name="SHOW DATABASES">
+		<description>Shows all available databases</description>
 		<sql>
 <![CDATA[
-DROP TABLE IF EXISTS "City";
+SHOW DATABASES;
 ]]>
 		</sql>
 	</item>
-
+	
+	<item name="CREATE DATABASE">
+		<description>Creates a new database</description>
+		<sql>
+<![CDATA[
+CREATE DATABASE Example;
+]]>
+		</sql>
+	</item>
+	
+	<item name="DROP DATABASE">
+		<description>Drops database if it exists</description>
+		<sql>
+<![CDATA[
+DROP DATABASE IF EXISTS 'Example';
+]]>
+		</sql>
+	</item>
+	
+	<item name="USE">
+		<description>The 'use' statements selects a database, which will be used in any subsequent queries as the current database</description>
+		<sql>
+<![CDATA[
+USE Test;
+]]>
+		</sql>
+	</item>
+	
+	<item name="SHOW TABLES">
+		<description>Shows all existing tables in the current database</description>
+		<sql>
+<![CDATA[
+SHOW TABLES;
+]]>
+		</sql>
+	</item>
+	
 	<item name="CREATE TABLE">
-		<description>
-		Creates a table called 'City' in the current DB.
-		Requires a database to be selected first (see the USE example).    
-		</description>
-		<sql> 
+		<description>Creates a table in the current database (requires USE statement)</description>
+		<sql>
 <![CDATA[
 CREATE TABLE "City" (
 	"ID"          int(11)  NOT NULL AUTO_INCREMENT,
@@ -27,4 +61,130 @@ CREATE TABLE "City" (
 ]]>
 		</sql>
 	</item>
+	
+	<item name="DROP TABLE">
+		<description>Drops a table if it exists</description>
+		<sql>
+<![CDATA[
+DROP TABLE IF EXISTS 'City';
+]]>
+		</sql>
+	</item>
+	
+	<item name="SHOW COLUMNS">
+		<description>Shows all columns in a table</description>
+		<sql>
+<![CDATA[
+SHOW COLUMNS IN 'City';
+]]>
+		</sql>
+	</item>
+
+	
+	<item name="SELECT">
+		<description>Shows the 10 order details which match a specific condition</description>
+		<sql>
+<![CDATA[
+SELECT 
+	orderNumber, quantityOrdered, priceEach 
+FROM 
+	orderdetails 
+WHERE 
+	priceEach > 30 
+ORDER BY 
+	quantityOrdered DESC 
+LIMIT 
+	10;
+]]>
+		</sql>
+	</item>
+	
+	<item name="UPDATE">
+		<description>Add 10 trains of each type to the set of available products</description>
+		<sql>
+<![CDATA[
+UPDATE 
+	products
+SET 
+	quantityInStock = quantityInStock + 10
+WHERE 
+	productLine = 'Trains';
+]]>
+		</sql>
+	</item>
+	
+	<item name="DELETE">
+		<description>Delete information about very old payments</description>
+		<sql>
+<![CDATA[
+DELETE FROM 
+	payments
+WHERE 
+	paymentDate < "2004-01-01";
+]]>
+		</sql>
+	</item>
+	
+	<item name="INSERT">
+		<description>Insert</description>
+		<sql>
+<![CDATA[
+INSERT INTO 
+	productLines
+	(productLine, textDescription)
+VALUES
+	('PCs', 'A personal computer is a general-purpose computer whose size, capabilities and original sale price make it useful for individuals, and is intended to be operated directly by an end-user with no intervening computer operator.'),
+	('Tablets', 'A tablet computer is a mobile computer with touch-screen display, circuitry and battery in a single unit. Tablets come equipped with sensors, including cameras, a microphone, an accelerometer and a touchscreen, with finger or stylus gestures substituting for the use of computer mouse and keyboard.');
+]]>
+
+		</sql>
+	</item>
+	<item name="SOURCE">
+		<description>SOURCE filename executes the contents of the specified file</description>
+		<sql>
+<![CDATA[
+SOURCE classicmodels.sql;
+]]>
+		</sql>
+	</item>
+	
+	<item name="BEGIN">
+		<description>
+			BEGIN starts a new transaction. Usage:
+			BEGIN; statements; COMMIT; - executes statements in a transaction, aborts if it encounters an error
+			BEGIN; statements; ROLLBACK; - reverts all changes made by statements
+		</description>
+		<sql>
+<![CDATA[
+BEGIN;
+]]>
+		</sql>
+	</item>
+	
+	<item name="COMMIT">
+		<description>
+			COMMIT - executes the current transaction or aborts it if it encounters an error
+			Requires BEGIN to start a transaction
+			Usage: BEGIN; statements; COMMIT;
+		</description>
+		<sql>
+<![CDATA[
+COMMIT;
+]]>
+		</sql>
+	</item>
+	
+	<item name="ROLLBACK">
+		<description>
+			ROLLBACK - aborts current transaction
+			Requires BEGIN to start a transaction
+			Usage: BEGIN; statements; ROLLBACK;
+		</description>
+		<sql>
+<![CDATA[
+ROLLBACK;
+]]>
+		</sql>
+	</item>
+
 </snippets>
