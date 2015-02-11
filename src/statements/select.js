@@ -444,7 +444,7 @@ STATEMENTS.SELECT = function(walker) {
 			tmp,
 			fld,
 			db,
-			i, y, l, j, f;
+			i, y, l, j, f, k;
 
 		//debugger;
 		
@@ -626,22 +626,24 @@ STATEMENTS.SELECT = function(walker) {
 
 		var rows2 = [];
 		
-		for ( i = 0; i < l; i++ ) {
-			
-			// Apply OFFSET
-			// -----------------------------------------------------------------
-			if (i < offset)
-				continue;
-
-			// Apply LIMIT -----------------------------------------------------
-			if (limit && i >= offset + limit)
-				continue;
+		for ( i = 0, k = 0; i < l; i++, k++ ) {
 
 			row = rows[i];
 
 			// Apply the "WHERE" conditions
 			// -----------------------------------------------------------------
-			if (query.where && !executeCondition(query.where, row))
+			if (query.where && !executeCondition(query.where, row)) {
+				k--;
+				continue;
+			}
+						
+			// Apply OFFSET
+			// -----------------------------------------------------------------
+			if (k < offset)
+				continue;
+
+			// Apply LIMIT -----------------------------------------------------
+			if (limit && k >= offset + limit)
 				continue;
 
 			// Exclude unused fields from the result rows
