@@ -173,6 +173,7 @@ function tokenize(sql, tokenCallback, openBlock, closeBlock, options) {
 			break;
 
 			// EOLs --------------------------------------------------------
+			case "\r":
 			case "\n":
 				line++;
 				if ( inStream && state !== TOKEN_TYPE_COMMENT ) {
